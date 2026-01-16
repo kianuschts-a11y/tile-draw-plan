@@ -1,159 +1,87 @@
-import { Component } from "@/types/schematic";
+import { Component, Shape } from "@/types/schematic";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Square, Circle, Triangle, Diamond, Minus, Box, Zap, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Plus, Trash2 } from "lucide-react";
+import { ShapeRenderer } from "./ShapeRenderer";
 
 interface ComponentLibraryProps {
-  onDragStart: (component: Component) => void;
+  components: Component[];
+  onCreateNew: () => void;
+  onDeleteComponent: (id: string) => void;
+  onDragStart: (e: React.DragEvent, component: Component) => void;
 }
 
-const defaultComponents: Component[] = [
-  {
-    id: 'basic-rect',
-    name: 'Rechteck',
-    width: 60,
-    height: 40,
-    shapes: [{ id: '1', type: 'rectangle', x: 0, y: 0, width: 60, height: 40 }]
-  },
-  {
-    id: 'basic-circle',
-    name: 'Kreis',
-    width: 40,
-    height: 40,
-    shapes: [{ id: '1', type: 'circle', x: 0, y: 0, width: 40, height: 40 }]
-  },
-  {
-    id: 'basic-triangle',
-    name: 'Dreieck',
-    width: 40,
-    height: 40,
-    shapes: [{ id: '1', type: 'triangle', x: 0, y: 0, width: 40, height: 40 }]
-  },
-  {
-    id: 'basic-diamond',
-    name: 'Raute',
-    width: 40,
-    height: 40,
-    shapes: [{ id: '1', type: 'diamond', x: 0, y: 0, width: 40, height: 40 }]
-  },
-  {
-    id: 'valve',
-    name: 'Ventil',
-    width: 40,
-    height: 40,
-    shapes: [
-      { id: '1', type: 'triangle', x: 0, y: 0, width: 20, height: 40 },
-      { id: '2', type: 'triangle', x: 20, y: 0, width: 20, height: 40 }
-    ]
-  },
-  {
-    id: 'pump',
-    name: 'Pumpe',
-    width: 60,
-    height: 60,
-    shapes: [
-      { id: '1', type: 'circle', x: 10, y: 10, width: 40, height: 40 },
-      { id: '2', type: 'triangle', x: 25, y: 0, width: 10, height: 15 }
-    ]
-  },
-  {
-    id: 'tank',
-    name: 'Tank',
-    width: 60,
-    height: 80,
-    shapes: [
-      { id: '1', type: 'rectangle', x: 0, y: 10, width: 60, height: 60 },
-      { id: '2', type: 'ellipse', x: 0, y: 0, width: 60, height: 20 },
-      { id: '3', type: 'ellipse', x: 0, y: 60, width: 60, height: 20 }
-    ]
-  },
-  {
-    id: 'motor',
-    name: 'Motor',
-    width: 60,
-    height: 40,
-    shapes: [
-      { id: '1', type: 'circle', x: 10, y: 0, width: 40, height: 40 },
-      { id: '2', type: 'rectangle', x: 0, y: 15, width: 15, height: 10 },
-      { id: '3', type: 'rectangle', x: 45, y: 15, width: 15, height: 10 }
-    ]
-  }
-];
+export function ComponentLibrary({ 
+  components, 
+  onCreateNew, 
+  onDeleteComponent,
+  onDragStart 
+}: ComponentLibraryProps) {
+  const renderComponentPreview = (component: Component) => {
+    const scale = Math.min(40 / component.width, 40 / component.height, 1);
+    const offsetX = (40 - component.width * scale) / 2;
+    const offsetY = (40 - component.height * scale) / 2;
 
-const iconMap: Record<string, React.ReactNode> = {
-  'basic-rect': <Square className="w-6 h-6" />,
-  'basic-circle': <Circle className="w-6 h-6" />,
-  'basic-triangle': <Triangle className="w-6 h-6" />,
-  'basic-diamond': <Diamond className="w-6 h-6" />,
-  'valve': <Box className="w-6 h-6" />,
-  'pump': <Settings className="w-6 h-6" />,
-  'tank': <Box className="w-6 h-6" />,
-  'motor': <Zap className="w-6 h-6" />
-};
+    return (
+      <svg width="40" height="40" className="component-tile">
+        <g transform={`translate(${offsetX}, ${offsetY}) scale(${scale})`}>
+          {component.shapes.map((shape, idx) => (
+            <ShapeRenderer key={idx} shape={shape} />
+          ))}
+        </g>
+      </svg>
+    );
+  };
 
-export function ComponentLibrary({ onDragStart }: ComponentLibraryProps) {
   return (
     <div className="toolbar-panel border-l w-64 flex flex-col">
       <div className="p-4 border-b">
-        <h2 className="font-semibold text-sm">Komponenten-Bibliothek</h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          Ziehen Sie Komponenten auf die Zeichenfläche
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-semibold text-sm">Komponenten</h2>
+          <Button size="sm" variant="outline" className="h-7 gap-1" onClick={onCreateNew}>
+            <Plus className="w-3 h-3" />
+            Neu
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Ziehen Sie Komponenten auf das Blatt
         </p>
       </div>
       
       <ScrollArea className="flex-1 p-3">
-        <div className="space-y-3">
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-              Grundformen
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {defaultComponents.slice(0, 4).map(component => (
-                <div
-                  key={component.id}
-                  className="library-item flex flex-col items-center gap-2"
-                  draggable
-                  onDragStart={() => onDragStart(component)}
+        <div className="grid grid-cols-2 gap-2">
+          {components.map(component => (
+            <div
+              key={component.id}
+              className="library-item flex flex-col items-center gap-2 relative group"
+              draggable
+              onDragStart={(e) => onDragStart(e, component)}
+            >
+              {renderComponentPreview(component)}
+              <span className="text-xs text-muted-foreground text-center truncate w-full">
+                {component.name}
+              </span>
+              {!component.id.startsWith('default-') && (
+                <button
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteComponent(component.id);
+                  }}
                 >
-                  {iconMap[component.id]}
-                  <span className="text-xs text-muted-foreground">{component.name}</span>
-                </div>
-              ))}
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
             </div>
-          </div>
-          
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-              Anlagen-Symbole
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {defaultComponents.slice(4).map(component => (
-                <div
-                  key={component.id}
-                  className="library-item flex flex-col items-center gap-2"
-                  draggable
-                  onDragStart={() => onDragStart(component)}
-                >
-                  <svg width="40" height="40" viewBox="0 0 60 60" className="component-tile">
-                    {component.shapes.map((shape, idx) => {
-                      switch (shape.type) {
-                        case 'rectangle':
-                          return <rect key={idx} x={shape.x} y={shape.y} width={shape.width} height={shape.height} />;
-                        case 'circle':
-                        case 'ellipse':
-                          return <ellipse key={idx} cx={shape.x + shape.width/2} cy={shape.y + shape.height/2} rx={shape.width/2} ry={shape.height/2} />;
-                        case 'triangle':
-                          return <polygon key={idx} points={`${shape.x + shape.width/2},${shape.y} ${shape.x},${shape.y + shape.height} ${shape.x + shape.width},${shape.y + shape.height}`} />;
-                        default:
-                          return null;
-                      }
-                    })}
-                  </svg>
-                  <span className="text-xs text-muted-foreground">{component.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
+
+        {components.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            <p className="text-sm">Keine Komponenten</p>
+            <p className="text-xs mt-1">Erstellen Sie eine neue Komponente</p>
+          </div>
+        )}
       </ScrollArea>
     </div>
   );
