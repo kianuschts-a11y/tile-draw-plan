@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MousePointer2, Square, Circle, Minus, Triangle, Diamond, 
   Trash2, RotateCw, FlipHorizontal, FlipVertical, Copy, 
@@ -855,12 +856,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Komponente erstellen</DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <ScrollArea className="flex-1 -mx-6 px-6">
+          <div className="space-y-4 pb-2">
           {/* Tile size selection */}
           <div className="space-y-2">
             <Label>Kachelgröße</Label>
@@ -1160,9 +1162,10 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
             </span>
             <span>{shapes.length} Elemente</span>
           </div>
-        </div>
+          </div>
+        </ScrollArea>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 pt-4 border-t">
           <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
           <Button onClick={handleSave} disabled={shapes.length === 0}>
             Komponente speichern
