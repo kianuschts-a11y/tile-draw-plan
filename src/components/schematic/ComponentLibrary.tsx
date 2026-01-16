@@ -9,6 +9,16 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ComponentLibraryProps {
   components: Component[];
@@ -57,6 +67,21 @@ export function ComponentLibrary({
   onUpdateComponent
 }: ComponentLibraryProps) {
   const previewSize = 50;
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
+
+  const handleDeleteClick = (component: Component) => {
+    setComponentToDelete(component);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (componentToDelete) {
+      onDeleteComponent(componentToDelete.id);
+    }
+    setDeleteConfirmOpen(false);
+    setComponentToDelete(null);
+  };
 
   return (
     <div className="toolbar-panel border-l w-64 flex flex-col">
@@ -104,7 +129,7 @@ export function ComponentLibrary({
                       className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onDeleteComponent(component.id);
+                        handleDeleteClick(component);
                       }}
                     >
                       <Trash2 className="w-3 h-3" />
@@ -119,7 +144,7 @@ export function ComponentLibrary({
                 </ContextMenuItem>
                 {!component.id.startsWith('default-') && (
                   <ContextMenuItem 
-                    onClick={() => onDeleteComponent(component.id)}
+                    onClick={() => handleDeleteClick(component)}
                     className="text-destructive"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
@@ -138,6 +163,25 @@ export function ComponentLibrary({
           </div>
         )}
       </ScrollArea>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Komponente löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie die Komponente "{componentToDelete?.name}" wirklich löschen? 
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
