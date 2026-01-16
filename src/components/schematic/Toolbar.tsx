@@ -4,12 +4,13 @@ import {
   Trash2,
   RotateCcw,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Link2
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
 
-type MainToolType = 'select' | 'pan';
+export type MainToolType = 'select' | 'pan' | 'connect';
 
 interface ToolbarProps {
   activeTool: MainToolType;
@@ -45,6 +46,13 @@ export function Toolbar({
         shortcut="H"
         isActive={activeTool === 'pan'}
         onClick={() => onToolChange('pan')}
+      />
+      <ToolButton
+        icon={Link2}
+        label="Verbinden"
+        shortcut="C"
+        isActive={activeTool === 'connect'}
+        onClick={() => onToolChange('connect')}
       />
       
       <Separator className="my-2 w-8" />
