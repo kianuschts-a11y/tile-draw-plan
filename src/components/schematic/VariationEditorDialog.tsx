@@ -52,41 +52,54 @@ const CONNECTION_TYPES: { type: ConnectionDirection; label: string; icon: React.
 ];
 
 // Generate the connection line shapes based on type
+// Lines go from edge to component boundary (0.1) not to center
 function generateConnectionShapes(type: ConnectionDirection): Shape[] {
-  const strokeWidth = 0.04; // 4% of tile
+  const edge = 0.1; // Where component shapes typically start
   
   switch (type) {
     case 'left':
-      return [{ id: generateId(), type: 'line', x: 0, y: 0.5, width: 0.5, height: 0, strokeWidth: 2 }];
+      // From left edge (0) to component boundary (0.1)
+      return [{ id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2 }];
     case 'right':
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 0.5, width: 0.5, height: 0, strokeWidth: 2 }];
+      // From component boundary (0.9) to right edge (1)
+      return [{ id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2 }];
     case 'top':
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: 0.5, strokeWidth: 2 }];
+      // From top edge (0) to component boundary (0.1)
+      return [{ id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2 }];
     case 'bottom':
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 0.5, width: 0, height: 0.5, strokeWidth: 2 }];
+      // From component boundary (0.9) to bottom edge (1)
+      return [{ id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2 }];
     case 'horizontal':
-      return [{ id: generateId(), type: 'line', x: 0, y: 0.5, width: 1, height: 0, strokeWidth: 2 }];
+      // Full horizontal line (both sides)
+      return [
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
+        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2 }
+      ];
     case 'vertical':
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: 1, strokeWidth: 2 }];
+      // Full vertical line (both sides)
+      return [
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2 },
+        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2 }
+      ];
     case 'corner-tl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: 0.5, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: 0.5, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2 }
       ];
     case 'corner-tr':
       return [
-        { id: generateId(), type: 'line', x: 0.5, y: 0.5, width: 0.5, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: 0.5, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2 }
       ];
     case 'corner-bl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: 0.5, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 0.5, width: 0, height: 0.5, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
+        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2 }
       ];
     case 'corner-br':
       return [
-        { id: generateId(), type: 'line', x: 0.5, y: 0.5, width: 0.5, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 0.5, width: 0, height: 0.5, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
+        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2 }
       ];
     default:
       return [];
