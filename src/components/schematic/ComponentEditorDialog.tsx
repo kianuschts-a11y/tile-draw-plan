@@ -137,11 +137,23 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     }
   }, [historyIndex, history]);
 
+  // Magnetischer Snap - Cursor springt zu Rasterpunkt wenn nah genug (Snap-Radius)
+  const snapRadius = gridSize * 0.4; // 40% der Rastergröße als Snap-Bereich
+  
   const snapPosition = (pos: Point): Point => {
     if (!snapToGrid) return pos;
+    
+    // Nächster Rasterpunkt
+    const nearestX = Math.round(pos.x / gridSize) * gridSize;
+    const nearestY = Math.round(pos.y / gridSize) * gridSize;
+    
+    // Magnetischer Effekt - nur snappen wenn innerhalb des Radius
+    const distX = Math.abs(pos.x - nearestX);
+    const distY = Math.abs(pos.y - nearestY);
+    
     return {
-      x: Math.round(pos.x / gridSize) * gridSize,
-      y: Math.round(pos.y / gridSize) * gridSize
+      x: distX <= snapRadius ? nearestX : pos.x,
+      y: distY <= snapRadius ? nearestY : pos.y
     };
   };
 
