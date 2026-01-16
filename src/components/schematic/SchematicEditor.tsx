@@ -1,15 +1,82 @@
 import { useState, useCallback, useEffect } from "react";
-import { Shape, ToolType, CanvasState, Component, PaperFormat, Orientation } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation } from "@/types/schematic";
 import { Toolbar } from "./Toolbar";
-import { Canvas } from "./Canvas";
+import { Canvas, PlacedTileType } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
 import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
+import { ComponentEditorDialog } from "./ComponentEditorDialog";
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 11);
+}
+
+// Default components
+const defaultComponents: Component[] = [
+  {
+    id: 'default-rect',
+    name: 'Rechteck',
+    width: 60,
+    height: 40,
+    shapes: [{ id: '1', type: 'rectangle', x: 0, y: 0, width: 60, height: 40, strokeWidth: 2 }]
+  },
+  {
+    id: 'default-circle',
+    name: 'Kreis',
+    width: 40,
+    height: 40,
+    shapes: [{ id: '1', type: 'circle', x: 0, y: 0, width: 40, height: 40, strokeWidth: 2 }]
+  },
+  {
+    id: 'default-valve',
+    name: 'Ventil',
+    width: 40,
+    height: 30,
+    shapes: [
+      { id: '1', type: 'triangle', x: 0, y: 0, width: 20, height: 30, strokeWidth: 2 },
+      { id: '2', type: 'triangle', x: 20, y: 0, width: 20, height: 30, strokeWidth: 2 }
+    ]
+  },
+  {
+    id: 'default-pump',
+    name: 'Pumpe',
+    width: 50,
+    height: 50,
+    shapes: [
+      { id: '1', type: 'circle', x: 5, y: 5, width: 40, height: 40, strokeWidth: 2 },
+      { id: '2', type: 'triangle', x: 20, y: 0, width: 10, height: 10, strokeWidth: 2 }
+    ]
+  },
+  {
+    id: 'default-tank',
+    name: 'Tank',
+    width: 60,
+    height: 80,
+    shapes: [
+      { id: '1', type: 'rectangle', x: 0, y: 10, width: 60, height: 60, strokeWidth: 2 },
+      { id: '2', type: 'ellipse', x: 0, y: 0, width: 60, height: 20, strokeWidth: 2 },
+      { id: '3', type: 'ellipse', x: 0, y: 60, width: 60, height: 20, strokeWidth: 2 }
+    ]
+  },
+  {
+    id: 'default-motor',
+    name: 'Motor',
+    width: 60,
+    height: 40,
+    shapes: [
+      { id: '1', type: 'circle', x: 10, y: 0, width: 40, height: 40, strokeWidth: 2 },
+      { id: '2', type: 'rectangle', x: 0, y: 15, width: 12, height: 10, strokeWidth: 2 },
+      { id: '3', type: 'rectangle', x: 48, y: 15, width: 12, height: 10, strokeWidth: 2 }
+    ]
+  }
+];
 
 export function SchematicEditor() {
-  const [shapes, setShapes] = useState<Shape[]>([]);
-  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
-  const [activeTool, setActiveTool] = useState<ToolType>('select');
+  const [tiles, setTiles] = useState<PlacedTileType[]>([]);
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<'select' | 'pan'>('select');
+  const [components, setComponents] = useState<Component[]>(defaultComponents);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -43,11 +110,11 @@ export function SchematicEditor() {
   }, []);
 
   const handleDelete = useCallback(() => {
-    if (selectedShapeId) {
-      setShapes(prev => prev.filter(s => s.id !== selectedShapeId));
-      setSelectedShapeId(null);
+    if (selectedTileId) {
+      setTiles(prev => prev.filter(t => t.id !== selectedTileId));
+      setSelectedTileId(null);
     }
-  }, [selectedShapeId]);
+  }, [selectedTileId]);
 
   const handlePaperFormatChange = useCallback((format: PaperFormat) => {
     setCanvasState(prev => ({ ...prev, paperFormat: format }));
@@ -61,16 +128,38 @@ export function SchematicEditor() {
     setCanvasState(prev => ({ ...prev, gridSize }));
   }, []);
 
-  const handleComponentDragStart = useCallback((component: Component) => {
-    // Component drag is handled by the library
+  const handleDragStart = useCallback((e: React.DragEvent, component: Component) => {
+    e.dataTransfer.setData('application/json', JSON.stringify(component));
+    e.dataTransfer.effectAllowed = 'copy';
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    // Handle component drop - add shapes to canvas
+  const handleDropComponent = useCallback((component: Component, x: number, y: number) => {
+    const newTile: PlacedTileType = {
+      id: generateId(),
+      component,
+      x,
+      y
+    };
+    setTiles(prev => [...prev, newTile]);
+    setSelectedTileId(newTile.id);
   }, []);
 
-  // Keyboard shortcuts for tools
+  const handleSaveComponent = useCallback((name: string, shapes: Shape[], width: number, height: number) => {
+    const newComponent: Component = {
+      id: generateId(),
+      name,
+      shapes,
+      width,
+      height
+    };
+    setComponents(prev => [...prev, newComponent]);
+  }, []);
+
+  const handleDeleteComponent = useCallback((id: string) => {
+    setComponents(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
@@ -81,21 +170,6 @@ export function SchematicEditor() {
           break;
         case 'h':
           setActiveTool('pan');
-          break;
-        case 'r':
-          setActiveTool('rectangle');
-          break;
-        case 'c':
-          setActiveTool('circle');
-          break;
-        case 'l':
-          setActiveTool('line');
-          break;
-        case 't':
-          setActiveTool('triangle');
-          break;
-        case 'd':
-          setActiveTool('diamond');
           break;
         case '+':
         case '=':
@@ -135,7 +209,6 @@ export function SchematicEditor() {
         
         <div className="h-8 w-px bg-border mx-2" />
         
-        {/* Paper Settings */}
         <PaperSettings
           paperFormat={canvasState.paperFormat}
           orientation={canvasState.orientation}
@@ -158,7 +231,6 @@ export function SchematicEditor() {
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left toolbar */}
         <Toolbar
           activeTool={activeTool}
           onToolChange={setActiveTool}
@@ -166,31 +238,40 @@ export function SchematicEditor() {
           onZoomOut={handleZoomOut}
           onResetView={handleResetView}
           onDelete={handleDelete}
-          hasSelection={!!selectedShapeId}
+          hasSelection={!!selectedTileId}
         />
 
-        {/* Canvas */}
-        <div className="flex-1 overflow-hidden" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+        <div className="flex-1 overflow-hidden">
           <Canvas
-            shapes={shapes}
-            selectedShapeId={selectedShapeId}
+            tiles={tiles}
+            selectedTileId={selectedTileId}
             activeTool={activeTool}
             canvasState={canvasState}
-            onShapesChange={setShapes}
-            onSelectionChange={setSelectedShapeId}
+            onTilesChange={setTiles}
+            onSelectionChange={setSelectedTileId}
             onCanvasStateChange={setCanvasState}
+            onDropComponent={handleDropComponent}
           />
         </div>
 
-        {/* Right panel - Component Library */}
-        <ComponentLibrary onDragStart={handleComponentDragStart} />
+        <ComponentLibrary
+          components={components}
+          onCreateNew={() => setIsEditorOpen(true)}
+          onDeleteComponent={handleDeleteComponent}
+          onDragStart={handleDragStart}
+        />
       </div>
 
-      {/* Status bar */}
       <StatusBar
         canvasState={canvasState}
-        shapeCount={shapes.length}
-        selectedShape={selectedShapeId}
+        shapeCount={tiles.length}
+        selectedShape={selectedTileId}
+      />
+
+      <ComponentEditorDialog
+        open={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        onSave={handleSaveComponent}
       />
     </div>
   );

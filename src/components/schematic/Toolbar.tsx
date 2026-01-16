@@ -1,23 +1,19 @@
 import { 
   MousePointer2, 
   Hand, 
-  Square, 
-  Circle, 
-  Minus, 
-  Triangle, 
-  Diamond,
   Trash2,
   RotateCcw,
   ZoomIn,
   ZoomOut
 } from "lucide-react";
-import { ToolType } from "@/types/schematic";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
 
+type MainToolType = 'select' | 'pan';
+
 interface ToolbarProps {
-  activeTool: ToolType;
-  onToolChange: (tool: ToolType) => void;
+  activeTool: MainToolType;
+  onToolChange: (tool: MainToolType) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetView: () => void;
@@ -49,44 +45,6 @@ export function Toolbar({
         shortcut="H"
         isActive={activeTool === 'pan'}
         onClick={() => onToolChange('pan')}
-      />
-      
-      <Separator className="my-2 w-8" />
-      
-      <ToolButton
-        icon={Square}
-        label="Rechteck"
-        shortcut="R"
-        isActive={activeTool === 'rectangle'}
-        onClick={() => onToolChange('rectangle')}
-      />
-      <ToolButton
-        icon={Circle}
-        label="Kreis"
-        shortcut="C"
-        isActive={activeTool === 'circle'}
-        onClick={() => onToolChange('circle')}
-      />
-      <ToolButton
-        icon={Minus}
-        label="Linie"
-        shortcut="L"
-        isActive={activeTool === 'line'}
-        onClick={() => onToolChange('line')}
-      />
-      <ToolButton
-        icon={Triangle}
-        label="Dreieck"
-        shortcut="T"
-        isActive={activeTool === 'triangle'}
-        onClick={() => onToolChange('triangle')}
-      />
-      <ToolButton
-        icon={Diamond}
-        label="Raute"
-        shortcut="D"
-        isActive={activeTool === 'diamond'}
-        onClick={() => onToolChange('diamond')}
       />
       
       <Separator className="my-2 w-8" />
