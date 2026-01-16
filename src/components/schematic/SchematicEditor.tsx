@@ -12,65 +12,8 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
-// Default components with normalized shapes (0-1 range)
-const defaultComponents: Component[] = [
-  {
-    id: 'default-rect',
-    name: 'Rechteck',
-    width: 1,
-    height: 1,
-    shapes: [{ id: '1', type: 'rectangle', x: 0.1, y: 0.1, width: 0.8, height: 0.8, strokeWidth: 2 }]
-  },
-  {
-    id: 'default-circle',
-    name: 'Kreis',
-    width: 1,
-    height: 1,
-    shapes: [{ id: '1', type: 'circle', x: 0.1, y: 0.1, width: 0.8, height: 0.8, strokeWidth: 2 }]
-  },
-  {
-    id: 'default-valve',
-    name: 'Ventil',
-    width: 1,
-    height: 1,
-    shapes: [
-      { id: '1', type: 'triangle', x: 0.05, y: 0.15, width: 0.45, height: 0.7, strokeWidth: 2 },
-      { id: '2', type: 'triangle', x: 0.5, y: 0.15, width: 0.45, height: 0.7, strokeWidth: 2 }
-    ]
-  },
-  {
-    id: 'default-pump',
-    name: 'Pumpe',
-    width: 1,
-    height: 1,
-    shapes: [
-      { id: '1', type: 'circle', x: 0.15, y: 0.15, width: 0.7, height: 0.7, strokeWidth: 2 },
-      { id: '2', type: 'triangle', x: 0.4, y: 0.05, width: 0.2, height: 0.15, strokeWidth: 2 }
-    ]
-  },
-  {
-    id: 'default-tank',
-    name: 'Tank',
-    width: 1,
-    height: 1,
-    shapes: [
-      { id: '1', type: 'rectangle', x: 0.15, y: 0.2, width: 0.7, height: 0.6, strokeWidth: 2 },
-      { id: '2', type: 'ellipse', x: 0.15, y: 0.1, width: 0.7, height: 0.2, strokeWidth: 2 },
-      { id: '3', type: 'ellipse', x: 0.15, y: 0.7, width: 0.7, height: 0.2, strokeWidth: 2 }
-    ]
-  },
-  {
-    id: 'default-motor',
-    name: 'Motor',
-    width: 1,
-    height: 1,
-    shapes: [
-      { id: '1', type: 'circle', x: 0.2, y: 0.2, width: 0.6, height: 0.6, strokeWidth: 2 },
-      { id: '2', type: 'rectangle', x: 0.05, y: 0.4, width: 0.18, height: 0.2, strokeWidth: 2 },
-      { id: '3', type: 'rectangle', x: 0.77, y: 0.4, width: 0.18, height: 0.2, strokeWidth: 2 }
-    ]
-  }
-];
+// No default components - start with empty library
+const defaultComponents: Component[] = [];
 
 const STORAGE_KEY = 'schematic-editor-components';
 
@@ -79,22 +22,17 @@ function loadComponentsFromStorage(): Component[] {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const userComponents = JSON.parse(stored) as Component[];
-      // Merge default components with user components (avoid duplicates)
-      const defaultIds = defaultComponents.map(c => c.id);
-      const filteredUserComponents = userComponents.filter(c => !defaultIds.includes(c.id));
-      return [...defaultComponents, ...filteredUserComponents];
+      return userComponents;
     }
   } catch (e) {
     console.error('Failed to load components from storage:', e);
   }
-  return defaultComponents;
+  return [];
 }
 
 function saveComponentsToStorage(components: Component[]) {
   try {
-    // Only save non-default components
-    const userComponents = components.filter(c => !c.id.startsWith('default-'));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(userComponents));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(components));
   } catch (e) {
     console.error('Failed to save components to storage:', e);
   }
