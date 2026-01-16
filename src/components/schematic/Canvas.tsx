@@ -209,22 +209,23 @@ export function Canvas({
     const compWidth = (component.width || 1) * tileSize;
     const compHeight = (component.height || 1) * tileSize;
     
-    // Scale factor for width/height - shapes are normalized to editor canvas size (300px base)
-    const baseEditorSize = 300;
-    const scaleFactorX = compWidth / baseEditorSize;
-    const scaleFactorY = compHeight / baseEditorSize;
+    // Berechne den Referenz-Skalierungsfaktor basierend auf der kleineren Dimension
+    // Dies stellt sicher, dass Linienbreiten und Text proportional bleiben
+    const refScale = Math.min(compWidth, compHeight);
     
     return component.shapes.map((shape, idx) => {
       // Scale normalized shapes (0-1) to actual component size
-      // But for fontSize, we need to use the actual stored value and scale proportionally
       const scaledShape: Shape = {
         ...shape,
         x: shape.x * compWidth,
         y: shape.y * compHeight,
         width: shape.width * compWidth,
         height: shape.height * compHeight,
-        // fontSize is stored as normalized (e.g., 14/300), so multiply by compWidth to get actual size
-        fontSize: shape.fontSize ? shape.fontSize * compWidth : undefined
+        // strokeWidth, fontSize und arrowSize wurden als Bruchteil der baseCanvasSize (300) gespeichert
+        // Skaliere proportional zur Referenzgröße
+        strokeWidth: shape.strokeWidth ? shape.strokeWidth * refScale : undefined,
+        fontSize: shape.fontSize ? shape.fontSize * refScale : undefined,
+        arrowSize: shape.arrowSize ? shape.arrowSize * refScale : undefined
       };
       return <ShapeRenderer key={idx} shape={scaledShape} />;
     });

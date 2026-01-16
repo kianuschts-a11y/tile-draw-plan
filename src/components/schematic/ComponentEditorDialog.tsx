@@ -699,12 +699,22 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
   const handleSave = () => {
     if (shapes.length === 0) return;
+    // Normalisiere immer auf Basis der baseCanvasSize (300px), 
+    // damit alle Formen unabhängig von der Tile-Größe gleich skaliert werden
+    // Wir verwenden die tatsächliche Canvas-Größe für die Normalisierung
     const normalizedShapes = shapes.map(s => ({
       ...s,
+      // Normalisiere auf 0-1 Bereich relativ zur jeweiligen Achse
       x: s.x / canvasWidth,
       y: s.y / canvasHeight,
       width: s.width / canvasWidth,
       height: s.height / canvasHeight,
+      // Speichere strokeWidth als Bruchteil der Canvas-Breite für proportionale Skalierung
+      strokeWidth: s.strokeWidth ? s.strokeWidth / baseCanvasSize : undefined,
+      // Speichere fontSize als Bruchteil der Canvas-Breite für proportionale Skalierung  
+      fontSize: s.fontSize ? s.fontSize / baseCanvasSize : undefined,
+      // Speichere arrowSize als Bruchteil der Canvas-Breite
+      arrowSize: s.arrowSize ? s.arrowSize / baseCanvasSize : undefined,
       points: s.points?.map(p => ({ x: p.x / canvasWidth, y: p.y / canvasHeight }))
     }));
     onSave(name, normalizedShapes, componentTileSize);
