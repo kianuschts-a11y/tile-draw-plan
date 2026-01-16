@@ -134,6 +134,11 @@ export function SchematicEditor() {
     setComponents(prev => prev.filter(c => c.id !== id));
   }, []);
 
+  const handleClearAllComponents = useCallback(() => {
+    setComponents([]);
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
+
   const handleEditVariations = useCallback((component: Component) => {
     setVariationEditorComponent(component);
   }, []);
@@ -243,6 +248,7 @@ export function SchematicEditor() {
           components={components}
           onCreateNew={() => setIsEditorOpen(true)}
           onDeleteComponent={handleDeleteComponent}
+          onClearAll={handleClearAllComponents}
           onDragStart={handleDragStart}
           onEditVariations={handleEditVariations}
           onUpdateComponent={handleUpdateComponent}
