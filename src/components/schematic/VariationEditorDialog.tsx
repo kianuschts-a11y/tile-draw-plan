@@ -370,12 +370,12 @@ export function VariationEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl h-[80vh]">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Varianten für "{component.name}"</DialogTitle>
         </DialogHeader>
 
-        <div className="flex gap-4 h-full overflow-hidden">
+        <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
           {/* Left panel - Connection types */}
           <div className="w-64 flex flex-col gap-3">
             <Label className="text-sm font-medium">Verbindungstyp hinzufügen</Label>
@@ -405,7 +405,7 @@ export function VariationEditorDialog({
           <Separator orientation="vertical" />
 
           {/* Right panel - Preview and list */}
-          <div className="flex-1 flex flex-col gap-4">
+          <div className="flex-1 flex flex-col gap-4 min-h-0 overflow-hidden">
             {/* Base component preview */}
             <div className="flex items-center gap-4">
               <div className="text-sm font-medium">Basis-Komponente ({tileWidth}x{tileHeight}):</div>
@@ -544,7 +544,7 @@ export function VariationEditorDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="flex justify-end gap-2 pt-4 border-t flex-shrink-0">
           <Button variant="outline" onClick={onClose}>
             Abbrechen
           </Button>
