@@ -24,6 +24,7 @@ interface ComponentLibraryProps {
   components: Component[];
   onCreateNew: () => void;
   onDeleteComponent: (id: string) => void;
+  onClearAll: () => void;
   onDragStart: (e: React.DragEvent, component: Component) => void;
   onEditVariations: (component: Component) => void;
   onUpdateComponent: (component: Component) => void;
@@ -102,6 +103,7 @@ export function ComponentLibrary({
   components, 
   onCreateNew, 
   onDeleteComponent,
+  onClearAll,
   onDragStart,
   onEditVariations,
   onUpdateComponent
@@ -109,6 +111,7 @@ export function ComponentLibrary({
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
+  const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
 
   const handleDeleteClick = (component: Component) => {
     setComponentToDelete(component);
@@ -123,15 +126,27 @@ export function ComponentLibrary({
     setComponentToDelete(null);
   };
 
+  const confirmClearAll = () => {
+    onClearAll();
+    setClearAllConfirmOpen(false);
+  };
+
   return (
     <div className="toolbar-panel border-l w-64 flex flex-col">
       <div className="p-4 border-b">
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-semibold text-sm">Komponenten</h2>
-          <Button size="sm" variant="outline" className="h-7 gap-1" onClick={onCreateNew}>
-            <Plus className="w-3 h-3" />
-            Neu
-          </Button>
+          <div className="flex gap-1">
+            {components.length > 0 && (
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => setClearAllConfirmOpen(true)}>
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            )}
+            <Button size="sm" variant="outline" className="h-7 gap-1" onClick={onCreateNew}>
+              <Plus className="w-3 h-3" />
+              Neu
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
           Rechtsklick für Varianten
@@ -234,6 +249,25 @@ export function ComponentLibrary({
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear All Confirmation Dialog */}
+      <AlertDialog open={clearAllConfirmOpen} onOpenChange={setClearAllConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alle Komponenten löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie wirklich alle {components.length} Komponenten löschen? 
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClearAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Alle löschen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
