@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES } from "@/types/schematic";
-import { Toolbar } from "./Toolbar";
+import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
 import { StatusBar } from "./StatusBar";
@@ -11,9 +11,6 @@ import { VariationEditorDialog } from "./VariationEditorDialog";
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
-
-// No default components - start with empty library
-const defaultComponents: Component[] = [];
 
 const STORAGE_KEY = 'schematic-editor-components';
 
@@ -41,7 +38,7 @@ function saveComponentsToStorage(components: Component[]) {
 export function SchematicEditor() {
   const [tiles, setTiles] = useState<PlacedTile[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
-  const [activeTool, setActiveTool] = useState<'select' | 'pan'>('select');
+  const [activeTool, setActiveTool] = useState<MainToolType>('select');
   const [components, setComponents] = useState<Component[]>(loadComponentsFromStorage);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
@@ -174,6 +171,9 @@ export function SchematicEditor() {
         case 'h':
           setActiveTool('pan');
           break;
+        case 'c':
+          setActiveTool('connect');
+          break;
         case '+':
         case '=':
           handleZoomIn();
@@ -229,6 +229,9 @@ export function SchematicEditor() {
           <span className="mx-1">•</span>
           <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">H</kbd>
           <span>Verschieben</span>
+          <span className="mx-1">•</span>
+          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">C</kbd>
+          <span>Verbinden</span>
         </div>
       </header>
 
