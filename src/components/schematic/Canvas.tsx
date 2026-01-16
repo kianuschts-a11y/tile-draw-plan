@@ -9,6 +9,7 @@ export interface PlacedTile {
   gridX: number; // Grid cell X position
   gridY: number; // Grid cell Y position
   activeVariationId?: string; // Active variation for this tile
+  connectedDirections?: ConnectionDirection[]; // Track which directions are connected
 }
 
 interface CanvasProps {
@@ -56,22 +57,53 @@ function getConnectionDirection(
   return null; // Not adjacent
 }
 
-// Find the best variation for a given direction
-function findVariationForDirection(component: Component, direction: ConnectionDirection): string | null {
-  if (!component.variations) return null;
+// Determine which corner variation to use based on connected directions
+function getCornerType(directions: ConnectionDirection[]): ConnectionDirection | null {
+  const hasLeft = directions.includes('left');
+  const hasRight = directions.includes('right');
+  const hasTop = directions.includes('top');
+  const hasBottom = directions.includes('bottom');
   
-  // Look for exact match first
-  const exactMatch = component.variations.find(v => v.connectionType === direction);
-  if (exactMatch) return exactMatch.id;
+  // Corner combinations
+  if (hasTop && hasLeft) return 'corner-tl';
+  if (hasTop && hasRight) return 'corner-tr';
+  if (hasBottom && hasLeft) return 'corner-bl';
+  if (hasBottom && hasRight) return 'corner-br';
   
-  // Look for horizontal/vertical that includes this direction
-  if (direction === 'left' || direction === 'right') {
-    const horizontal = component.variations.find(v => v.connectionType === 'horizontal');
-    if (horizontal) return horizontal.id;
+  // Horizontal/vertical through connections
+  if (hasLeft && hasRight) return 'horizontal';
+  if (hasTop && hasBottom) return 'vertical';
+  
+  return null;
+}
+
+// Find the best variation for given connected directions
+function findVariationForDirections(component: Component, directions: ConnectionDirection[]): string | null {
+  if (!component.variations || directions.length === 0) return null;
+  
+  // If only one direction, find simple match
+  if (directions.length === 1) {
+    const dir = directions[0];
+    const exactMatch = component.variations.find(v => v.connectionType === dir);
+    if (exactMatch) return exactMatch.id;
+    
+    // Fallback to horizontal/vertical
+    if (dir === 'left' || dir === 'right') {
+      const horizontal = component.variations.find(v => v.connectionType === 'horizontal');
+      if (horizontal) return horizontal.id;
+    }
+    if (dir === 'top' || dir === 'bottom') {
+      const vertical = component.variations.find(v => v.connectionType === 'vertical');
+      if (vertical) return vertical.id;
+    }
+    return null;
   }
-  if (direction === 'top' || direction === 'bottom') {
-    const vertical = component.variations.find(v => v.connectionType === 'vertical');
-    if (vertical) return vertical.id;
+  
+  // Multiple directions - find corner or through connection
+  const combinedType = getCornerType(directions);
+  if (combinedType) {
+    const match = component.variations.find(v => v.connectionType === combinedType);
+    if (match) return match.id;
   }
   
   return null;
@@ -180,22 +212,37 @@ export function Canvas({
     return true;
   }, [gridCols, gridRows, isPositionOccupied]);
 
-  // Connect two tiles by setting their variations
+  // Connect two tiles by setting their variations (with corner detection)
   const connectTiles = useCallback((fromTile: PlacedTile, toTile: PlacedTile) => {
     const directions = getConnectionDirection(fromTile, toTile);
     if (!directions) return; // Not adjacent
     
-    const fromVariation = findVariationForDirection(fromTile.component, directions.fromDirection);
-    const toVariation = findVariationForDirection(toTile.component, directions.toDirection);
-    
-    if (!fromVariation && !toVariation) return; // No applicable variations
-    
     onTilesChange(tiles.map(t => {
-      if (t.id === fromTile.id && fromVariation) {
-        return { ...t, activeVariationId: fromVariation };
+      if (t.id === fromTile.id) {
+        // Add new direction to existing connected directions
+        const existingDirs = t.connectedDirections || [];
+        const newDirs = existingDirs.includes(directions.fromDirection) 
+          ? existingDirs 
+          : [...existingDirs, directions.fromDirection];
+        const variation = findVariationForDirections(t.component, newDirs);
+        return { 
+          ...t, 
+          connectedDirections: newDirs,
+          activeVariationId: variation || t.activeVariationId 
+        };
       }
-      if (t.id === toTile.id && toVariation) {
-        return { ...t, activeVariationId: toVariation };
+      if (t.id === toTile.id) {
+        // Add new direction to existing connected directions
+        const existingDirs = t.connectedDirections || [];
+        const newDirs = existingDirs.includes(directions.toDirection) 
+          ? existingDirs 
+          : [...existingDirs, directions.toDirection];
+        const variation = findVariationForDirections(t.component, newDirs);
+        return { 
+          ...t, 
+          connectedDirections: newDirs,
+          activeVariationId: variation || t.activeVariationId 
+        };
       }
       return t;
     }));
