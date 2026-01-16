@@ -586,13 +586,15 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
           const newShapes = [...shapes, currentShape];
           setShapes(newShapes);
           pushHistory(newShapes);
-          setSelectedShapeIds([currentShape.id]);
+          // Auswahl zurücksetzen nach Platzierung
+          setSelectedShapeIds([]);
         }
       } else if (currentShape.width > 0 && currentShape.height > 0) {
         const newShapes = [...shapes, currentShape];
         setShapes(newShapes);
         pushHistory(newShapes);
-        setSelectedShapeIds([currentShape.id]);
+        // Auswahl zurücksetzen nach Platzierung
+        setSelectedShapeIds([]);
       }
     }
     setIsDrawing(false);
@@ -815,16 +817,16 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       }
 
       switch (e.key.toLowerCase()) {
-        case 'v': setActiveTool('select'); break;
-        case 'r': setActiveTool('rectangle'); break;
-        case 'c': setActiveTool('circle'); break;
-        case 'l': setActiveTool('line'); break;
-        case 'w': setActiveTool('arrow'); break;
-        case 't': setActiveTool('triangle'); break;
-        case 'd': setActiveTool('diamond'); break;
-        case 'p': setActiveTool('polyline'); break;
-        case 'a': setActiveTool('arc'); break;
-        case 'x': setActiveTool('text'); break;
+        case 'v': setActiveTool('select'); setSelectedShapeIds([]); break;
+        case 'r': setActiveTool('rectangle'); setSelectedShapeIds([]); break;
+        case 'c': setActiveTool('circle'); setSelectedShapeIds([]); break;
+        case 'l': setActiveTool('line'); setSelectedShapeIds([]); break;
+        case 'w': setActiveTool('arrow'); setSelectedShapeIds([]); break;
+        case 't': setActiveTool('triangle'); setSelectedShapeIds([]); break;
+        case 'd': setActiveTool('diamond'); setSelectedShapeIds([]); break;
+        case 'p': setActiveTool('polyline'); setSelectedShapeIds([]); break;
+        case 'a': setActiveTool('arc'); setSelectedShapeIds([]); break;
+        case 'x': setActiveTool('text'); setSelectedShapeIds([]); break;
         case 'g': setSnapToGrid(!snapToGrid); break;
         case 'delete':
         case 'backspace':
@@ -1000,17 +1002,17 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
         
         {/* Toolbar - kompakt oben */}
         <div className="flex items-center gap-1 p-1.5 bg-muted/50 rounded-lg flex-wrap">
-          <ToolBtn icon={MousePointer2} label="Auswählen" shortcut="V" isActive={activeTool === 'select'} onClick={() => setActiveTool('select')} />
+          <ToolBtn icon={MousePointer2} label="Auswählen" shortcut="V" isActive={activeTool === 'select'} onClick={() => { setActiveTool('select'); setSelectedShapeIds([]); }} />
           <Separator orientation="vertical" className="h-5 mx-0.5" />
-          <ToolBtn icon={Square} label="Rechteck" shortcut="R" isActive={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} />
-          <ToolBtn icon={Circle} label="Kreis" shortcut="C" isActive={activeTool === 'circle'} onClick={() => setActiveTool('circle')} />
-          <ToolBtn icon={Minus} label="Linie" shortcut="L" isActive={activeTool === 'line'} onClick={() => setActiveTool('line')} />
-          <ToolBtn icon={ArrowRight} label="Pfeil" shortcut="W" isActive={activeTool === 'arrow'} onClick={() => setActiveTool('arrow')} />
-          <ToolBtn icon={Triangle} label="Dreieck" shortcut="T" isActive={activeTool === 'triangle'} onClick={() => setActiveTool('triangle')} />
-          <ToolBtn icon={Diamond} label="Raute" shortcut="D" isActive={activeTool === 'diamond'} onClick={() => setActiveTool('diamond')} />
-          <ToolBtn icon={Spline} label="Polylinie" shortcut="P" isActive={activeTool === 'polyline'} onClick={() => setActiveTool('polyline')} />
-          <ToolBtn icon={CircleDot} label="Bogen" shortcut="A" isActive={activeTool === 'arc'} onClick={() => setActiveTool('arc')} />
-          <ToolBtn icon={Type} label="Text" shortcut="X" isActive={activeTool === 'text'} onClick={() => setActiveTool('text')} />
+          <ToolBtn icon={Square} label="Rechteck" shortcut="R" isActive={activeTool === 'rectangle'} onClick={() => { setActiveTool('rectangle'); setSelectedShapeIds([]); }} />
+          <ToolBtn icon={Circle} label="Kreis" shortcut="C" isActive={activeTool === 'circle'} onClick={() => { setActiveTool('circle'); setSelectedShapeIds([]); }} />
+          <ToolBtn icon={Minus} label="Linie" shortcut="L" isActive={activeTool === 'line'} onClick={() => { setActiveTool('line'); setSelectedShapeIds([]); }} />
+          <ToolBtn icon={ArrowRight} label="Pfeil" shortcut="W" isActive={activeTool === 'arrow'} onClick={() => { setActiveTool('arrow'); setSelectedShapeIds([]); }} />
+          <ToolBtn icon={Triangle} label="Dreieck" shortcut="T" isActive={activeTool === 'triangle'} onClick={() => { setActiveTool('triangle'); setSelectedShapeIds([]); }} />
+          <ToolBtn icon={Diamond} label="Raute" shortcut="D" isActive={activeTool === 'diamond'} onClick={() => { setActiveTool('diamond'); setSelectedShapeIds([]); }} />
+          <ToolBtn icon={Spline} label="Polylinie" shortcut="P" isActive={activeTool === 'polyline'} onClick={() => { setActiveTool('polyline'); setSelectedShapeIds([]); }} />
+          <ToolBtn icon={CircleDot} label="Bogen" shortcut="A" isActive={activeTool === 'arc'} onClick={() => { setActiveTool('arc'); setSelectedShapeIds([]); }} />
+          <ToolBtn icon={Type} label="Text" shortcut="X" isActive={activeTool === 'text'} onClick={() => { setActiveTool('text'); setSelectedShapeIds([]); }} />
           <Separator orientation="vertical" className="h-5 mx-0.5" />
           <ToolBtn icon={Undo2} label="Rückgängig" shortcut="Ctrl+Z" onClick={undo} disabled={historyIndex <= 0} />
           <ToolBtn icon={Redo2} label="Wiederholen" shortcut="Ctrl+Y" onClick={redo} disabled={historyIndex >= history.length - 1} />
