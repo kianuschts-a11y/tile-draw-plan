@@ -1,13 +1,22 @@
+import { useState } from "react";
 import { Component, Shape } from "@/types/schematic";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Settings2 } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 interface ComponentLibraryProps {
   components: Component[];
   onCreateNew: () => void;
   onDeleteComponent: (id: string) => void;
   onDragStart: (e: React.DragEvent, component: Component) => void;
+  onEditVariations: (component: Component) => void;
+  onUpdateComponent: (component: Component) => void;
 }
 
 function renderShape(shape: Shape, scale: number = 50) {
@@ -43,7 +52,9 @@ export function ComponentLibrary({
   components, 
   onCreateNew, 
   onDeleteComponent,
-  onDragStart 
+  onDragStart,
+  onEditVariations,
+  onUpdateComponent
 }: ComponentLibraryProps) {
   const previewSize = 50;
 
@@ -58,41 +69,65 @@ export function ComponentLibrary({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Ziehen Sie Kacheln auf das Raster
+          Rechtsklick für Varianten
         </p>
       </div>
       
       <ScrollArea className="flex-1 p-3">
         <div className="grid grid-cols-2 gap-2">
           {components.map(component => (
-            <div
-              key={component.id}
-              className="library-item flex flex-col items-center gap-2 relative group"
-              draggable
-              onDragStart={(e) => onDragStart(e, component)}
-            >
-              <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-muted-foreground/30 rounded bg-white">
-                <svg width={previewSize} height={previewSize}>
-                  {component.shapes.map((shape, idx) => (
-                    <g key={idx}>{renderShape(shape, previewSize)}</g>
-                  ))}
-                </svg>
-              </div>
-              <span className="text-xs text-muted-foreground text-center truncate w-full">
-                {component.name}
-              </span>
-              {!component.id.startsWith('default-') && (
-                <button
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteComponent(component.id);
-                  }}
+            <ContextMenu key={component.id}>
+              <ContextMenuTrigger>
+                <div
+                  className="library-item flex flex-col items-center gap-2 relative group"
+                  draggable
+                  onDragStart={(e) => onDragStart(e, component)}
                 >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              )}
-            </div>
+                  <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-muted-foreground/30 rounded bg-white relative">
+                    <svg width={previewSize} height={previewSize}>
+                      {component.shapes.map((shape, idx) => (
+                        <g key={idx}>{renderShape(shape, previewSize)}</g>
+                      ))}
+                    </svg>
+                    {/* Variation indicator */}
+                    {component.variations && component.variations.length > 0 && (
+                      <div className="absolute -top-1 -left-1 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
+                        {component.variations.length}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground text-center truncate w-full">
+                    {component.name}
+                  </span>
+                  {!component.id.startsWith('default-') && (
+                    <button
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteComponent(component.id);
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={() => onEditVariations(component)}>
+                  <Settings2 className="w-4 h-4 mr-2" />
+                  Varianten bearbeiten
+                </ContextMenuItem>
+                {!component.id.startsWith('default-') && (
+                  <ContextMenuItem 
+                    onClick={() => onDeleteComponent(component.id)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Löschen
+                  </ContextMenuItem>
+                )}
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
         </div>
 

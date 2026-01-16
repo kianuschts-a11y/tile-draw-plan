@@ -6,6 +6,9 @@ export type PaperFormat = 'A5' | 'A4' | 'A3' | 'A2' | 'A1' | 'Letter' | 'Legal';
 
 export type Orientation = 'portrait' | 'landscape';
 
+// Connection directions for component variations
+export type ConnectionDirection = 'left' | 'right' | 'top' | 'bottom' | 'horizontal' | 'vertical' | 'corner-tl' | 'corner-tr' | 'corner-bl' | 'corner-br';
+
 export interface PaperSize {
   width: number;
   height: number;
@@ -50,6 +53,14 @@ export interface Shape {
   fontSize?: number;
 }
 
+// Component variation with connection line
+export interface ComponentVariation {
+  id: string;
+  name: string;
+  connectionType: ConnectionDirection;
+  shapes: Shape[]; // Additional shapes (usually a line) for this variation
+}
+
 export interface Component {
   id: string;
   name: string;
@@ -57,6 +68,8 @@ export interface Component {
   width: number;
   height: number;
   thumbnail?: string;
+  variations?: ComponentVariation[]; // Optional variations for connections
+  activeVariationId?: string; // Currently active variation
 }
 
 export interface PlacedComponent {
