@@ -127,7 +127,8 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
           <text 
             x={shape.x} 
             y={shape.y + (shape.fontSize || 14)} 
-            fontSize={shape.fontSize || 14} 
+            fontSize={shape.fontSize || 14}
+            fontFamily={shape.fontFamily || 'sans-serif'}
             className="fill-current"
             style={{ stroke: 'none', fill: 'hsl(var(--component-stroke))' }}
           >

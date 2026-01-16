@@ -8,12 +8,24 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   MousePointer2, Square, Circle, Minus, Triangle, Diamond, 
   Trash2, RotateCw, FlipHorizontal, FlipVertical, Copy, 
   Undo2, Redo2, Spline, Type, CircleDot, Grid3X3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const AVAILABLE_FONTS = [
+  { value: 'sans-serif', label: 'Sans Serif' },
+  { value: 'serif', label: 'Serif' },
+  { value: 'monospace', label: 'Monospace' },
+  { value: 'Arial', label: 'Arial' },
+  { value: 'Times New Roman', label: 'Times New Roman' },
+  { value: 'Courier New', label: 'Courier New' },
+  { value: 'Georgia', label: 'Georgia' },
+  { value: 'Verdana', label: 'Verdana' },
+];
 
 interface ComponentEditorDialogProps {
   open: boolean;
@@ -769,7 +781,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         const largeArc = (shape.endAngle || 180) - (shape.startAngle || 0) > 180 ? 1 : 0;
         return <path d={`M ${x1} ${y1} A ${rx} ${ry} 0 ${largeArc} 1 ${x2} ${y2}`} fill="none" stroke={stroke} strokeWidth={sw} />;
       case 'text':
-        return <text x={shape.x} y={shape.y + (shape.fontSize || 14)} fontSize={shape.fontSize || 14} fill={stroke}>{shape.text}</text>;
+        return <text x={shape.x} y={shape.y + (shape.fontSize || 14)} fontSize={shape.fontSize || 14} fontFamily={shape.fontFamily || 'sans-serif'} fill={stroke}>{shape.text}</text>;
       default:
         return null;
     }
@@ -1020,6 +1032,98 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
               )}
             </div>
           </div>
+
+          {/* Properties Panel für ausgewählte Shapes */}
+          {selectedShapeIds.length === 1 && (() => {
+            const selectedShape = shapes.find(s => s.id === selectedShapeIds[0]);
+            if (!selectedShape) return null;
+            
+            const updateSelectedShape = (updates: Partial<Shape>) => {
+              const newShapes = shapes.map(s => 
+                s.id === selectedShape.id ? { ...s, ...updates } : s
+              );
+              setShapes(newShapes);
+              pushHistory(newShapes);
+            };
+            
+            const isTextShape = selectedShape.type === 'text';
+            const isLineShape = selectedShape.type === 'line' || selectedShape.type === 'polyline' || selectedShape.type === 'arc';
+            const hasStroke = isLineShape || ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond'].includes(selectedShape.type);
+            
+            return (
+              <div className="p-3 bg-muted/30 rounded-lg border">
+                <div className="text-xs font-medium text-muted-foreground mb-2">
+                  Eigenschaften: {selectedShape.type === 'text' ? 'Text' : selectedShape.type === 'line' ? 'Linie' : selectedShape.type === 'polyline' ? 'Polylinie' : selectedShape.type}
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  {/* Strichstärke für alle außer Text */}
+                  {hasStroke && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Strichstärke</Label>
+                      <div className="flex items-center gap-2 w-32">
+                        <Slider
+                          value={[selectedShape.strokeWidth || 2]}
+                          onValueChange={([v]) => updateSelectedShape({ strokeWidth: v })}
+                          min={0.5}
+                          max={8}
+                          step={0.5}
+                        />
+                        <span className="text-xs font-mono w-6">{selectedShape.strokeWidth || 2}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Schriftgröße für Text */}
+                  {isTextShape && (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Schriftgröße</Label>
+                        <div className="flex items-center gap-2 w-32">
+                          <Slider
+                            value={[selectedShape.fontSize || 14]}
+                            onValueChange={([v]) => updateSelectedShape({ fontSize: v })}
+                            min={8}
+                            max={48}
+                            step={1}
+                          />
+                          <span className="text-xs font-mono w-6">{selectedShape.fontSize || 14}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs">Schriftart</Label>
+                        <Select
+                          value={selectedShape.fontFamily || 'sans-serif'}
+                          onValueChange={(v) => updateSelectedShape({ fontFamily: v })}
+                        >
+                          <SelectTrigger className="w-40 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AVAILABLE_FONTS.map(font => (
+                              <SelectItem key={font.value} value={font.value} className="text-xs">
+                                <span style={{ fontFamily: font.value }}>{font.label}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs">Text bearbeiten</Label>
+                        <Input
+                          value={selectedShape.text || ''}
+                          onChange={(e) => updateSelectedShape({ text: e.target.value })}
+                          className="w-40 h-8 text-xs"
+                          placeholder="Text eingeben..."
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>
