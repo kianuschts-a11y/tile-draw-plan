@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MousePointer2, Square, Circle, Minus, Triangle, Diamond, 
   Trash2, RotateCw, FlipHorizontal, FlipVertical, Copy, 
-  Undo2, Redo2, Spline, Type, CircleDot, Grid3X3
+  Undo2, Redo2, Spline, Type, CircleDot, Grid3X3, ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -87,6 +87,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [fillColor, setFillColor] = useState<string>("");
   const [history, setHistory] = useState<Shape[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [clipboard, setClipboard] = useState<Shape[]>([]);
@@ -199,7 +200,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     for (let i = shapes.length - 1; i >= 0; i--) {
       const shape = shapes[i];
       
-      if (shape.type === 'line') {
+      if (shape.type === 'line' || shape.type === 'arrow') {
         const x1 = shape.x;
         const y1 = shape.y;
         const x2 = shape.x + shape.width;
@@ -278,7 +279,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     }
 
     // Zeichnen startet - für alle Formen inkl. Linie und Kreis
-    if (['rectangle', 'circle', 'line', 'triangle', 'diamond', 'ellipse', 'arc'].includes(activeTool)) {
+    if (['rectangle', 'circle', 'line', 'arrow', 'triangle', 'diamond', 'ellipse', 'arc'].includes(activeTool)) {
       setIsDrawing(true);
       setDrawStart(pos);
       const newShape: Shape = {
@@ -289,8 +290,10 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         width: 0,
         height: 0,
         strokeWidth,
+        fillColor: fillColor || undefined,
         startAngle: activeTool === 'arc' ? 0 : undefined,
-        endAngle: activeTool === 'arc' ? 180 : undefined
+        endAngle: activeTool === 'arc' ? 180 : undefined,
+        arrowSize: activeTool === 'arrow' ? Math.max(8, strokeWidth * 4) : undefined
       };
       setCurrentShape(newShape);
     }
@@ -299,8 +302,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   const getHandleAtPosition = (shape: Shape, pos: Point): HandleType | null => {
     const hitRadius = handleSize / 2 + 4;
 
-    if (shape.type === 'line') {
-      // Start- und Endpunkt der Linie
+    if (shape.type === 'line' || shape.type === 'arrow') {
+      // Start- und Endpunkt der Linie/des Pfeils
       const startX = shape.x;
       const startY = shape.y;
       const endX = shape.x + shape.width;
@@ -340,7 +343,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
       let newShape = { ...shape };
 
-      if (shape.type === 'line') {
+      if (shape.type === 'line' || shape.type === 'arrow') {
         if (activeHandle.handle === 'start') {
           const dx = pos.x - shape.x;
           const dy = pos.y - shape.y;
@@ -431,12 +434,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
     // Zeichnen
     if (isDrawing && currentShape) {
-      if (currentShape.type === 'line') {
-        // Linie: Endpunkt ist die aktuelle Mausposition
+      if (currentShape.type === 'line' || currentShape.type === 'arrow') {
+        // Linie/Pfeil: Endpunkt ist die aktuelle Mausposition
         setCurrentShape({
           ...currentShape,
           width: pos.x - drawStart.x,
-          height: pos.y - drawStart.y
+          height: pos.y - drawStart.y,
+          arrowSize: currentShape.type === 'arrow' ? Math.max(8, (currentShape.strokeWidth || 2) * 4) : undefined
         });
       } else if (currentShape.type === 'circle') {
         // Kreis: Immer quadratisch (gleiche Breite und Höhe)
@@ -496,8 +500,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     }
 
     if (isDrawing && currentShape) {
-      // Für Linien: Mindestlänge prüfen
-      if (currentShape.type === 'line') {
+      // Für Linien und Pfeile: Mindestlänge prüfen
+      if (currentShape.type === 'line' || currentShape.type === 'arrow') {
         const length = Math.sqrt(currentShape.width ** 2 + currentShape.height ** 2);
         if (length >= gridSize / 2) {
           const newShapes = [...shapes, currentShape];
@@ -605,7 +609,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         const centerX = s.points.reduce((sum, p) => sum + p.x, 0) / s.points.length;
         return { ...s, points: s.points.map(p => ({ x: 2 * centerX - p.x, y: p.y })) };
       }
-      if (s.type === 'line') {
+      if (s.type === 'line' || s.type === 'arrow') {
         return { ...s, width: -s.width };
       }
       return s;
@@ -622,7 +626,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         const centerY = s.points.reduce((sum, p) => sum + p.y, 0) / s.points.length;
         return { ...s, points: s.points.map(p => ({ x: p.x, y: 2 * centerY - p.y })) };
       }
-      if (s.type === 'line') {
+      if (s.type === 'line' || s.type === 'arrow') {
         return { ...s, height: -s.height };
       }
       return s;
@@ -678,6 +682,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     setIsDrawingPolyline(false);
     setActiveHandle(null);
     setComponentTileSize('1x1');
+    setFillColor("");
     onClose();
   };
 
@@ -720,6 +725,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         case 'r': setActiveTool('rectangle'); break;
         case 'c': setActiveTool('circle'); break;
         case 'l': setActiveTool('line'); break;
+        case 'w': setActiveTool('arrow'); break;
         case 't': setActiveTool('triangle'); break;
         case 'd': setActiveTool('diamond'); break;
         case 'p': setActiveTool('polyline'); break;
@@ -763,20 +769,51 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     const isSelected = selectedShapeIds.includes(shape.id) && !isPreview;
     const stroke = isSelected ? "hsl(var(--primary))" : "hsl(220, 25%, 20%)";
     const sw = shape.strokeWidth || 2;
+    const fill = shape.fillColor || "none";
     const transform = shape.rotation ? `rotate(${shape.rotation} ${shape.x + shape.width/2} ${shape.y + shape.height/2})` : undefined;
 
     switch (shape.type) {
       case 'rectangle':
-        return <rect x={shape.x} y={shape.y} width={shape.width} height={shape.height} fill="none" stroke={stroke} strokeWidth={sw} transform={transform} />;
+        return <rect x={shape.x} y={shape.y} width={shape.width} height={shape.height} fill={fill} stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'circle':
       case 'ellipse':
-        return <ellipse cx={shape.x + shape.width/2} cy={shape.y + shape.height/2} rx={shape.width/2} ry={shape.height/2} fill="none" stroke={stroke} strokeWidth={sw} transform={transform} />;
+        return <ellipse cx={shape.x + shape.width/2} cy={shape.y + shape.height/2} rx={shape.width/2} ry={shape.height/2} fill={fill} stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'line':
         return <line x1={shape.x} y1={shape.y} x2={shape.x + shape.width} y2={shape.y + shape.height} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />;
+      case 'arrow': {
+        const x1 = shape.x;
+        const y1 = shape.y;
+        const x2 = shape.x + shape.width;
+        const y2 = shape.y + shape.height;
+        const arrowSize = shape.arrowSize || Math.max(8, sw * 4);
+        
+        // Calculate arrow head
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const arrowAngle = Math.PI / 6; // 30 degrees
+        
+        const ax1 = x2 - arrowSize * Math.cos(angle - arrowAngle);
+        const ay1 = y2 - arrowSize * Math.sin(angle - arrowAngle);
+        const ax2 = x2 - arrowSize * Math.cos(angle + arrowAngle);
+        const ay2 = y2 - arrowSize * Math.sin(angle + arrowAngle);
+        
+        return (
+          <g>
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+            <polyline 
+              points={`${ax1},${ay1} ${x2},${y2} ${ax2},${ay2}`} 
+              fill="none" 
+              stroke={stroke} 
+              strokeWidth={sw} 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+            />
+          </g>
+        );
+      }
       case 'triangle':
-        return <polygon points={`${shape.x + shape.width/2},${shape.y} ${shape.x},${shape.y + shape.height} ${shape.x + shape.width},${shape.y + shape.height}`} fill="none" stroke={stroke} strokeWidth={sw} transform={transform} />;
+        return <polygon points={`${shape.x + shape.width/2},${shape.y} ${shape.x},${shape.y + shape.height} ${shape.x + shape.width},${shape.y + shape.height}`} fill={fill} stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'diamond':
-        return <polygon points={`${shape.x + shape.width/2},${shape.y} ${shape.x + shape.width},${shape.y + shape.height/2} ${shape.x + shape.width/2},${shape.y + shape.height} ${shape.x},${shape.y + shape.height/2}`} fill="none" stroke={stroke} strokeWidth={sw} transform={transform} />;
+        return <polygon points={`${shape.x + shape.width/2},${shape.y} ${shape.x + shape.width},${shape.y + shape.height/2} ${shape.x + shape.width/2},${shape.y + shape.height} ${shape.x},${shape.y + shape.height/2}`} fill={fill} stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'polyline':
         if (!shape.points || shape.points.length < 2) return null;
         return <polyline points={shape.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />;
@@ -787,12 +824,12 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         const cy = shape.y + ry;
         const startRad = ((shape.startAngle || 0) * Math.PI) / 180;
         const endRad = ((shape.endAngle || 180) * Math.PI) / 180;
-        const x1 = cx + rx * Math.cos(startRad);
-        const y1 = cy + ry * Math.sin(startRad);
-        const x2 = cx + rx * Math.cos(endRad);
-        const y2 = cy + ry * Math.sin(endRad);
+        const arcX1 = cx + rx * Math.cos(startRad);
+        const arcY1 = cy + ry * Math.sin(startRad);
+        const arcX2 = cx + rx * Math.cos(endRad);
+        const arcY2 = cy + ry * Math.sin(endRad);
         const largeArc = (shape.endAngle || 180) - (shape.startAngle || 0) > 180 ? 1 : 0;
-        return <path d={`M ${x1} ${y1} A ${rx} ${ry} 0 ${largeArc} 1 ${x2} ${y2}`} fill="none" stroke={stroke} strokeWidth={sw} />;
+        return <path d={`M ${arcX1} ${arcY1} A ${rx} ${ry} 0 ${largeArc} 1 ${arcX2} ${arcY2}`} fill="none" stroke={stroke} strokeWidth={sw} />;
       case 'text':
         return <text x={shape.x} y={shape.y + (shape.fontSize || 14)} fontSize={shape.fontSize || 14} fontFamily={shape.fontFamily || 'sans-serif'} fill={stroke}>{shape.text}</text>;
       default:
@@ -802,8 +839,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
   // Render Handles für ausgewählte Formen
   const renderHandles = (shape: Shape) => {
-    if (shape.type === 'line') {
-      // Start- und Endpunkt für Linien
+    if (shape.type === 'line' || shape.type === 'arrow') {
+      // Start- und Endpunkt für Linien und Pfeile
       return (
         <>
           <circle
@@ -872,6 +909,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
           <ToolBtn icon={Square} label="Rechteck" shortcut="R" isActive={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} />
           <ToolBtn icon={Circle} label="Kreis" shortcut="C" isActive={activeTool === 'circle'} onClick={() => setActiveTool('circle')} />
           <ToolBtn icon={Minus} label="Linie" shortcut="L" isActive={activeTool === 'line'} onClick={() => setActiveTool('line')} />
+          <ToolBtn icon={ArrowRight} label="Pfeil" shortcut="W" isActive={activeTool === 'arrow'} onClick={() => setActiveTool('arrow')} />
           <ToolBtn icon={Triangle} label="Dreieck" shortcut="T" isActive={activeTool === 'triangle'} onClick={() => setActiveTool('triangle')} />
           <ToolBtn icon={Diamond} label="Raute" shortcut="D" isActive={activeTool === 'diamond'} onClick={() => setActiveTool('diamond')} />
           <ToolBtn icon={Spline} label="Polylinie" shortcut="P" isActive={activeTool === 'polyline'} onClick={() => setActiveTool('polyline')} />
@@ -940,6 +978,27 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
               </div>
             </div>
 
+            {/* Füllfarbe */}
+            <div className="space-y-1">
+              <Label className="text-xs">Füllfarbe</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={fillColor || "#ffffff"}
+                  onChange={(e) => setFillColor(e.target.value)}
+                  className="w-8 h-8 rounded border cursor-pointer"
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-xs"
+                  onClick={() => setFillColor("")}
+                >
+                  Keine
+                </Button>
+              </div>
+            </div>
+
             {/* Raster */}
             <div className="flex items-center gap-2">
               <Switch
@@ -969,8 +1028,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
               };
               
               const isTextShape = selectedShape.type === 'text';
-              const isLineShape = selectedShape.type === 'line' || selectedShape.type === 'polyline' || selectedShape.type === 'arc';
+              const isLineShape = selectedShape.type === 'line' || selectedShape.type === 'arrow' || selectedShape.type === 'polyline' || selectedShape.type === 'arc';
               const hasStroke = isLineShape || ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond'].includes(selectedShape.type);
+              const hasFill = ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond'].includes(selectedShape.type);
               
               return (
                 <div className="space-y-2">
@@ -991,6 +1051,28 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                           className="flex-1"
                         />
                         <span className="text-xs font-mono w-5">{selectedShape.strokeWidth || 2}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {hasFill && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Füllfarbe</Label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={selectedShape.fillColor || "#ffffff"}
+                          onChange={(e) => updateSelectedShape({ fillColor: e.target.value })}
+                          className="w-8 h-8 rounded border cursor-pointer"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7 text-xs"
+                          onClick={() => updateSelectedShape({ fillColor: undefined })}
+                        >
+                          Keine
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -1165,7 +1247,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 {shapes.map(shape => (
                   <g key={shape.id}>
                     {renderShape(shape)}
-                    {shape.type === 'line' && activeTool === 'select' && (
+                    {(shape.type === 'line' || shape.type === 'arrow') && activeTool === 'select' && (
                       <line
                         x1={shape.x}
                         y1={shape.y}
@@ -1198,7 +1280,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 {selectedShapeIds.map(id => {
                   const shape = shapes.find(s => s.id === id);
                   if (!shape) return null;
-                  const showBoundingBox = shape.type !== 'line';
+                  const showBoundingBox = shape.type !== 'line' && shape.type !== 'arrow';
                   
                   return (
                     <g key={`sel-${id}`}>
