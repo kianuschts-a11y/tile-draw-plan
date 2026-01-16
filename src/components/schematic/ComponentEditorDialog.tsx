@@ -803,6 +803,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     }
     if (activeTool === 'select') return isDragging ? 'grabbing' : 'default';
     if (activeTool === 'text') return 'text';
+    // Verstecke Cursor wenn Raster aktiv und Hover-Cursor angezeigt wird
+    if (snapToGrid && hoverPosition) return 'none';
     return 'crosshair';
   };
 
