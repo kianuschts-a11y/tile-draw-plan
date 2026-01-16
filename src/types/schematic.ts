@@ -1,4 +1,4 @@
-export type ShapeType = 'rectangle' | 'circle' | 'line' | 'triangle' | 'diamond' | 'ellipse' | 'polyline' | 'arc' | 'text';
+export type ShapeType = 'rectangle' | 'circle' | 'line' | 'arrow' | 'triangle' | 'diamond' | 'ellipse' | 'polyline' | 'arc' | 'text';
 
 export type ToolType = 'select' | 'pan' | ShapeType;
 
@@ -58,6 +58,7 @@ export interface Shape {
   rotation?: number;
   stroke?: string;
   fill?: string;
+  fillColor?: string; // Fill color for shapes
   strokeWidth?: number;
   // For polyline
   points?: Point[];
@@ -68,6 +69,8 @@ export interface Shape {
   text?: string;
   fontSize?: number;
   fontFamily?: string;
+  // For arrows
+  arrowSize?: number;
 }
 
 // Component variation with connection line

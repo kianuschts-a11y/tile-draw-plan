@@ -18,6 +18,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
     const transform = shape.rotation 
       ? `rotate(${shape.rotation} ${shape.x + shape.width/2} ${shape.y + shape.height/2})` 
       : undefined;
+    const fill = shape.fillColor || "none";
 
     switch (shape.type) {
       case 'rectangle':
@@ -28,6 +29,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             width={shape.width}
             height={shape.height}
             className={baseClass}
+            fill={fill}
             strokeWidth={shape.strokeWidth || 2}
             transform={transform}
           />
@@ -42,6 +44,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             rx={shape.width / 2}
             ry={shape.height / 2}
             className={baseClass}
+            fill={fill}
             strokeWidth={shape.strokeWidth || 2}
             transform={transform}
           />
@@ -59,6 +62,45 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
           />
         );
       
+      case 'arrow': {
+        const x1 = shape.x;
+        const y1 = shape.y;
+        const x2 = shape.x + shape.width;
+        const y2 = shape.y + shape.height;
+        const arrowSize = shape.arrowSize || Math.max(8, (shape.strokeWidth || 2) * 4);
+        
+        // Calculate arrow head
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const arrowAngle = Math.PI / 6; // 30 degrees
+        
+        const ax1 = x2 - arrowSize * Math.cos(angle - arrowAngle);
+        const ay1 = y2 - arrowSize * Math.sin(angle - arrowAngle);
+        const ax2 = x2 - arrowSize * Math.cos(angle + arrowAngle);
+        const ay2 = y2 - arrowSize * Math.sin(angle + arrowAngle);
+        
+        return (
+          <g>
+            <line
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              className={baseClass}
+              strokeWidth={shape.strokeWidth || 2}
+              strokeLinecap="round"
+            />
+            <polyline
+              points={`${ax1},${ay1} ${x2},${y2} ${ax2},${ay2}`}
+              className={baseClass}
+              fill="none"
+              strokeWidth={shape.strokeWidth || 2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </g>
+        );
+      }
+      
       case 'triangle':
         const triPoints = [
           `${shape.x + shape.width / 2},${shape.y}`,
@@ -69,6 +111,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
           <polygon
             points={triPoints}
             className={baseClass}
+            fill={fill}
             strokeWidth={shape.strokeWidth || 2}
             transform={transform}
           />
@@ -85,6 +128,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
           <polygon
             points={diaPoints}
             className={baseClass}
+            fill={fill}
             strokeWidth={shape.strokeWidth || 2}
             transform={transform}
           />
