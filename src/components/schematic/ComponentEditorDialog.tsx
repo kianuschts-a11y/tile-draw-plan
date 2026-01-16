@@ -99,6 +99,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: HandleType } | null>(null);
   const [componentTileSize, setComponentTileSize] = useState<TileSize>('1x1');
+  const [hoverPosition, setHoverPosition] = useState<Point | null>(null);
 
   // Canvas size based on tile size selection
   const tileSizeConfig = TILE_SIZES[componentTileSize];
@@ -367,6 +368,14 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
       (activeHandle && (shapes.find(s => s.id === activeHandle.shapeId)?.type === 'line' || 
                         shapes.find(s => s.id === activeHandle.shapeId)?.type === 'arrow'));
     const pos = getMousePosition(e, isLineType);
+    
+    // Hover-Position für visuellen Cursor aktualisieren (nicht bei select/text)
+    if (snapToGrid && activeTool !== 'select' && activeTool !== 'text') {
+      const snappedPos = strictSnapPosition(getRawMousePosition(e));
+      setHoverPosition(snappedPos);
+    } else {
+      setHoverPosition(null);
+    }
 
     // Handle-Resizing
     if (activeHandle) {
@@ -1177,7 +1186,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
+                onMouseLeave={() => { handleMouseUp(); setHoverPosition(null); }}
                 onDoubleClick={handleDoubleClick}
               >
                 {/* Grid */}
@@ -1191,6 +1200,39 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                   </pattern>
                 </defs>
                 <rect width={canvasWidth} height={canvasHeight} fill="url(#editor-grid-major)" />
+
+                {/* Hover cursor indicator - springt von Raster zu Raster */}
+                {hoverPosition && snapToGrid && activeTool !== 'select' && activeTool !== 'text' && (
+                  <g>
+                    {/* Crosshair */}
+                    <line 
+                      x1={hoverPosition.x - 8} 
+                      y1={hoverPosition.y} 
+                      x2={hoverPosition.x + 8} 
+                      y2={hoverPosition.y} 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth="1.5"
+                      pointerEvents="none"
+                    />
+                    <line 
+                      x1={hoverPosition.x} 
+                      y1={hoverPosition.y - 8} 
+                      x2={hoverPosition.x} 
+                      y2={hoverPosition.y + 8} 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth="1.5"
+                      pointerEvents="none"
+                    />
+                    {/* Center dot */}
+                    <circle 
+                      cx={hoverPosition.x} 
+                      cy={hoverPosition.y} 
+                      r="3" 
+                      fill="hsl(var(--primary))" 
+                      pointerEvents="none"
+                    />
+                  </g>
+                )}
 
                 {/* Connection point markers */}
                 {(() => {
