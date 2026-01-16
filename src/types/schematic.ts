@@ -1,4 +1,4 @@
-export type ShapeType = 'rectangle' | 'circle' | 'line' | 'triangle' | 'diamond' | 'ellipse';
+export type ShapeType = 'rectangle' | 'circle' | 'line' | 'triangle' | 'diamond' | 'ellipse' | 'polyline' | 'arc' | 'text';
 
 export type ToolType = 'select' | 'pan' | ShapeType;
 
@@ -22,8 +22,7 @@ export const PAPER_SIZES: Record<PaperFormat, PaperSize> = {
   'Legal': { width: 216, height: 356, label: 'Legal (216 × 356 mm)' },
 };
 
-// Convert mm to pixels (assuming 96 DPI for screen, 1 inch = 25.4mm)
-export const MM_TO_PX = 96 / 25.4; // ~3.78 px per mm
+export const MM_TO_PX = 96 / 25.4;
 
 export interface Point {
   x: number;
@@ -41,6 +40,14 @@ export interface Shape {
   stroke?: string;
   fill?: string;
   strokeWidth?: number;
+  // For polyline
+  points?: Point[];
+  // For arc
+  startAngle?: number;
+  endAngle?: number;
+  // For text
+  text?: string;
+  fontSize?: number;
 }
 
 export interface Component {
