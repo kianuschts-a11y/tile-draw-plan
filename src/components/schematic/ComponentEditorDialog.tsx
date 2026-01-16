@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { 
   MousePointer2, Square, Circle, Minus, Triangle, Diamond, 
   Trash2, RotateCw, FlipHorizontal, FlipVertical, Copy, 
-  Undo2, Redo2, Spline, Type, CircleDot, Plus, Pencil
+  Undo2, Redo2, Spline, Type, CircleDot, Grid3X3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ interface ComponentEditorDialogProps {
 }
 
 type EditorTool = 'select' | ShapeType;
+type HandleType = 'start' | 'end' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -79,9 +81,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
   const [textPosition, setTextPosition] = useState({ x: 0, y: 0 });
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: HandleType } | null>(null);
 
   const canvasSize = 300;
   const gridSize = canvasSize / 20;
+  const handleSize = 10; // Größerer Griff für einfacheres Greifen
+  const lineHitArea = 12; // Größerer Klickbereich für Linien
 
   const pushHistory = useCallback((newShapes: Shape[]) => {
     const newHistory = history.slice(0, historyIndex + 1);
@@ -106,23 +112,128 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     }
   }, [historyIndex, history]);
 
+  const snapPosition = (pos: Point): Point => {
+    if (!snapToGrid) return pos;
+    return {
+      x: Math.round(pos.x / gridSize) * gridSize,
+      y: Math.round(pos.y / gridSize) * gridSize
+    };
+  };
+
   const getMousePosition = (e: React.MouseEvent): Point => {
     const svg = (e.target as Element).closest('svg');
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    return {
-      x: Math.round(x / gridSize) * gridSize,
-      y: Math.round(y / gridSize) * gridSize
+    const rawPos = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     };
+    return snapPosition(rawPos);
+  };
+
+  const getRawMousePosition = (e: React.MouseEvent): Point => {
+    const svg = (e.target as Element).closest('svg');
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+  };
+
+  // Berechnet den Abstand eines Punktes zu einer Linie
+  const distanceToLine = (px: number, py: number, x1: number, y1: number, x2: number, y2: number): number => {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    if (lenSq !== 0) param = dot / lenSq;
+    
+    let xx, yy;
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+    
+    const dx = px - xx;
+    const dy = py - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // Findet Form unter dem Mauszeiger mit erweitertem Klickbereich für Linien
+  const findShapeAtPosition = (pos: Point): Shape | null => {
+    // Rückwärts iterieren für z-order (oberste zuerst)
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const shape = shapes[i];
+      
+      if (shape.type === 'line') {
+        const x1 = shape.x;
+        const y1 = shape.y;
+        const x2 = shape.x + shape.width;
+        const y2 = shape.y + shape.height;
+        const distance = distanceToLine(pos.x, pos.y, x1, y1, x2, y2);
+        if (distance <= lineHitArea) return shape;
+      } else if (shape.type === 'polyline' && shape.points) {
+        for (let j = 0; j < shape.points.length - 1; j++) {
+          const p1 = shape.points[j];
+          const p2 = shape.points[j + 1];
+          const distance = distanceToLine(pos.x, pos.y, p1.x, p1.y, p2.x, p2.y);
+          if (distance <= lineHitArea) return shape;
+        }
+      } else {
+        // Rechteck-basierte Kollision mit Padding
+        const padding = 4;
+        if (pos.x >= shape.x - padding && pos.x <= shape.x + shape.width + padding &&
+            pos.y >= shape.y - padding && pos.y <= shape.y + shape.height + padding) {
+          return shape;
+        }
+      }
+    }
+    return null;
   };
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     const pos = getMousePosition(e);
+    const rawPos = getRawMousePosition(e);
 
     if (activeTool === 'select') {
-      setSelectedShapeIds([]);
+      // Prüfe ob ein Handle angeklickt wurde
+      const clickedShape = shapes.find(s => selectedShapeIds.includes(s.id));
+      if (clickedShape) {
+        const handle = getHandleAtPosition(clickedShape, rawPos);
+        if (handle) {
+          setActiveHandle({ shapeId: clickedShape.id, handle });
+          return;
+        }
+      }
+
+      // Prüfe ob eine Form angeklickt wurde
+      const shapeAtPos = findShapeAtPosition(rawPos);
+      if (shapeAtPos) {
+        const isMultiSelect = e.shiftKey || e.ctrlKey;
+        if (isMultiSelect) {
+          if (selectedShapeIds.includes(shapeAtPos.id)) {
+            setSelectedShapeIds(selectedShapeIds.filter(id => id !== shapeAtPos.id));
+          } else {
+            setSelectedShapeIds([...selectedShapeIds, shapeAtPos.id]);
+          }
+        } else {
+          setSelectedShapeIds([shapeAtPos.id]);
+        }
+        setDragOffset(pos);
+        setIsDragging(true);
+      } else {
+        setSelectedShapeIds([]);
+      }
       return;
     }
 
@@ -142,6 +253,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
       return;
     }
 
+    // Zeichnen startet - für alle Formen inkl. Linie und Kreis
     if (['rectangle', 'circle', 'line', 'triangle', 'diamond', 'ellipse', 'arc'].includes(activeTool)) {
       setIsDrawing(true);
       setDrawStart(pos);
@@ -160,55 +272,221 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     }
   };
 
+  const getHandleAtPosition = (shape: Shape, pos: Point): HandleType | null => {
+    const hitRadius = handleSize / 2 + 4;
+
+    if (shape.type === 'line') {
+      // Start- und Endpunkt der Linie
+      const startX = shape.x;
+      const startY = shape.y;
+      const endX = shape.x + shape.width;
+      const endY = shape.y + shape.height;
+
+      if (Math.abs(pos.x - startX) <= hitRadius && Math.abs(pos.y - startY) <= hitRadius) return 'start';
+      if (Math.abs(pos.x - endX) <= hitRadius && Math.abs(pos.y - endY) <= hitRadius) return 'end';
+    } else {
+      // 8 Eck-Handles für andere Formen
+      const handles: { type: HandleType; x: number; y: number }[] = [
+        { type: 'nw', x: shape.x, y: shape.y },
+        { type: 'n', x: shape.x + shape.width / 2, y: shape.y },
+        { type: 'ne', x: shape.x + shape.width, y: shape.y },
+        { type: 'e', x: shape.x + shape.width, y: shape.y + shape.height / 2 },
+        { type: 'se', x: shape.x + shape.width, y: shape.y + shape.height },
+        { type: 's', x: shape.x + shape.width / 2, y: shape.y + shape.height },
+        { type: 'sw', x: shape.x, y: shape.y + shape.height },
+        { type: 'w', x: shape.x, y: shape.y + shape.height / 2 },
+      ];
+
+      for (const h of handles) {
+        if (Math.abs(pos.x - h.x) <= hitRadius && Math.abs(pos.y - h.y) <= hitRadius) {
+          return h.type;
+        }
+      }
+    }
+    return null;
+  };
+
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const pos = getMousePosition(e);
 
+    // Handle-Resizing
+    if (activeHandle) {
+      const shape = shapes.find(s => s.id === activeHandle.shapeId);
+      if (!shape) return;
+
+      let newShape = { ...shape };
+
+      if (shape.type === 'line') {
+        if (activeHandle.handle === 'start') {
+          const dx = pos.x - shape.x;
+          const dy = pos.y - shape.y;
+          newShape = {
+            ...shape,
+            x: pos.x,
+            y: pos.y,
+            width: shape.width - dx,
+            height: shape.height - dy
+          };
+        } else if (activeHandle.handle === 'end') {
+          newShape = {
+            ...shape,
+            width: pos.x - shape.x,
+            height: pos.y - shape.y
+          };
+        }
+      } else {
+        // Resize für andere Formen
+        const { handle } = activeHandle;
+        
+        switch (handle) {
+          case 'nw':
+            newShape.width = shape.x + shape.width - pos.x;
+            newShape.height = shape.y + shape.height - pos.y;
+            newShape.x = pos.x;
+            newShape.y = pos.y;
+            break;
+          case 'ne':
+            newShape.width = pos.x - shape.x;
+            newShape.height = shape.y + shape.height - pos.y;
+            newShape.y = pos.y;
+            break;
+          case 'sw':
+            newShape.width = shape.x + shape.width - pos.x;
+            newShape.height = pos.y - shape.y;
+            newShape.x = pos.x;
+            break;
+          case 'se':
+            newShape.width = pos.x - shape.x;
+            newShape.height = pos.y - shape.y;
+            break;
+          case 'n':
+            newShape.height = shape.y + shape.height - pos.y;
+            newShape.y = pos.y;
+            break;
+          case 's':
+            newShape.height = pos.y - shape.y;
+            break;
+          case 'w':
+            newShape.width = shape.x + shape.width - pos.x;
+            newShape.x = pos.x;
+            break;
+          case 'e':
+            newShape.width = pos.x - shape.x;
+            break;
+        }
+
+        // Negative Größen verhindern
+        if (newShape.width < gridSize) newShape.width = gridSize;
+        if (newShape.height < gridSize) newShape.height = gridSize;
+      }
+
+      setShapes(shapes.map(s => s.id === shape.id ? newShape : s));
+      return;
+    }
+
+    // Dragging (Verschieben)
     if (isDragging && selectedShapeIds.length > 0) {
       const dx = pos.x - dragOffset.x;
       const dy = pos.y - dragOffset.y;
       setShapes(shapes.map(s =>
         selectedShapeIds.includes(s.id)
-          ? { ...s, x: Math.max(0, Math.min(s.x + dx, canvasSize - s.width)), 
-                   y: Math.max(0, Math.min(s.y + dy, canvasSize - s.height)) }
+          ? { 
+              ...s, 
+              x: Math.max(0, Math.min(s.x + dx, canvasSize - Math.abs(s.width))), 
+              y: Math.max(0, Math.min(s.y + dy, canvasSize - Math.abs(s.height))),
+              points: s.points?.map(p => ({
+                x: Math.max(0, Math.min(p.x + dx, canvasSize)),
+                y: Math.max(0, Math.min(p.y + dy, canvasSize))
+              }))
+            }
           : s
       ));
       setDragOffset(pos);
       return;
     }
 
+    // Zeichnen
     if (isDrawing && currentShape) {
-      let width = pos.x - drawStart.x;
-      let height = pos.y - drawStart.y;
-      let x = drawStart.x;
-      let y = drawStart.y;
+      if (currentShape.type === 'line') {
+        // Linie: Endpunkt ist die aktuelle Mausposition
+        setCurrentShape({
+          ...currentShape,
+          width: pos.x - drawStart.x,
+          height: pos.y - drawStart.y
+        });
+      } else if (currentShape.type === 'circle') {
+        // Kreis: Immer quadratisch (gleiche Breite und Höhe)
+        let size = Math.max(
+          Math.abs(pos.x - drawStart.x),
+          Math.abs(pos.y - drawStart.y)
+        );
+        
+        let x = drawStart.x;
+        let y = drawStart.y;
+        
+        if (pos.x < drawStart.x) x = drawStart.x - size;
+        if (pos.y < drawStart.y) y = drawStart.y - size;
 
-      if (width < 0) { x = pos.x; width = Math.abs(width); }
-      if (height < 0) { y = pos.y; height = Math.abs(height); }
+        size = Math.min(size, canvasSize - x, canvasSize - y);
 
-      width = Math.min(width, canvasSize - x);
-      height = Math.min(height, canvasSize - y);
+        setCurrentShape({
+          ...currentShape,
+          x, y,
+          width: Math.max(size, gridSize),
+          height: Math.max(size, gridSize)
+        });
+      } else {
+        // Andere Formen: Rechteckig
+        let width = pos.x - drawStart.x;
+        let height = pos.y - drawStart.y;
+        let x = drawStart.x;
+        let y = drawStart.y;
 
-      setCurrentShape({
-        ...currentShape,
-        x, y,
-        width: Math.max(width, gridSize),
-        height: Math.max(height, gridSize)
-      });
+        if (width < 0) { x = pos.x; width = Math.abs(width); }
+        if (height < 0) { y = pos.y; height = Math.abs(height); }
+
+        width = Math.min(width, canvasSize - x);
+        height = Math.min(height, canvasSize - y);
+
+        setCurrentShape({
+          ...currentShape,
+          x, y,
+          width: Math.max(width, gridSize),
+          height: Math.max(height, gridSize)
+        });
+      }
     }
   };
 
   const handleMouseUp = () => {
+    if (activeHandle) {
+      setActiveHandle(null);
+      pushHistory(shapes);
+      return;
+    }
+
     if (isDragging) {
       setIsDragging(false);
       pushHistory(shapes);
       return;
     }
 
-    if (isDrawing && currentShape && currentShape.width > 0 && currentShape.height > 0) {
-      const newShapes = [...shapes, currentShape];
-      setShapes(newShapes);
-      pushHistory(newShapes);
-      setSelectedShapeIds([currentShape.id]);
+    if (isDrawing && currentShape) {
+      // Für Linien: Mindestlänge prüfen
+      if (currentShape.type === 'line') {
+        const length = Math.sqrt(currentShape.width ** 2 + currentShape.height ** 2);
+        if (length >= gridSize / 2) {
+          const newShapes = [...shapes, currentShape];
+          setShapes(newShapes);
+          pushHistory(newShapes);
+          setSelectedShapeIds([currentShape.id]);
+        }
+      } else if (currentShape.width > 0 && currentShape.height > 0) {
+        const newShapes = [...shapes, currentShape];
+        setShapes(newShapes);
+        pushHistory(newShapes);
+        setSelectedShapeIds([currentShape.id]);
+      }
     }
     setIsDrawing(false);
     setCurrentShape(null);
@@ -234,26 +512,6 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     }
   };
 
-  const handleShapeMouseDown = (e: React.MouseEvent, shape: Shape) => {
-    if (activeTool !== 'select') return;
-    e.stopPropagation();
-    
-    const isMultiSelect = e.shiftKey || e.ctrlKey;
-    if (isMultiSelect) {
-      if (selectedShapeIds.includes(shape.id)) {
-        setSelectedShapeIds(selectedShapeIds.filter(id => id !== shape.id));
-      } else {
-        setSelectedShapeIds([...selectedShapeIds, shape.id]);
-      }
-    } else {
-      setSelectedShapeIds([shape.id]);
-    }
-    
-    const pos = getMousePosition(e);
-    setDragOffset(pos);
-    setIsDragging(true);
-  };
-
   const handleDelete = () => {
     if (selectedShapeIds.length > 0) {
       const newShapes = shapes.filter(s => !selectedShapeIds.includes(s.id));
@@ -275,7 +533,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         ...s,
         id: generateId(),
         x: s.x + offset,
-        y: s.y + offset
+        y: s.y + offset,
+        points: s.points?.map(p => ({ x: p.x + offset, y: p.y + offset }))
       }));
       const updatedShapes = [...shapes, ...newShapes];
       setShapes(updatedShapes);
@@ -285,21 +544,22 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   };
 
   const handleDuplicate = () => {
-    handleCopy();
-    setTimeout(() => {
-      const selected = shapes.filter(s => selectedShapeIds.includes(s.id));
-      const offset = gridSize;
-      const newShapes = selected.map(s => ({
-        ...s,
-        id: generateId(),
-        x: Math.min(s.x + offset, canvasSize - s.width),
-        y: Math.min(s.y + offset, canvasSize - s.height)
-      }));
-      const updatedShapes = [...shapes, ...newShapes];
-      setShapes(updatedShapes);
-      pushHistory(updatedShapes);
-      setSelectedShapeIds(newShapes.map(s => s.id));
-    }, 0);
+    const selected = shapes.filter(s => selectedShapeIds.includes(s.id));
+    const offset = gridSize;
+    const newShapes = selected.map(s => ({
+      ...s,
+      id: generateId(),
+      x: Math.min(s.x + offset, canvasSize - Math.abs(s.width)),
+      y: Math.min(s.y + offset, canvasSize - Math.abs(s.height)),
+      points: s.points?.map(p => ({ 
+        x: Math.min(p.x + offset, canvasSize), 
+        y: Math.min(p.y + offset, canvasSize) 
+      }))
+    }));
+    const updatedShapes = [...shapes, ...newShapes];
+    setShapes(updatedShapes);
+    pushHistory(updatedShapes);
+    setSelectedShapeIds(newShapes.map(s => s.id));
   };
 
   const handleRotate = (angle: number) => {
@@ -317,13 +577,12 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     if (selectedShapeIds.length === 0) return;
     const newShapes = shapes.map(s => {
       if (!selectedShapeIds.includes(s.id)) return s;
-      // Flip horizontally by mirroring x coordinates
       if (s.points) {
         const centerX = s.points.reduce((sum, p) => sum + p.x, 0) / s.points.length;
-        return {
-          ...s,
-          points: s.points.map(p => ({ x: 2 * centerX - p.x, y: p.y }))
-        };
+        return { ...s, points: s.points.map(p => ({ x: 2 * centerX - p.x, y: p.y })) };
+      }
+      if (s.type === 'line') {
+        return { ...s, width: -s.width };
       }
       return s;
     });
@@ -337,10 +596,10 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
       if (!selectedShapeIds.includes(s.id)) return s;
       if (s.points) {
         const centerY = s.points.reduce((sum, p) => sum + p.y, 0) / s.points.length;
-        return {
-          ...s,
-          points: s.points.map(p => ({ x: p.x, y: 2 * centerY - p.y }))
-        };
+        return { ...s, points: s.points.map(p => ({ x: p.x, y: 2 * centerY - p.y })) };
+      }
+      if (s.type === 'line') {
+        return { ...s, height: -s.height };
       }
       return s;
     });
@@ -393,6 +652,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     setClipboard([]);
     setPolylinePoints([]);
     setIsDrawingPolyline(false);
+    setActiveHandle(null);
     onClose();
   };
 
@@ -440,6 +700,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         case 'p': setActiveTool('polyline'); break;
         case 'a': setActiveTool('arc'); break;
         case 'x': setActiveTool('text'); break;
+        case 'g': setSnapToGrid(!snapToGrid); break;
         case 'delete':
         case 'backspace':
           handleDelete();
@@ -457,9 +718,17 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, selectedShapeIds, shapes, isDrawingPolyline, undo, redo]);
+  }, [open, selectedShapeIds, shapes, isDrawingPolyline, snapToGrid, undo, redo]);
 
   const getCursor = () => {
+    if (activeHandle) {
+      const h = activeHandle.handle;
+      if (h === 'start' || h === 'end') return 'crosshair';
+      if (h === 'nw' || h === 'se') return 'nwse-resize';
+      if (h === 'ne' || h === 'sw') return 'nesw-resize';
+      if (h === 'n' || h === 's') return 'ns-resize';
+      if (h === 'e' || h === 'w') return 'ew-resize';
+    }
     if (activeTool === 'select') return isDragging ? 'grabbing' : 'default';
     if (activeTool === 'text') return 'text';
     return 'crosshair';
@@ -478,14 +747,14 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
       case 'ellipse':
         return <ellipse cx={shape.x + shape.width/2} cy={shape.y + shape.height/2} rx={shape.width/2} ry={shape.height/2} fill="none" stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'line':
-        return <line x1={shape.x} y1={shape.y} x2={shape.x + shape.width} y2={shape.y + shape.height} stroke={stroke} strokeWidth={sw} />;
+        return <line x1={shape.x} y1={shape.y} x2={shape.x + shape.width} y2={shape.y + shape.height} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />;
       case 'triangle':
         return <polygon points={`${shape.x + shape.width/2},${shape.y} ${shape.x},${shape.y + shape.height} ${shape.x + shape.width},${shape.y + shape.height}`} fill="none" stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'diamond':
         return <polygon points={`${shape.x + shape.width/2},${shape.y} ${shape.x + shape.width},${shape.y + shape.height/2} ${shape.x + shape.width/2},${shape.y + shape.height} ${shape.x},${shape.y + shape.height/2}`} fill="none" stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'polyline':
         if (!shape.points || shape.points.length < 2) return null;
-        return <polyline points={shape.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke} strokeWidth={sw} />;
+        return <polyline points={shape.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />;
       case 'arc':
         const rx = shape.width / 2;
         const ry = shape.height / 2;
@@ -504,6 +773,62 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
       default:
         return null;
     }
+  };
+
+  // Render Handles für ausgewählte Formen
+  const renderHandles = (shape: Shape) => {
+    if (shape.type === 'line') {
+      // Start- und Endpunkt für Linien
+      return (
+        <>
+          <circle
+            cx={shape.x}
+            cy={shape.y}
+            r={handleSize / 2}
+            fill="white"
+            stroke="hsl(var(--primary))"
+            strokeWidth={2}
+            style={{ cursor: 'crosshair' }}
+          />
+          <circle
+            cx={shape.x + shape.width}
+            cy={shape.y + shape.height}
+            r={handleSize / 2}
+            fill="white"
+            stroke="hsl(var(--primary))"
+            strokeWidth={2}
+            style={{ cursor: 'crosshair' }}
+          />
+        </>
+      );
+    }
+
+    // 8 Eck-Handles für andere Formen
+    const handles = [
+      { x: shape.x, y: shape.y, cursor: 'nwse-resize' },
+      { x: shape.x + shape.width / 2, y: shape.y, cursor: 'ns-resize' },
+      { x: shape.x + shape.width, y: shape.y, cursor: 'nesw-resize' },
+      { x: shape.x + shape.width, y: shape.y + shape.height / 2, cursor: 'ew-resize' },
+      { x: shape.x + shape.width, y: shape.y + shape.height, cursor: 'nwse-resize' },
+      { x: shape.x + shape.width / 2, y: shape.y + shape.height, cursor: 'ns-resize' },
+      { x: shape.x, y: shape.y + shape.height, cursor: 'nesw-resize' },
+      { x: shape.x, y: shape.y + shape.height / 2, cursor: 'ew-resize' },
+    ];
+
+    return handles.map((h, i) => (
+      <rect
+        key={i}
+        x={h.x - handleSize / 2}
+        y={h.y - handleSize / 2}
+        width={handleSize}
+        height={handleSize}
+        fill="white"
+        stroke="hsl(var(--primary))"
+        strokeWidth={2}
+        rx={2}
+        style={{ cursor: h.cursor }}
+      />
+    ));
   };
 
   const hasSelection = selectedShapeIds.length > 0;
@@ -539,6 +864,17 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 <span className="text-xs font-mono w-6">{strokeWidth}</span>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="snap-grid"
+                checked={snapToGrid}
+                onCheckedChange={setSnapToGrid}
+              />
+              <Label htmlFor="snap-grid" className="flex items-center gap-1.5 cursor-pointer">
+                <Grid3X3 className="w-4 h-4" />
+                <span className="text-sm">Raster</span>
+              </Label>
+            </div>
           </div>
 
           {/* Toolbar */}
@@ -550,7 +886,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
             
             {/* Shapes */}
             <ToolBtn icon={Square} label="Rechteck" shortcut="R" isActive={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} />
-            <ToolBtn icon={Circle} label="Kreis/Ellipse" shortcut="C" isActive={activeTool === 'circle'} onClick={() => setActiveTool('circle')} />
+            <ToolBtn icon={Circle} label="Kreis" shortcut="C" isActive={activeTool === 'circle'} onClick={() => setActiveTool('circle')} />
             <ToolBtn icon={Minus} label="Linie" shortcut="L" isActive={activeTool === 'line'} onClick={() => setActiveTool('line')} />
             <ToolBtn icon={Triangle} label="Dreieck" shortcut="T" isActive={activeTool === 'triangle'} onClick={() => setActiveTool('triangle')} />
             <ToolBtn icon={Diamond} label="Raute" shortcut="D" isActive={activeTool === 'diamond'} onClick={() => setActiveTool('diamond')} />
@@ -602,8 +938,21 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
                 {/* Shapes */}
                 {shapes.map(shape => (
-                  <g key={shape.id} onMouseDown={(e) => handleShapeMouseDown(e, shape)} style={{ cursor: activeTool === 'select' ? 'pointer' : 'inherit' }}>
+                  <g key={shape.id}>
                     {renderShape(shape)}
+                    {/* Unsichtbarer größerer Klickbereich für Linien */}
+                    {shape.type === 'line' && activeTool === 'select' && (
+                      <line
+                        x1={shape.x}
+                        y1={shape.y}
+                        x2={shape.x + shape.width}
+                        y2={shape.y + shape.height}
+                        stroke="transparent"
+                        strokeWidth={lineHitArea}
+                        strokeLinecap="round"
+                        style={{ cursor: 'pointer' }}
+                      />
+                    )}
                   </g>
                 ))}
 
@@ -621,23 +970,31 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                   />
                 )}
 
-                {/* Selection boxes */}
+                {/* Selection boxes and handles */}
                 {selectedShapeIds.map(id => {
                   const shape = shapes.find(s => s.id === id);
                   if (!shape) return null;
+                  
+                  // Bounding box für nicht-Linien
+                  const showBoundingBox = shape.type !== 'line';
+                  
                   return (
-                    <rect
-                      key={`sel-${id}`}
-                      x={shape.x - 3}
-                      y={shape.y - 3}
-                      width={shape.width + 6}
-                      height={shape.height + 6}
-                      fill="none"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={1}
-                      strokeDasharray="4 2"
-                      rx={2}
-                    />
+                    <g key={`sel-${id}`}>
+                      {showBoundingBox && (
+                        <rect
+                          x={shape.x - 3}
+                          y={shape.y - 3}
+                          width={shape.width + 6}
+                          height={shape.height + 6}
+                          fill="none"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={1}
+                          strokeDasharray="4 2"
+                          rx={2}
+                        />
+                      )}
+                      {renderHandles(shape)}
+                    </g>
                   );
                 })}
               </svg>
@@ -665,7 +1022,11 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
           </div>
 
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Quadratische Kachel • Doppelklick beendet Polylinie</span>
+            <span>
+              {snapToGrid ? "Raster an (G)" : "Raster aus (G)"} • 
+              Linie: Ziehen von Start zu Ende • 
+              Doppelklick beendet Polylinie
+            </span>
             <span>{shapes.length} Elemente</span>
           </div>
         </div>
