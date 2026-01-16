@@ -266,11 +266,6 @@ export function Canvas({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
 
-    if (activeTool === 'pan') {
-      setIsPanning(true);
-      setPanStart({ x: e.clientX - canvasState.panX, y: e.clientY - canvasState.panY });
-      return;
-    }
 
     if (activeTool === 'connect') {
       // Start connecting - check if mouse is over a tile
@@ -527,8 +522,7 @@ export function Canvas({
   }, [selectedTileIds, tiles, onTilesChange, onSelectionChange]);
 
   const getCursor = () => {
-    if (activeTool === 'pan') return isPanning ? 'grabbing' : 'grab';
-    if (activeTool === 'connect') return isConnecting ? 'crosshair' : 'crosshair';
+    if (activeTool === 'connect') return 'crosshair';
     if (isDragging) return 'grabbing';
     return 'default';
   };
