@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { Shape, ToolType, CanvasState, ShapeType } from "@/types/schematic";
+import { Shape, ToolType, CanvasState, ShapeType, PAPER_SIZES, MM_TO_PX } from "@/types/schematic";
 import { ShapeRenderer } from "./ShapeRenderer";
 import { SelectionHandles } from "./SelectionHandles";
 
@@ -33,6 +33,15 @@ export function Canvas({
   const [currentShape, setCurrentShape] = useState<Shape | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+
+  // Calculate paper dimensions in pixels
+  const paperSize = PAPER_SIZES[canvasState.paperFormat];
+  const paperWidth = canvasState.orientation === 'portrait' 
+    ? paperSize.width * MM_TO_PX 
+    : paperSize.height * MM_TO_PX;
+  const paperHeight = canvasState.orientation === 'portrait' 
+    ? paperSize.height * MM_TO_PX 
+    : paperSize.width * MM_TO_PX;
 
   const getMousePosition = useCallback((e: React.MouseEvent): { x: number; y: number } => {
     if (!svgRef.current) return { x: 0, y: 0 };
@@ -189,36 +198,124 @@ export function Canvas({
     return 'crosshair';
   };
 
+  // Generate grid pattern for paper
+  const gridPatternId = `grid-${canvasState.gridSize}`;
+  const majorGridPatternId = `major-grid-${canvasState.gridSize}`;
+
   return (
     <svg
       ref={svgRef}
-      className="w-full h-full canvas-grid"
+      className="w-full h-full bg-muted/30"
       style={{ cursor: getCursor() }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      <g transform={`translate(${canvasState.panX}, ${canvasState.panY}) scale(${canvasState.zoom})`}>
-        {/* Render existing shapes */}
-        {shapes.map(shape => (
-          <ShapeRenderer
-            key={shape.id}
-            shape={shape}
-            isSelected={shape.id === selectedShapeId}
-            onMouseDown={(e) => handleShapeMouseDown(e, shape)}
+      {/* Define grid patterns */}
+      <defs>
+        <pattern
+          id={gridPatternId}
+          width={canvasState.gridSize}
+          height={canvasState.gridSize}
+          patternUnits="userSpaceOnUse"
+        >
+          <path
+            d={`M ${canvasState.gridSize} 0 L 0 0 0 ${canvasState.gridSize}`}
+            fill="none"
+            stroke="hsl(var(--canvas-grid))"
+            strokeWidth="0.5"
           />
-        ))}
+        </pattern>
+        <pattern
+          id={majorGridPatternId}
+          width={canvasState.gridSize * 5}
+          height={canvasState.gridSize * 5}
+          patternUnits="userSpaceOnUse"
+        >
+          <rect width={canvasState.gridSize * 5} height={canvasState.gridSize * 5} fill={`url(#${gridPatternId})`} />
+          <path
+            d={`M ${canvasState.gridSize * 5} 0 L 0 0 0 ${canvasState.gridSize * 5}`}
+            fill="none"
+            stroke="hsl(var(--canvas-grid-major))"
+            strokeWidth="1"
+          />
+        </pattern>
+      </defs>
+
+      <g transform={`translate(${canvasState.panX}, ${canvasState.panY}) scale(${canvasState.zoom})`}>
+        {/* Paper shadow */}
+        <rect
+          x={4}
+          y={4}
+          width={paperWidth}
+          height={paperHeight}
+          fill="hsl(var(--foreground) / 0.1)"
+          rx={2}
+        />
         
-        {/* Render current drawing shape */}
-        {currentShape && (
-          <ShapeRenderer shape={currentShape} />
-        )}
+        {/* Paper background with grid */}
+        <rect
+          x={0}
+          y={0}
+          width={paperWidth}
+          height={paperHeight}
+          fill="white"
+          stroke="hsl(var(--border))"
+          strokeWidth={1}
+          rx={2}
+        />
         
-        {/* Selection handles */}
-        {selectedShapeId && shapes.find(s => s.id === selectedShapeId) && (
-          <SelectionHandles shape={shapes.find(s => s.id === selectedShapeId)!} />
-        )}
+        {/* Grid overlay on paper */}
+        <rect
+          x={0}
+          y={0}
+          width={paperWidth}
+          height={paperHeight}
+          fill={`url(#${majorGridPatternId})`}
+          rx={2}
+        />
+
+        {/* Clip content to paper */}
+        <clipPath id="paper-clip">
+          <rect x={0} y={0} width={paperWidth} height={paperHeight} />
+        </clipPath>
+
+        <g clipPath="url(#paper-clip)">
+          {/* Render existing shapes */}
+          {shapes.map(shape => (
+            <ShapeRenderer
+              key={shape.id}
+              shape={shape}
+              isSelected={shape.id === selectedShapeId}
+              onMouseDown={(e) => handleShapeMouseDown(e, shape)}
+            />
+          ))}
+          
+          {/* Render current drawing shape */}
+          {currentShape && (
+            <ShapeRenderer shape={currentShape} />
+          )}
+          
+          {/* Selection handles */}
+          {selectedShapeId && shapes.find(s => s.id === selectedShapeId) && (
+            <SelectionHandles shape={shapes.find(s => s.id === selectedShapeId)!} />
+          )}
+        </g>
+
+        {/* Paper dimensions label */}
+        <text
+          x={paperWidth / 2}
+          y={paperHeight + 20}
+          textAnchor="middle"
+          className="text-xs fill-muted-foreground"
+          fontSize={12}
+        >
+          {canvasState.orientation === 'portrait' 
+            ? `${paperSize.width} × ${paperSize.height} mm`
+            : `${paperSize.height} × ${paperSize.width} mm`
+          }
+        </text>
       </g>
     </svg>
   );
