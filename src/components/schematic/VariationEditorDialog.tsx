@@ -52,54 +52,49 @@ const CONNECTION_TYPES: { type: ConnectionDirection; label: string; icon: React.
 ];
 
 // Generate the connection line shapes based on type
-// Lines go from edge to component boundary (0.1) not to center
+// Lines go from edge directly to component boundary with no gap
 function generateConnectionShapes(type: ConnectionDirection): Shape[] {
   const edge = 0.1; // Where component shapes typically start
+  const stroke = "#000000"; // Black lines
   
   switch (type) {
     case 'left':
-      // From left edge (0) to component boundary (0.1)
-      return [{ id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2 }];
+      return [{ id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke }];
     case 'right':
-      // From component boundary (0.9) to right edge (1)
-      return [{ id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2 }];
+      return [{ id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke }];
     case 'top':
-      // From top edge (0) to component boundary (0.1)
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2 }];
+      return [{ id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2, stroke }];
     case 'bottom':
-      // From component boundary (0.9) to bottom edge (1)
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2 }];
+      return [{ id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2, stroke }];
     case 'horizontal':
-      // Full horizontal line (both sides)
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke }
       ];
     case 'vertical':
-      // Full vertical line (both sides)
       return [
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2, stroke }
       ];
     case 'corner-tl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2, stroke }
       ];
     case 'corner-tr':
       return [
-        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2, stroke }
       ];
     case 'corner-bl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2, stroke }
       ];
     case 'corner-br':
       return [
-        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2 },
-        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2 }
+        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2, stroke }
       ];
     default:
       return [];
@@ -295,7 +290,7 @@ export function VariationEditorDialog({
                         {/* Base component shapes */}
                         {component.shapes.map(shape => renderShape(shape, previewSize))}
                         {/* Variation connection lines */}
-                        <g className="text-blue-500">
+                        <g>
                           {variation.shapes.map(shape => (
                             <line
                               key={shape.id}
@@ -303,8 +298,8 @@ export function VariationEditorDialog({
                               y1={shape.y * previewSize}
                               x2={(shape.x + shape.width) * previewSize}
                               y2={(shape.y + shape.height) * previewSize}
-                              stroke="hsl(var(--primary))"
-                              strokeWidth={2}
+                              stroke={shape.stroke || "#000000"}
+                              strokeWidth={shape.strokeWidth || 2}
                             />
                           ))}
                         </g>
