@@ -6,11 +6,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Component, ComponentVariation, ConnectionDirection, Shape, TILE_SIZES } from "@/types/schematic";
+import { Component, ComponentVariation, ConnectionDirection, Shape } from "@/types/schematic";
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -22,7 +21,6 @@ import {
   CornerUpRight,
   CornerDownLeft,
   CornerUpLeft,
-  Plus,
   Trash2,
   Check
 } from "lucide-react";
@@ -77,29 +75,31 @@ function getComponentBounds(shapes: Shape[]): { minX: number; maxX: number; minY
 
 // Generate connection shapes based on type, component bounds, and tile size
 // For 3x2 tiles (3 high, 2 wide): left/right get 3 connections, top/bottom get 2
+// Coordinates are normalized: x is 0-1 across width, y is 0-1 across height
+// For 3x2: each row is 1/3 of height, each column is 1/2 of width
 function generateConnectionShapes(
   type: ConnectionDirection, 
   componentShapes: Shape[], 
-  tileWidth: number, // in grid cells
-  tileHeight: number // in grid cells
+  tileWidth: number, // in grid cells (e.g., 2 for 3x2)
+  tileHeight: number // in grid cells (e.g., 3 for 3x2)
 ): Shape[] {
   const bounds = getComponentBounds(componentShapes);
   const stroke = "#000000"; // Black lines
   
-  // For multi-cell tiles, calculate connection positions
-  // Left/Right: connections per row (tileHeight positions)
-  // Top/Bottom: connections per column (tileWidth positions)
+  // Number of connections on each side
+  const leftRightConnections = tileHeight; // 3 for 3x2 tile (one per row)
+  const topBottomConnections = tileWidth;  // 2 for 3x2 tile (one per column)
   
-  const leftRightConnections = tileHeight; // 3 for 3x2 tile
-  const topBottomConnections = tileWidth;  // 2 for 3x2 tile
+  // Cell dimensions in normalized coordinates
+  const cellHeight = 1 / leftRightConnections; // height of one row
+  const cellWidth = 1 / topBottomConnections;  // width of one column
   
   switch (type) {
     case 'left': {
       const shapes: Shape[] = [];
       for (let i = 0; i < leftRightConnections; i++) {
-        // Calculate Y position for each row (centered in each row cell)
-        const rowHeight = 1 / leftRightConnections;
-        const yCenter = rowHeight * i + rowHeight / 2;
+        // Y position: center of each row
+        const yCenter = cellHeight * i + cellHeight / 2;
         shapes.push({
           id: generateId(),
           type: 'line',
@@ -116,8 +116,7 @@ function generateConnectionShapes(
     case 'right': {
       const shapes: Shape[] = [];
       for (let i = 0; i < leftRightConnections; i++) {
-        const rowHeight = 1 / leftRightConnections;
-        const yCenter = rowHeight * i + rowHeight / 2;
+        const yCenter = cellHeight * i + cellHeight / 2;
         shapes.push({
           id: generateId(),
           type: 'line',
@@ -134,8 +133,8 @@ function generateConnectionShapes(
     case 'top': {
       const shapes: Shape[] = [];
       for (let i = 0; i < topBottomConnections; i++) {
-        const colWidth = 1 / topBottomConnections;
-        const xCenter = colWidth * i + colWidth / 2;
+        // X position: center of each column
+        const xCenter = cellWidth * i + cellWidth / 2;
         shapes.push({
           id: generateId(),
           type: 'line',
@@ -152,8 +151,7 @@ function generateConnectionShapes(
     case 'bottom': {
       const shapes: Shape[] = [];
       for (let i = 0; i < topBottomConnections; i++) {
-        const colWidth = 1 / topBottomConnections;
-        const xCenter = colWidth * i + colWidth / 2;
+        const xCenter = cellWidth * i + cellWidth / 2;
         shapes.push({
           id: generateId(),
           type: 'line',
@@ -168,11 +166,11 @@ function generateConnectionShapes(
       return shapes;
     }
     case 'horizontal': {
-      // Left and right connections
+      // Left and right connections for each row
       const shapes: Shape[] = [];
       for (let i = 0; i < leftRightConnections; i++) {
-        const rowHeight = 1 / leftRightConnections;
-        const yCenter = rowHeight * i + rowHeight / 2;
+        const yCenter = cellHeight * i + cellHeight / 2;
+        // Left connection
         shapes.push({
           id: generateId(),
           type: 'line',
@@ -183,6 +181,7 @@ function generateConnectionShapes(
           strokeWidth: 2,
           stroke
         });
+        // Right connection
         shapes.push({
           id: generateId(),
           type: 'line',
@@ -197,11 +196,11 @@ function generateConnectionShapes(
       return shapes;
     }
     case 'vertical': {
-      // Top and bottom connections
+      // Top and bottom connections for each column
       const shapes: Shape[] = [];
       for (let i = 0; i < topBottomConnections; i++) {
-        const colWidth = 1 / topBottomConnections;
-        const xCenter = colWidth * i + colWidth / 2;
+        const xCenter = cellWidth * i + cellWidth / 2;
+        // Top connection
         shapes.push({
           id: generateId(),
           type: 'line',
@@ -212,6 +211,7 @@ function generateConnectionShapes(
           strokeWidth: 2,
           stroke
         });
+        // Bottom connection
         shapes.push({
           id: generateId(),
           type: 'line',
@@ -227,23 +227,31 @@ function generateConnectionShapes(
     }
     case 'corner-tl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5 / leftRightConnections, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5 / topBottomConnections, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
+        // Left connection on first row
+        { id: generateId(), type: 'line', x: 0, y: cellHeight / 2, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
+        // Top connection on first column
+        { id: generateId(), type: 'line', x: cellWidth / 2, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
       ];
     case 'corner-tr':
       return [
-        { id: generateId(), type: 'line', x: bounds.maxX, y: 0.5 / leftRightConnections, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: (topBottomConnections - 0.5) / topBottomConnections, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
+        // Right connection on first row
+        { id: generateId(), type: 'line', x: bounds.maxX, y: cellHeight / 2, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
+        // Top connection on last column
+        { id: generateId(), type: 'line', x: 1 - cellWidth / 2, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
       ];
     case 'corner-bl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: (leftRightConnections - 0.5) / leftRightConnections, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5 / topBottomConnections, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
+        // Left connection on last row
+        { id: generateId(), type: 'line', x: 0, y: 1 - cellHeight / 2, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
+        // Bottom connection on first column
+        { id: generateId(), type: 'line', x: cellWidth / 2, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
       ];
     case 'corner-br':
       return [
-        { id: generateId(), type: 'line', x: bounds.maxX, y: (leftRightConnections - 0.5) / leftRightConnections, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: (topBottomConnections - 0.5) / topBottomConnections, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
+        // Right connection on last row
+        { id: generateId(), type: 'line', x: bounds.maxX, y: 1 - cellHeight / 2, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
+        // Bottom connection on last column
+        { id: generateId(), type: 'line', x: 1 - cellWidth / 2, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
       ];
     default:
       return [];
@@ -290,14 +298,18 @@ export function VariationEditorDialog({
     onClose();
   }, [component, variations, onSave, onClose]);
 
-  const previewSize = 120;
+  const previewBaseSize = 100;
+  // For 3x2 tiles: width is 2 cells, height is 3 cells
+  // Preview should maintain the aspect ratio
+  const previewWidth = previewBaseSize * tileWidth;
+  const previewHeight = previewBaseSize * tileHeight;
 
-  // Render component shapes
-  const renderShape = (shape: Shape, scale: number) => {
-    const x = shape.x * scale;
-    const y = shape.y * scale;
-    const width = shape.width * scale;
-    const height = shape.height * scale;
+  // Render component shapes with separate scaleX and scaleY
+  const renderShape = (shape: Shape, scaleX: number, scaleY: number) => {
+    const x = shape.x * scaleX;
+    const y = shape.y * scaleY;
+    const width = shape.width * scaleX;
+    const height = shape.height * scaleY;
     const strokeWidth = (shape.strokeWidth || 2);
 
     switch (shape.type) {
@@ -396,20 +408,45 @@ export function VariationEditorDialog({
           <div className="flex-1 flex flex-col gap-4">
             {/* Base component preview */}
             <div className="flex items-center gap-4">
-              <div className="text-sm font-medium">Basis-Komponente:</div>
+              <div className="text-sm font-medium">Basis-Komponente ({tileWidth}x{tileHeight}):</div>
               <div 
                 className="border rounded bg-white"
-                style={{ width: previewSize, height: previewSize }}
+                style={{ width: previewWidth, height: previewHeight }}
               >
-                <svg width={previewSize} height={previewSize} viewBox={`0 0 ${previewSize} ${previewSize}`}>
+                <svg width={previewWidth} height={previewHeight} viewBox={`0 0 ${previewWidth} ${previewHeight}`}>
                   <rect 
-                    width={previewSize} 
-                    height={previewSize} 
+                    width={previewWidth} 
+                    height={previewHeight} 
                     fill="white" 
                     stroke="hsl(var(--border))" 
                     strokeWidth={1}
                   />
-                  {component.shapes.map(shape => renderShape(shape, previewSize))}
+                  {/* Grid lines for multi-cell tiles */}
+                  {tileHeight > 1 && Array.from({ length: tileHeight - 1 }).map((_, i) => (
+                    <line 
+                      key={`h-${i}`} 
+                      x1={0} 
+                      y1={(i + 1) * previewBaseSize} 
+                      x2={previewWidth} 
+                      y2={(i + 1) * previewBaseSize} 
+                      stroke="hsl(var(--border))" 
+                      strokeWidth={0.5} 
+                      strokeDasharray="4 2"
+                    />
+                  ))}
+                  {tileWidth > 1 && Array.from({ length: tileWidth - 1 }).map((_, i) => (
+                    <line 
+                      key={`v-${i}`} 
+                      x1={(i + 1) * previewBaseSize} 
+                      y1={0} 
+                      x2={(i + 1) * previewBaseSize} 
+                      y2={previewHeight} 
+                      stroke="hsl(var(--border))" 
+                      strokeWidth={0.5} 
+                      strokeDasharray="4 2"
+                    />
+                  ))}
+                  {component.shapes.map(shape => renderShape(shape, previewWidth, previewHeight))}
                 </svg>
               </div>
             </div>
@@ -435,22 +472,47 @@ export function VariationEditorDialog({
                     <div className="text-xs font-medium mb-1 truncate">{variation.name}</div>
                     <div 
                       className="bg-white border rounded"
-                      style={{ width: '100%', aspectRatio: '1' }}
+                      style={{ width: '100%', aspectRatio: `${tileWidth}/${tileHeight}` }}
                     >
-                      <svg width="100%" height="100%" viewBox={`0 0 ${previewSize} ${previewSize}`} preserveAspectRatio="xMidYMid meet">
+                      <svg width="100%" height="100%" viewBox={`0 0 ${previewWidth} ${previewHeight}`} preserveAspectRatio="xMidYMid meet">
                         {/* Grid background */}
-                        <rect width={previewSize} height={previewSize} fill="white" />
+                        <rect width={previewWidth} height={previewHeight} fill="white" />
+                        {/* Grid lines for multi-cell tiles */}
+                        {tileHeight > 1 && Array.from({ length: tileHeight - 1 }).map((_, i) => (
+                          <line 
+                            key={`h-${i}`} 
+                            x1={0} 
+                            y1={(i + 1) * previewBaseSize} 
+                            x2={previewWidth} 
+                            y2={(i + 1) * previewBaseSize} 
+                            stroke="hsl(var(--border))" 
+                            strokeWidth={0.5} 
+                            strokeDasharray="4 2"
+                          />
+                        ))}
+                        {tileWidth > 1 && Array.from({ length: tileWidth - 1 }).map((_, i) => (
+                          <line 
+                            key={`v-${i}`} 
+                            x1={(i + 1) * previewBaseSize} 
+                            y1={0} 
+                            x2={(i + 1) * previewBaseSize} 
+                            y2={previewHeight} 
+                            stroke="hsl(var(--border))" 
+                            strokeWidth={0.5} 
+                            strokeDasharray="4 2"
+                          />
+                        ))}
                         {/* Base component shapes */}
-                        {component.shapes.map(shape => renderShape(shape, previewSize))}
+                        {component.shapes.map(shape => renderShape(shape, previewWidth, previewHeight))}
                         {/* Variation connection lines */}
                         <g>
                           {variation.shapes.map(shape => (
                             <line
                               key={shape.id}
-                              x1={shape.x * previewSize}
-                              y1={shape.y * previewSize}
-                              x2={(shape.x + shape.width) * previewSize}
-                              y2={(shape.y + shape.height) * previewSize}
+                              x1={shape.x * previewWidth}
+                              y1={shape.y * previewHeight}
+                              x2={(shape.x + shape.width) * previewWidth}
+                              y2={(shape.y + shape.height) * previewHeight}
                               stroke={shape.stroke || "#000000"}
                               strokeWidth={shape.strokeWidth || 2}
                             />
