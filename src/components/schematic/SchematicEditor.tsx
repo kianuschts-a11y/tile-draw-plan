@@ -1,13 +1,10 @@
-import { useState, useCallback } from "react";
-import { Shape, ToolType, CanvasState, Component, ShapeType } from "@/types/schematic";
+import { useState, useCallback, useEffect } from "react";
+import { Shape, ToolType, CanvasState, Component, PaperFormat, Orientation } from "@/types/schematic";
 import { Toolbar } from "./Toolbar";
 import { Canvas } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
 import { StatusBar } from "./StatusBar";
-
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 11);
-}
+import { PaperSettings } from "./PaperSettings";
 
 export function SchematicEditor() {
   const [shapes, setShapes] = useState<Shape[]>([]);
@@ -15,9 +12,11 @@ export function SchematicEditor() {
   const [activeTool, setActiveTool] = useState<ToolType>('select');
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
-    panX: 0,
-    panY: 0,
-    gridSize: 20
+    panX: 50,
+    panY: 50,
+    gridSize: 20,
+    paperFormat: 'A4',
+    orientation: 'portrait'
   });
 
   const handleZoomIn = useCallback(() => {
@@ -38,8 +37,8 @@ export function SchematicEditor() {
     setCanvasState(prev => ({
       ...prev,
       zoom: 1,
-      panX: 0,
-      panY: 0
+      panX: 50,
+      panY: 50
     }));
   }, []);
 
@@ -50,6 +49,18 @@ export function SchematicEditor() {
     }
   }, [selectedShapeId]);
 
+  const handlePaperFormatChange = useCallback((format: PaperFormat) => {
+    setCanvasState(prev => ({ ...prev, paperFormat: format }));
+  }, []);
+
+  const handleOrientationChange = useCallback((orientation: Orientation) => {
+    setCanvasState(prev => ({ ...prev, orientation }));
+  }, []);
+
+  const handleGridSizeChange = useCallback((gridSize: number) => {
+    setCanvasState(prev => ({ ...prev, gridSize }));
+  }, []);
+
   const handleComponentDragStart = useCallback((component: Component) => {
     // Component drag is handled by the library
   }, []);
@@ -58,6 +69,50 @@ export function SchematicEditor() {
     e.preventDefault();
     // Handle component drop - add shapes to canvas
   }, []);
+
+  // Keyboard shortcuts for tools
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+      
+      switch (e.key.toLowerCase()) {
+        case 'v':
+          setActiveTool('select');
+          break;
+        case 'h':
+          setActiveTool('pan');
+          break;
+        case 'r':
+          setActiveTool('rectangle');
+          break;
+        case 'c':
+          setActiveTool('circle');
+          break;
+        case 'l':
+          setActiveTool('line');
+          break;
+        case 't':
+          setActiveTool('triangle');
+          break;
+        case 'd':
+          setActiveTool('diamond');
+          break;
+        case '+':
+        case '=':
+          handleZoomIn();
+          break;
+        case '-':
+          handleZoomOut();
+          break;
+        case '0':
+          handleResetView();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleZoomIn, handleZoomOut, handleResetView]);
 
   return (
     <div className="flex flex-col h-screen bg-background no-select">
@@ -77,16 +132,27 @@ export function SchematicEditor() {
             <p className="text-xs text-muted-foreground">Anlagen-Diagramm Zeichner</p>
           </div>
         </div>
+        
+        <div className="h-8 w-px bg-border mx-2" />
+        
+        {/* Paper Settings */}
+        <PaperSettings
+          paperFormat={canvasState.paperFormat}
+          orientation={canvasState.orientation}
+          gridSize={canvasState.gridSize}
+          onPaperFormatChange={handlePaperFormatChange}
+          onOrientationChange={handleOrientationChange}
+          onGridSizeChange={handleGridSizeChange}
+        />
+        
         <div className="flex-1" />
+        
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">V</kbd>
           <span>Auswählen</span>
-          <span className="mx-2">•</span>
+          <span className="mx-1">•</span>
           <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">H</kbd>
           <span>Verschieben</span>
-          <span className="mx-2">•</span>
-          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">R</kbd>
-          <span>Rechteck</span>
         </div>
       </header>
 
