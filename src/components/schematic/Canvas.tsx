@@ -209,6 +209,9 @@ export function Canvas({
     const compWidth = (component.width || 1) * tileSize;
     const compHeight = (component.height || 1) * tileSize;
     
+    // Calculate scale factor based on component size (shapes are normalized to 0-1)
+    const scaleFactor = Math.min(compWidth, compHeight);
+    
     return component.shapes.map((shape, idx) => {
       // Scale normalized shapes (0-1) to actual component size
       const scaledShape: Shape = {
@@ -216,7 +219,9 @@ export function Canvas({
         x: shape.x * compWidth,
         y: shape.y * compHeight,
         width: shape.width * compWidth,
-        height: shape.height * compHeight
+        height: shape.height * compHeight,
+        // Scale fontSize proportionally (normalized fontSize * scale factor)
+        fontSize: shape.fontSize ? shape.fontSize * scaleFactor : undefined
       };
       return <ShapeRenderer key={idx} shape={scaledShape} />;
     });
