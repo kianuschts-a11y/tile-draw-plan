@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape } from "@/types/schematic";
+import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, TILE_SIZES } from "@/types/schematic";
 import { ShapeRenderer } from "./ShapeRenderer";
 
 export interface PlacedTile {
@@ -66,6 +66,44 @@ export function Canvas({
     };
   }, [canvasState, tileSize, gridCols, gridRows]);
 
+  // Check if a position is occupied by any tile (considering multi-cell tiles)
+  const isPositionOccupied = useCallback((gridX: number, gridY: number, excludeTileId?: string): boolean => {
+    for (const tile of tiles) {
+      if (tile.id === excludeTileId) continue;
+      
+      const tileWidth = tile.component.width || 1;
+      const tileHeight = tile.component.height || 1;
+      
+      // Check if the position falls within this tile's bounds
+      if (gridX >= tile.gridX && gridX < tile.gridX + tileWidth &&
+          gridY >= tile.gridY && gridY < tile.gridY + tileHeight) {
+        return true;
+      }
+    }
+    return false;
+  }, [tiles]);
+
+  // Check if a component can be placed at a position
+  const canPlaceComponent = useCallback((component: Component, gridX: number, gridY: number, excludeTileId?: string): boolean => {
+    const compWidth = component.width || 1;
+    const compHeight = component.height || 1;
+    
+    // Check bounds
+    if (gridX + compWidth > gridCols || gridY + compHeight > gridRows) {
+      return false;
+    }
+    
+    // Check all cells the component would occupy
+    for (let dx = 0; dx < compWidth; dx++) {
+      for (let dy = 0; dy < compHeight; dy++) {
+        if (isPositionOccupied(gridX + dx, gridY + dy, excludeTileId)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }, [gridCols, gridRows, isPositionOccupied]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
 
@@ -94,16 +132,15 @@ export function Canvas({
       const { gridX, gridY } = getGridPosition(e);
       const tile = tiles.find(t => t.id === selectedTileId);
       if (tile && (tile.gridX !== gridX || tile.gridY !== gridY)) {
-        // Check if position is occupied
-        const isOccupied = tiles.some(t => t.id !== selectedTileId && t.gridX === gridX && t.gridY === gridY);
-        if (!isOccupied) {
+        // Check if position is valid for this component
+        if (canPlaceComponent(tile.component, gridX, gridY, selectedTileId)) {
           onTilesChange(tiles.map(t => 
             t.id === selectedTileId ? { ...t, gridX, gridY } : t
           ));
         }
       }
     }
-  }, [isPanning, isDragging, selectedTileId, canvasState, panStart, getGridPosition, tiles, onCanvasStateChange, onTilesChange]);
+  }, [isPanning, isDragging, selectedTileId, canvasState, panStart, getGridPosition, tiles, onCanvasStateChange, onTilesChange, canPlaceComponent]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
@@ -134,15 +171,14 @@ export function Canvas({
       const component: Component = JSON.parse(componentData);
       const { gridX, gridY } = getGridPosition(e);
       
-      // Check if position is occupied
-      const isOccupied = tiles.some(t => t.gridX === gridX && t.gridY === gridY);
-      if (!isOccupied) {
+      // Check if component can be placed
+      if (canPlaceComponent(component, gridX, gridY)) {
         onDropComponent(component, gridX, gridY);
       }
     } catch (err) {
       console.error('Failed to parse dropped component:', err);
     }
-  }, [getGridPosition, tiles, onDropComponent]);
+  }, [getGridPosition, canPlaceComponent, onDropComponent]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -168,16 +204,19 @@ export function Canvas({
     return 'default';
   };
 
-  // Render a component's shapes scaled to tile size
+  // Render a component's shapes scaled to tile size (accounting for multi-cell components)
   const renderTileShapes = (component: Component) => {
+    const compWidth = (component.width || 1) * tileSize;
+    const compHeight = (component.height || 1) * tileSize;
+    
     return component.shapes.map((shape, idx) => {
-      // Scale normalized shapes (0-1) to tile size
+      // Scale normalized shapes (0-1) to actual component size
       const scaledShape: Shape = {
         ...shape,
-        x: shape.x * tileSize,
-        y: shape.y * tileSize,
-        width: shape.width * tileSize,
-        height: shape.height * tileSize
+        x: shape.x * compWidth,
+        y: shape.y * compHeight,
+        width: shape.width * compWidth,
+        height: shape.height * compHeight
       };
       return <ShapeRenderer key={idx} shape={scaledShape} />;
     });
@@ -248,6 +287,8 @@ export function Canvas({
         {tiles.map(tile => {
           const x = tile.gridX * tileSize;
           const y = tile.gridY * tileSize;
+          const compWidth = (tile.component.width || 1) * tileSize;
+          const compHeight = (tile.component.height || 1) * tileSize;
           const isSelected = tile.id === selectedTileId;
           
           return (
@@ -257,10 +298,10 @@ export function Canvas({
               onMouseDown={(e) => handleTileMouseDown(e, tile)}
               style={{ cursor: activeTool === 'select' ? 'pointer' : 'inherit' }}
             >
-              {/* Tile background */}
+              {/* Tile background - sized for multi-cell components */}
               <rect
-                width={tileSize}
-                height={tileSize}
+                width={compWidth}
+                height={compHeight}
                 fill={isSelected ? "hsl(var(--primary) / 0.1)" : "hsl(var(--muted) / 0.3)"}
                 stroke={isSelected ? "hsl(var(--primary))" : "transparent"}
                 strokeWidth={2}

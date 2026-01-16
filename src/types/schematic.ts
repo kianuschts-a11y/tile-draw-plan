@@ -6,6 +6,20 @@ export type PaperFormat = 'A5' | 'A4' | 'A3' | 'A2' | 'A1' | 'Letter' | 'Legal';
 
 export type Orientation = 'portrait' | 'landscape';
 
+// Tile size configurations
+export type TileSize = '1x1' | '3x2'; // 3x2 = 3 high, 2 wide
+
+export interface TileSizeConfig {
+  cols: number;
+  rows: number;
+  label: string;
+}
+
+export const TILE_SIZES: Record<TileSize, TileSizeConfig> = {
+  '1x1': { cols: 1, rows: 1, label: '1×1 Kachel' },
+  '3x2': { cols: 2, rows: 3, label: '3×2 Kachel (3 hoch, 2 breit)' }
+};
+
 // Connection directions for component variations
 export type ConnectionDirection = 'left' | 'right' | 'top' | 'bottom' | 'horizontal' | 'vertical' | 'corner-tl' | 'corner-tr' | 'corner-bl' | 'corner-br';
 
@@ -66,8 +80,9 @@ export interface Component {
   id: string;
   name: string;
   shapes: Shape[];
-  width: number;
-  height: number;
+  width: number;  // Grid cells wide
+  height: number; // Grid cells tall
+  tileSize?: TileSize; // '1x1' or '3x2'
   thumbnail?: string;
   variations?: ComponentVariation[]; // Optional variations for connections
   activeVariationId?: string; // Currently active variation
