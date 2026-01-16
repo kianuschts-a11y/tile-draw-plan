@@ -51,50 +51,77 @@ const CONNECTION_TYPES: { type: ConnectionDirection; label: string; icon: React.
   { type: 'corner-br', label: 'Ecke unten-rechts', icon: <CornerDownRight size={18} /> },
 ];
 
-// Generate the connection line shapes based on type
-// Lines go from edge directly to component boundary with no gap
-function generateConnectionShapes(type: ConnectionDirection): Shape[] {
-  const edge = 0.1; // Where component shapes typically start
+// Calculate the bounding box of component shapes
+function getComponentBounds(shapes: Shape[]): { minX: number; maxX: number; minY: number; maxY: number } {
+  if (shapes.length === 0) {
+    return { minX: 0.1, maxX: 0.9, minY: 0.1, maxY: 0.9 };
+  }
+  
+  let minX = 1, maxX = 0, minY = 1, maxY = 0;
+  
+  for (const shape of shapes) {
+    // Get shape bounds based on type
+    const shapeMinX = shape.x;
+    const shapeMaxX = shape.x + shape.width;
+    const shapeMinY = shape.y;
+    const shapeMaxY = shape.y + shape.height;
+    
+    minX = Math.min(minX, shapeMinX);
+    maxX = Math.max(maxX, shapeMaxX);
+    minY = Math.min(minY, shapeMinY);
+    maxY = Math.max(maxY, shapeMaxY);
+  }
+  
+  return { minX, maxX, minY, maxY };
+}
+
+// Generate the connection line shapes based on type and component bounds
+function generateConnectionShapes(type: ConnectionDirection, componentShapes: Shape[]): Shape[] {
+  const bounds = getComponentBounds(componentShapes);
   const stroke = "#000000"; // Black lines
   
   switch (type) {
     case 'left':
-      return [{ id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke }];
+      // From left edge (0) to component's left boundary
+      return [{ id: generateId(), type: 'line', x: 0, y: 0.5, width: bounds.minX, height: 0, strokeWidth: 2, stroke }];
     case 'right':
-      return [{ id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke }];
+      // From component's right boundary to right edge (1)
+      return [{ id: generateId(), type: 'line', x: bounds.maxX, y: 0.5, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke }];
     case 'top':
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2, stroke }];
+      // From top edge (0) to component's top boundary
+      return [{ id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }];
     case 'bottom':
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2, stroke }];
+      // From component's bottom boundary to bottom edge (1)
+      return [{ id: generateId(), type: 'line', x: 0.5, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }];
     case 'horizontal':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: bounds.maxX, y: 0.5, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke }
       ];
     case 'vertical':
       return [
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
       ];
     case 'corner-tl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
       ];
     case 'corner-tr':
       return [
-        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: edge, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: bounds.maxX, y: 0.5, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
       ];
     case 'corner-bl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: 0, y: 0.5, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
       ];
     case 'corner-br':
       return [
-        { id: generateId(), type: 'line', x: 1 - edge, y: 0.5, width: edge, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: 1 - edge, width: 0, height: edge, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: bounds.maxX, y: 0.5, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
       ];
     default:
       return [];
@@ -116,11 +143,11 @@ export function VariationEditorDialog({
       id: generateId(),
       name: label,
       connectionType: type,
-      shapes: generateConnectionShapes(type)
+      shapes: generateConnectionShapes(type, component.shapes)
     };
     setVariations(prev => [...prev, newVariation]);
     setSelectedVariationId(newVariation.id);
-  }, []);
+  }, [component.shapes]);
 
   const handleDeleteVariation = useCallback((id: string) => {
     setVariations(prev => prev.filter(v => v.id !== id));
