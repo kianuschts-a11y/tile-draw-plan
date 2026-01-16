@@ -37,7 +37,7 @@ function saveComponentsToStorage(components: Component[]) {
 
 export function SchematicEditor() {
   const [tiles, setTiles] = useState<PlacedTile[]>([]);
-  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [selectedTileIds, setSelectedTileIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<MainToolType>('select');
   const [components, setComponents] = useState<Component[]>(loadComponentsFromStorage);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -76,11 +76,11 @@ export function SchematicEditor() {
   }, []);
 
   const handleDelete = useCallback(() => {
-    if (selectedTileId) {
-      setTiles(prev => prev.filter(t => t.id !== selectedTileId));
-      setSelectedTileId(null);
+    if (selectedTileIds.size > 0) {
+      setTiles(prev => prev.filter(t => !selectedTileIds.has(t.id)));
+      setSelectedTileIds(new Set());
     }
-  }, [selectedTileId]);
+  }, [selectedTileIds]);
 
   const handlePaperFormatChange = useCallback((format: PaperFormat) => {
     setCanvasState(prev => ({ ...prev, paperFormat: format }));
@@ -107,7 +107,7 @@ export function SchematicEditor() {
       gridY
     };
     setTiles(prev => [...prev, newTile]);
-    setSelectedTileId(newTile.id);
+    setSelectedTileIds(new Set([newTile.id]));
   }, []);
 
   // Persist components to localStorage whenever they change
@@ -244,17 +244,17 @@ export function SchematicEditor() {
           onZoomOut={handleZoomOut}
           onResetView={handleResetView}
           onDelete={handleDelete}
-          hasSelection={!!selectedTileId}
+          hasSelection={selectedTileIds.size > 0}
         />
 
         <div className="flex-1 overflow-hidden">
           <Canvas
             tiles={tiles}
-            selectedTileId={selectedTileId}
+            selectedTileIds={selectedTileIds}
             activeTool={activeTool}
             canvasState={canvasState}
             onTilesChange={setTiles}
-            onSelectionChange={setSelectedTileId}
+            onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
             onDropComponent={handleDropComponent}
           />
@@ -272,10 +272,10 @@ export function SchematicEditor() {
         />
       </div>
 
-      <StatusBar
-        canvasState={canvasState}
-        shapeCount={tiles.length}
-        selectedShape={selectedTileId}
+      <StatusBar 
+        canvasState={canvasState} 
+        shapeCount={tiles.length} 
+        selectedCount={selectedTileIds.size} 
       />
 
       <ComponentEditorDialog

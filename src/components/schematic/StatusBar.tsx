@@ -3,10 +3,10 @@ import { CanvasState, PAPER_SIZES } from "@/types/schematic";
 interface StatusBarProps {
   canvasState: CanvasState;
   shapeCount: number;
-  selectedShape: string | null;
+  selectedCount: number;
 }
 
-export function StatusBar({ canvasState, shapeCount, selectedShape }: StatusBarProps) {
+export function StatusBar({ canvasState, shapeCount, selectedCount }: StatusBarProps) {
   const paperSize = PAPER_SIZES[canvasState.paperFormat];
   const dimensions = canvasState.orientation === 'portrait'
     ? `${paperSize.width} × ${paperSize.height}`
@@ -38,10 +38,10 @@ export function StatusBar({ canvasState, shapeCount, selectedShape }: StatusBarP
         <span className="text-foreground/70">Objekte:</span>
         <span>{shapeCount}</span>
       </div>
-      {selectedShape && (
+      {selectedCount > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-foreground/70">Ausgewählt:</span>
-          <span className="text-primary">1</span>
+          <span className="text-primary">{selectedCount}</span>
         </div>
       )}
       <div className="flex-1" />

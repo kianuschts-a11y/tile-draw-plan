@@ -14,11 +14,11 @@ export interface PlacedTile {
 
 interface CanvasProps {
   tiles: PlacedTile[];
-  selectedTileId: string | null;
+  selectedTileIds: Set<string>;
   activeTool: MainToolType;
   canvasState: CanvasState;
   onTilesChange: (tiles: PlacedTile[]) => void;
-  onSelectionChange: (id: string | null) => void;
+  onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
   onDropComponent: (component: Component, gridX: number, gridY: number) => void;
 }
@@ -111,7 +111,7 @@ function findVariationForDirections(component: Component, directions: Connection
 
 export function Canvas({
   tiles,
-  selectedTileId,
+  selectedTileIds,
   activeTool,
   canvasState,
   onTilesChange,
@@ -124,6 +124,9 @@ export function Canvas({
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartGrid, setDragStartGrid] = useState({ x: 0, y: 0 });
+  
+  // Select tool state for multi-select
+  const [isSelecting, setIsSelecting] = useState(false);
   
   // Connect tool state
   const [connectStartTileId, setConnectStartTileId] = useState<string | null>(null);
@@ -270,7 +273,8 @@ export function Canvas({
     }
 
     if (activeTool === 'select') {
-      onSelectionChange(null);
+      // Click on empty space clears selection
+      onSelectionChange(new Set());
     }
   }, [activeTool, canvasState.panX, canvasState.panY, onSelectionChange, getGridPosition, getTileAtPosition]);
 
@@ -281,6 +285,17 @@ export function Canvas({
         panX: e.clientX - panStart.x,
         panY: e.clientY - panStart.y
       });
+      return;
+    }
+
+    // Select mode - drag over tiles to multi-select them
+    if (isSelecting && activeTool === 'select') {
+      const { gridX, gridY } = getGridPosition(e);
+      const tile = getTileAtPosition(gridX, gridY);
+      
+      if (tile && !selectedTileIds.has(tile.id)) {
+        onSelectionChange(new Set([...selectedTileIds, tile.id]));
+      }
       return;
     }
 
@@ -304,23 +319,26 @@ export function Canvas({
       return;
     }
 
-    if (isDragging && selectedTileId) {
+    // Dragging selected tiles (only single selection for now)
+    if (isDragging && selectedTileIds.size === 1) {
+      const selectedId = Array.from(selectedTileIds)[0];
       const { gridX, gridY } = getGridPosition(e);
-      const tile = tiles.find(t => t.id === selectedTileId);
+      const tile = tiles.find(t => t.id === selectedId);
       if (tile && (tile.gridX !== gridX || tile.gridY !== gridY)) {
         // Check if position is valid for this component
-        if (canPlaceComponent(tile.component, gridX, gridY, selectedTileId)) {
+        if (canPlaceComponent(tile.component, gridX, gridY, selectedId)) {
           onTilesChange(tiles.map(t => 
-            t.id === selectedTileId ? { ...t, gridX, gridY } : t
+            t.id === selectedId ? { ...t, gridX, gridY } : t
           ));
         }
       }
     }
-  }, [isPanning, isDragging, isConnecting, selectedTileId, canvasState, panStart, getGridPosition, getTileAtPosition, tiles, onCanvasStateChange, onTilesChange, canPlaceComponent, activeTool, connectedTileIds, connectTiles]);
+  }, [isPanning, isDragging, isSelecting, isConnecting, selectedTileIds, canvasState, panStart, getGridPosition, getTileAtPosition, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, canPlaceComponent, activeTool, connectedTileIds, connectTiles]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
     setIsDragging(false);
+    setIsSelecting(false);
     setIsConnecting(false);
     setConnectStartTileId(null);
     setConnectedTileIds(new Set());
@@ -339,9 +357,11 @@ export function Canvas({
     
     if (activeTool !== 'select') return;
     
-    onSelectionChange(tile.id);
+    // Start multi-select or single select
+    onSelectionChange(new Set([tile.id]));
     setDragStartGrid({ x: tile.gridX, y: tile.gridY });
     setIsDragging(true);
+    setIsSelecting(true);
   }, [activeTool, onSelectionChange]);
 
   // Handle click-to-click connection
@@ -392,18 +412,18 @@ export function Canvas({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTileId) {
-        onTilesChange(tiles.filter(t => t.id !== selectedTileId));
-        onSelectionChange(null);
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTileIds.size > 0) {
+        onTilesChange(tiles.filter(t => !selectedTileIds.has(t.id)));
+        onSelectionChange(new Set());
       }
       if (e.key === 'Escape') {
-        onSelectionChange(null);
+        onSelectionChange(new Set());
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTileId, tiles, onTilesChange, onSelectionChange]);
+  }, [selectedTileIds, tiles, onTilesChange, onSelectionChange]);
 
   const getCursor = () => {
     if (activeTool === 'pan') return isPanning ? 'grabbing' : 'grab';
@@ -516,7 +536,7 @@ export function Canvas({
           const y = tile.gridY * tileSize;
           const compWidth = (tile.component.width || 1) * tileSize;
           const compHeight = (tile.component.height || 1) * tileSize;
-          const isSelected = tile.id === selectedTileId;
+          const isSelected = selectedTileIds.has(tile.id);
           const isConnectStart = activeTool === 'connect' && tile.id === connectStartTileId;
           const isBeingConnected = activeTool === 'connect' && connectedTileIds.has(tile.id);
           
