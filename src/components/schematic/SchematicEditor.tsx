@@ -44,6 +44,7 @@ export function SchematicEditor() {
   const [activeTool, setActiveTool] = useState<'select' | 'pan'>('select');
   const [components, setComponents] = useState<Component[]>(loadComponentsFromStorage);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingComponent, setEditingComponent] = useState<Component | null>(null);
   const [variationEditorComponent, setVariationEditorComponent] = useState<Component | null>(null);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
@@ -141,6 +142,18 @@ export function SchematicEditor() {
 
   const handleEditVariations = useCallback((component: Component) => {
     setVariationEditorComponent(component);
+  }, []);
+
+  const handleEditComponent = useCallback((component: Component) => {
+    setEditingComponent(component);
+    setIsEditorOpen(true);
+  }, []);
+
+  const handleUpdateComponentShapes = useCallback((id: string, name: string, shapes: Shape[], tileSize: TileSize) => {
+    const config = TILE_SIZES[tileSize];
+    setComponents(prev => prev.map(c => 
+      c.id === id ? { ...c, name, shapes, width: config.cols, height: config.rows, tileSize } : c
+    ));
   }, []);
 
   const handleUpdateComponent = useCallback((updatedComponent: Component) => {
@@ -246,11 +259,12 @@ export function SchematicEditor() {
 
         <ComponentLibrary
           components={components}
-          onCreateNew={() => setIsEditorOpen(true)}
+          onCreateNew={() => { setEditingComponent(null); setIsEditorOpen(true); }}
           onDeleteComponent={handleDeleteComponent}
           onClearAll={handleClearAllComponents}
           onDragStart={handleDragStart}
           onEditVariations={handleEditVariations}
+          onEditComponent={handleEditComponent}
           onUpdateComponent={handleUpdateComponent}
         />
       </div>
@@ -263,9 +277,11 @@ export function SchematicEditor() {
 
       <ComponentEditorDialog
         open={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
+        onClose={() => { setIsEditorOpen(false); setEditingComponent(null); }}
         onSave={handleSaveComponent}
+        onUpdate={handleUpdateComponentShapes}
         tileSize={canvasState.gridSize}
+        editingComponent={editingComponent}
       />
 
       {variationEditorComponent && (

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Component, Shape } from "@/types/schematic";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Settings2 } from "lucide-react";
+import { Plus, Trash2, Settings2, Pencil } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -27,6 +27,7 @@ interface ComponentLibraryProps {
   onClearAll: () => void;
   onDragStart: (e: React.DragEvent, component: Component) => void;
   onEditVariations: (component: Component) => void;
+  onEditComponent: (component: Component) => void;
   onUpdateComponent: (component: Component) => void;
 }
 
@@ -106,6 +107,7 @@ export function ComponentLibrary({
   onClearAll,
   onDragStart,
   onEditVariations,
+  onEditComponent,
   onUpdateComponent
 }: ComponentLibraryProps) {
   const previewSize = 50;
@@ -208,19 +210,21 @@ export function ComponentLibrary({
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent>
+                  <ContextMenuItem onClick={() => onEditComponent(component)}>
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Bild bearbeiten
+                  </ContextMenuItem>
                   <ContextMenuItem onClick={() => onEditVariations(component)}>
                     <Settings2 className="w-4 h-4 mr-2" />
                     Varianten bearbeiten
                   </ContextMenuItem>
-                  {!component.id.startsWith('default-') && (
-                    <ContextMenuItem 
-                      onClick={() => handleDeleteClick(component)}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Löschen
-                    </ContextMenuItem>
-                  )}
+                  <ContextMenuItem 
+                    onClick={() => handleDeleteClick(component)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Löschen
+                  </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
             );

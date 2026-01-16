@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Shape, ShapeType, Point, TileSize, TILE_SIZES } from "@/types/schematic";
+import { Shape, ShapeType, Point, TileSize, TILE_SIZES, Component } from "@/types/schematic";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,9 @@ interface ComponentEditorDialogProps {
   open: boolean;
   onClose: () => void;
   onSave: (name: string, shapes: Shape[], tileSize: TileSize) => void;
+  onUpdate?: (id: string, name: string, shapes: Shape[], tileSize: TileSize) => void;
   tileSize: number;
+  editingComponent?: Component | null; // Bestehende Komponente zum Bearbeiten
 }
 
 type EditorTool = 'select' | ShapeType;
@@ -76,7 +78,7 @@ function ToolBtn({ icon: Icon, label, shortcut, isActive, onClick, disabled }: T
   );
 }
 
-export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: ComponentEditorDialogProps) {
+export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSize, editingComponent }: ComponentEditorDialogProps) {
   const [name, setName] = useState("");
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]);
@@ -101,6 +103,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   const [componentTileSize, setComponentTileSize] = useState<TileSize>('1x1');
   const [hoverPosition, setHoverPosition] = useState<Point | null>(null);
 
+  const isEditing = !!editingComponent;
+
   // Canvas size based on tile size selection
   const tileSizeConfig = TILE_SIZES[componentTileSize];
   const baseCanvasSize = 300;
@@ -114,6 +118,40 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   const gridSize = baseCanvasSize / 20;
   const handleSize = 10;
   const lineHitArea = 12;
+
+  // Lade bestehende Komponente beim Öffnen
+  useEffect(() => {
+    if (open && editingComponent) {
+      setName(editingComponent.name);
+      setComponentTileSize(editingComponent.tileSize || '1x1');
+      
+      // Berechne Canvas-Größe für die zu ladende Komponente
+      const loadTileConfig = TILE_SIZES[editingComponent.tileSize || '1x1'];
+      const loadCanvasWidth = baseCanvasSize;
+      const loadCanvasHeight = loadTileConfig.rows > loadTileConfig.cols 
+        ? baseCanvasSize * (loadTileConfig.rows / loadTileConfig.cols)
+        : baseCanvasSize;
+      
+      // Denormalisiere die Formen (von 0-1 auf Canvas-Koordinaten)
+      const denormalizedShapes = editingComponent.shapes.map(s => ({
+        ...s,
+        x: s.x * loadCanvasWidth,
+        y: s.y * loadCanvasHeight,
+        width: s.width * loadCanvasWidth,
+        height: s.height * loadCanvasHeight,
+        strokeWidth: s.strokeWidth ? s.strokeWidth * baseCanvasSize : 2,
+        fontSize: s.fontSize ? s.fontSize * baseCanvasSize : undefined,
+        arrowSize: s.arrowSize ? s.arrowSize * baseCanvasSize : undefined,
+        points: s.points?.map(p => ({ x: p.x * loadCanvasWidth, y: p.y * loadCanvasHeight }))
+      }));
+      
+      setShapes(denormalizedShapes);
+      setHistory([denormalizedShapes]);
+      setHistoryIndex(0);
+    } else if (open && !editingComponent) {
+      setName("Neue Komponente");
+    }
+  }, [open, editingComponent]);
 
   const pushHistory = useCallback((newShapes: Shape[]) => {
     const newHistory = history.slice(0, historyIndex + 1);
@@ -717,7 +755,12 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
       arrowSize: s.arrowSize ? s.arrowSize / baseCanvasSize : undefined,
       points: s.points?.map(p => ({ x: p.x / canvasWidth, y: p.y / canvasHeight }))
     }));
-    onSave(name, normalizedShapes, componentTileSize);
+    
+    if (isEditing && editingComponent && onUpdate) {
+      onUpdate(editingComponent.id, name, normalizedShapes, componentTileSize);
+    } else {
+      onSave(name, normalizedShapes, componentTileSize);
+    }
     handleClose();
   };
 
@@ -952,7 +995,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent className="max-w-5xl p-4">
         <DialogHeader className="pb-2">
-          <DialogTitle>Komponente erstellen</DialogTitle>
+          <DialogTitle>{isEditing ? `"${editingComponent?.name}" bearbeiten` : 'Komponente erstellen'}</DialogTitle>
         </DialogHeader>
         
         {/* Toolbar - kompakt oben */}
