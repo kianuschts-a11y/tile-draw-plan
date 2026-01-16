@@ -77,7 +77,7 @@ function ToolBtn({ icon: Icon, label, shortcut, isActive, onClick, disabled }: T
 }
 
 export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: ComponentEditorDialogProps) {
-  const [name, setName] = useState("Neue Komponente");
+  const [name, setName] = useState("");
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]);
   const [activeTool, setActiveTool] = useState<EditorTool>('rectangle');
@@ -895,8 +895,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 id="component-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Komponentenname"
+                placeholder="Neue Komponente"
                 className="h-8 text-sm"
+                onFocus={(e) => e.target.select()}
               />
             </div>
 
@@ -1064,11 +1065,11 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 {/* Grid */}
                 <defs>
                   <pattern id="editor-grid-fine" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
-                    <path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="#e5e7eb" strokeWidth="0.5" />
+                    <path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="#c4c7cc" strokeWidth="0.5" />
                   </pattern>
                   <pattern id="editor-grid-major" width={gridSize * 5} height={gridSize * 5} patternUnits="userSpaceOnUse">
                     <rect width={gridSize * 5} height={gridSize * 5} fill="url(#editor-grid-fine)" />
-                    <path d={`M ${gridSize * 5} 0 L 0 0 0 ${gridSize * 5}`} fill="none" stroke="#d1d5db" strokeWidth="1" />
+                    <path d={`M ${gridSize * 5} 0 L 0 0 0 ${gridSize * 5}`} fill="none" stroke="#9ca3af" strokeWidth="1" />
                   </pattern>
                 </defs>
                 <rect width={canvasWidth} height={canvasHeight} fill="url(#editor-grid-major)" />
