@@ -72,11 +72,39 @@ const defaultComponents: Component[] = [
   }
 ];
 
+const STORAGE_KEY = 'schematic-editor-components';
+
+function loadComponentsFromStorage(): Component[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const userComponents = JSON.parse(stored) as Component[];
+      // Merge default components with user components (avoid duplicates)
+      const defaultIds = defaultComponents.map(c => c.id);
+      const filteredUserComponents = userComponents.filter(c => !defaultIds.includes(c.id));
+      return [...defaultComponents, ...filteredUserComponents];
+    }
+  } catch (e) {
+    console.error('Failed to load components from storage:', e);
+  }
+  return defaultComponents;
+}
+
+function saveComponentsToStorage(components: Component[]) {
+  try {
+    // Only save non-default components
+    const userComponents = components.filter(c => !c.id.startsWith('default-'));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(userComponents));
+  } catch (e) {
+    console.error('Failed to save components to storage:', e);
+  }
+}
+
 export function SchematicEditor() {
   const [tiles, setTiles] = useState<PlacedTile[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<'select' | 'pan'>('select');
-  const [components, setComponents] = useState<Component[]>(defaultComponents);
+  const [components, setComponents] = useState<Component[]>(loadComponentsFromStorage);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [variationEditorComponent, setVariationEditorComponent] = useState<Component | null>(null);
   const [canvasState, setCanvasState] = useState<CanvasState>({
@@ -145,6 +173,11 @@ export function SchematicEditor() {
     setTiles(prev => [...prev, newTile]);
     setSelectedTileId(newTile.id);
   }, []);
+
+  // Persist components to localStorage whenever they change
+  useEffect(() => {
+    saveComponentsToStorage(components);
+  }, [components]);
 
   const handleSaveComponent = useCallback((name: string, shapes: Shape[], tileSize: TileSize) => {
     const config = TILE_SIZES[tileSize];
