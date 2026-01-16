@@ -1,6 +1,5 @@
 import { 
   MousePointer2, 
-  Hand, 
   Trash2,
   RotateCcw,
   ZoomIn,
@@ -10,7 +9,7 @@ import {
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
 
-export type MainToolType = 'select' | 'pan' | 'connect';
+export type MainToolType = 'select' | 'connect';
 
 interface ToolbarProps {
   activeTool: MainToolType;
@@ -39,13 +38,6 @@ export function Toolbar({
         shortcut="V"
         isActive={activeTool === 'select'}
         onClick={() => onToolChange('select')}
-      />
-      <ToolButton
-        icon={Hand}
-        label="Verschieben"
-        shortcut="H"
-        isActive={activeTool === 'pan'}
-        onClick={() => onToolChange('pan')}
       />
       <ToolButton
         icon={Link2}

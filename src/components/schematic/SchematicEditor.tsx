@@ -168,9 +168,6 @@ export function SchematicEditor() {
         case 'v':
           setActiveTool('select');
           break;
-        case 'h':
-          setActiveTool('pan');
-          break;
         case 'c':
           setActiveTool('connect');
           break;
@@ -226,9 +223,6 @@ export function SchematicEditor() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">V</kbd>
           <span>Auswählen</span>
-          <span className="mx-1">•</span>
-          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">H</kbd>
-          <span>Verschieben</span>
           <span className="mx-1">•</span>
           <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">C</kbd>
           <span>Verbinden</span>
