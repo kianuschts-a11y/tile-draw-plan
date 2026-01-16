@@ -856,13 +856,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Komponente erstellen</DialogTitle>
         </DialogHeader>
         
-        <ScrollArea className="flex-1 -mx-6 px-6">
-          <div className="space-y-4 pb-2">
+        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+          <div className="space-y-4 pb-4">
           {/* Tile size selection */}
           <div className="space-y-2">
             <Label>Kachelgröße</Label>
@@ -1163,9 +1163,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
             <span>{shapes.length} Elemente</span>
           </div>
           </div>
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="flex-shrink-0 pt-4 border-t">
+        <DialogFooter className="flex-shrink-0 pt-4 border-t mt-0">
           <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
           <Button onClick={handleSave} disabled={shapes.length === 0}>
             Komponente speichern
