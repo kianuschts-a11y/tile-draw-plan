@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Shape, CanvasState, Component, PaperFormat, Orientation } from "@/types/schematic";
 import { Toolbar } from "./Toolbar";
-import { Canvas, PlacedTileType } from "./Canvas";
+import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
 import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
@@ -11,68 +11,68 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
-// Default components
+// Default components with normalized shapes (0-1 range)
 const defaultComponents: Component[] = [
   {
     id: 'default-rect',
     name: 'Rechteck',
-    width: 60,
-    height: 40,
-    shapes: [{ id: '1', type: 'rectangle', x: 0, y: 0, width: 60, height: 40, strokeWidth: 2 }]
+    width: 1,
+    height: 1,
+    shapes: [{ id: '1', type: 'rectangle', x: 0.1, y: 0.1, width: 0.8, height: 0.8, strokeWidth: 2 }]
   },
   {
     id: 'default-circle',
     name: 'Kreis',
-    width: 40,
-    height: 40,
-    shapes: [{ id: '1', type: 'circle', x: 0, y: 0, width: 40, height: 40, strokeWidth: 2 }]
+    width: 1,
+    height: 1,
+    shapes: [{ id: '1', type: 'circle', x: 0.1, y: 0.1, width: 0.8, height: 0.8, strokeWidth: 2 }]
   },
   {
     id: 'default-valve',
     name: 'Ventil',
-    width: 40,
-    height: 30,
+    width: 1,
+    height: 1,
     shapes: [
-      { id: '1', type: 'triangle', x: 0, y: 0, width: 20, height: 30, strokeWidth: 2 },
-      { id: '2', type: 'triangle', x: 20, y: 0, width: 20, height: 30, strokeWidth: 2 }
+      { id: '1', type: 'triangle', x: 0.05, y: 0.15, width: 0.45, height: 0.7, strokeWidth: 2 },
+      { id: '2', type: 'triangle', x: 0.5, y: 0.15, width: 0.45, height: 0.7, strokeWidth: 2 }
     ]
   },
   {
     id: 'default-pump',
     name: 'Pumpe',
-    width: 50,
-    height: 50,
+    width: 1,
+    height: 1,
     shapes: [
-      { id: '1', type: 'circle', x: 5, y: 5, width: 40, height: 40, strokeWidth: 2 },
-      { id: '2', type: 'triangle', x: 20, y: 0, width: 10, height: 10, strokeWidth: 2 }
+      { id: '1', type: 'circle', x: 0.15, y: 0.15, width: 0.7, height: 0.7, strokeWidth: 2 },
+      { id: '2', type: 'triangle', x: 0.4, y: 0.05, width: 0.2, height: 0.15, strokeWidth: 2 }
     ]
   },
   {
     id: 'default-tank',
     name: 'Tank',
-    width: 60,
-    height: 80,
+    width: 1,
+    height: 1,
     shapes: [
-      { id: '1', type: 'rectangle', x: 0, y: 10, width: 60, height: 60, strokeWidth: 2 },
-      { id: '2', type: 'ellipse', x: 0, y: 0, width: 60, height: 20, strokeWidth: 2 },
-      { id: '3', type: 'ellipse', x: 0, y: 60, width: 60, height: 20, strokeWidth: 2 }
+      { id: '1', type: 'rectangle', x: 0.15, y: 0.2, width: 0.7, height: 0.6, strokeWidth: 2 },
+      { id: '2', type: 'ellipse', x: 0.15, y: 0.1, width: 0.7, height: 0.2, strokeWidth: 2 },
+      { id: '3', type: 'ellipse', x: 0.15, y: 0.7, width: 0.7, height: 0.2, strokeWidth: 2 }
     ]
   },
   {
     id: 'default-motor',
     name: 'Motor',
-    width: 60,
-    height: 40,
+    width: 1,
+    height: 1,
     shapes: [
-      { id: '1', type: 'circle', x: 10, y: 0, width: 40, height: 40, strokeWidth: 2 },
-      { id: '2', type: 'rectangle', x: 0, y: 15, width: 12, height: 10, strokeWidth: 2 },
-      { id: '3', type: 'rectangle', x: 48, y: 15, width: 12, height: 10, strokeWidth: 2 }
+      { id: '1', type: 'circle', x: 0.2, y: 0.2, width: 0.6, height: 0.6, strokeWidth: 2 },
+      { id: '2', type: 'rectangle', x: 0.05, y: 0.4, width: 0.18, height: 0.2, strokeWidth: 2 },
+      { id: '3', type: 'rectangle', x: 0.77, y: 0.4, width: 0.18, height: 0.2, strokeWidth: 2 }
     ]
   }
 ];
 
 export function SchematicEditor() {
-  const [tiles, setTiles] = useState<PlacedTileType[]>([]);
+  const [tiles, setTiles] = useState<PlacedTile[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<'select' | 'pan'>('select');
   const [components, setComponents] = useState<Component[]>(defaultComponents);
@@ -81,7 +81,7 @@ export function SchematicEditor() {
     zoom: 1,
     panX: 50,
     panY: 50,
-    gridSize: 20,
+    gridSize: 40, // Larger default for visible tiles
     paperFormat: 'A4',
     orientation: 'portrait'
   });
@@ -133,24 +133,24 @@ export function SchematicEditor() {
     e.dataTransfer.effectAllowed = 'copy';
   }, []);
 
-  const handleDropComponent = useCallback((component: Component, x: number, y: number) => {
-    const newTile: PlacedTileType = {
+  const handleDropComponent = useCallback((component: Component, gridX: number, gridY: number) => {
+    const newTile: PlacedTile = {
       id: generateId(),
       component,
-      x,
-      y
+      gridX,
+      gridY
     };
     setTiles(prev => [...prev, newTile]);
     setSelectedTileId(newTile.id);
   }, []);
 
-  const handleSaveComponent = useCallback((name: string, shapes: Shape[], width: number, height: number) => {
+  const handleSaveComponent = useCallback((name: string, shapes: Shape[]) => {
     const newComponent: Component = {
       id: generateId(),
       name,
       shapes,
-      width,
-      height
+      width: 1,
+      height: 1
     };
     setComponents(prev => [...prev, newComponent]);
   }, []);
@@ -272,6 +272,7 @@ export function SchematicEditor() {
         open={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
         onSave={handleSaveComponent}
+        tileSize={canvasState.gridSize}
       />
     </div>
   );

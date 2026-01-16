@@ -1,4 +1,4 @@
-import { PaperFormat, Orientation, PAPER_SIZES } from "@/types/schematic";
+import { PaperFormat, Orientation, PAPER_SIZES, MM_TO_PX } from "@/types/schematic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { RotateCw, Plus, Minus, Grid3X3 } from "lucide-react";
@@ -13,9 +13,9 @@ interface PaperSettingsProps {
   onGridSizeChange: (size: number) => void;
 }
 
-const MIN_GRID_SIZE = 5;
-const MAX_GRID_SIZE = 50;
-const GRID_STEP = 5;
+const MIN_GRID_SIZE = 20;
+const MAX_GRID_SIZE = 80;
+const GRID_STEP = 10;
 
 export function PaperSettings({
   paperFormat,
@@ -36,6 +36,13 @@ export function PaperSettings({
   const toggleOrientation = () => {
     onOrientationChange(orientation === 'portrait' ? 'landscape' : 'portrait');
   };
+
+  // Calculate grid dimensions for display
+  const paperSize = PAPER_SIZES[paperFormat];
+  const paperWidth = orientation === 'portrait' ? paperSize.width * MM_TO_PX : paperSize.height * MM_TO_PX;
+  const paperHeight = orientation === 'portrait' ? paperSize.height * MM_TO_PX : paperSize.width * MM_TO_PX;
+  const gridCols = Math.floor(paperWidth / gridSize);
+  const gridRows = Math.floor(paperHeight / gridSize);
 
   return (
     <div className="flex items-center gap-3">
@@ -79,7 +86,7 @@ export function PaperSettings({
       {/* Grid Size Controls */}
       <div className="flex items-center gap-1 ml-2">
         <Grid3X3 className="w-4 h-4 text-muted-foreground mr-1" />
-        <span className="text-xs text-muted-foreground">Raster:</span>
+        <span className="text-xs text-muted-foreground">Kacheln:</span>
         
         <Tooltip>
           <TooltipTrigger asChild>
@@ -93,11 +100,11 @@ export function PaperSettings({
               <Minus className="w-3 h-3" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Raster verkleinern</TooltipContent>
+          <TooltipContent>Kleinere Kacheln (mehr Felder)</TooltipContent>
         </Tooltip>
 
-        <span className="text-xs font-mono w-10 text-center">
-          {gridSize}px
+        <span className="text-xs font-mono w-20 text-center">
+          {gridCols}×{gridRows}
         </span>
 
         <Tooltip>
@@ -112,7 +119,7 @@ export function PaperSettings({
               <Plus className="w-3 h-3" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Raster vergrößern</TooltipContent>
+          <TooltipContent>Größere Kacheln (weniger Felder)</TooltipContent>
         </Tooltip>
       </div>
     </div>

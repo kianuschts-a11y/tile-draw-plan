@@ -2,11 +2,11 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape } from "@/types/schematic";
 import { ShapeRenderer } from "./ShapeRenderer";
 
-interface PlacedTile {
+export interface PlacedTile {
   id: string;
   component: Component;
-  x: number;
-  y: number;
+  gridX: number; // Grid cell X position
+  gridY: number; // Grid cell Y position
 }
 
 interface CanvasProps {
@@ -17,14 +17,7 @@ interface CanvasProps {
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (id: string | null) => void;
   onCanvasStateChange: (state: CanvasState) => void;
-  onDropComponent: (component: Component, x: number, y: number) => void;
-}
-
-export interface PlacedTileType {
-  id: string;
-  component: Component;
-  x: number;
-  y: number;
+  onDropComponent: (component: Component, gridX: number, gridY: number) => void;
 }
 
 export function Canvas({
@@ -41,7 +34,7 @@ export function Canvas({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragStartGrid, setDragStartGrid] = useState({ x: 0, y: 0 });
 
   // Calculate paper dimensions in pixels
   const paperSize = PAPER_SIZES[canvasState.paperFormat];
@@ -52,18 +45,26 @@ export function Canvas({
     ? paperSize.height * MM_TO_PX 
     : paperSize.width * MM_TO_PX;
 
-  const getMousePosition = useCallback((e: React.MouseEvent | React.DragEvent): { x: number; y: number } => {
-    if (!svgRef.current) return { x: 0, y: 0 };
+  const tileSize = canvasState.gridSize;
+  
+  // Calculate grid dimensions
+  const gridCols = Math.floor(paperWidth / tileSize);
+  const gridRows = Math.floor(paperHeight / tileSize);
+
+  const getGridPosition = useCallback((e: React.MouseEvent | React.DragEvent): { gridX: number; gridY: number } => {
+    if (!svgRef.current) return { gridX: 0, gridY: 0 };
     const rect = svgRef.current.getBoundingClientRect();
     const x = (e.clientX - rect.left - canvasState.panX) / canvasState.zoom;
     const y = (e.clientY - rect.top - canvasState.panY) / canvasState.zoom;
     
-    // Snap to grid
-    const snappedX = Math.round(x / canvasState.gridSize) * canvasState.gridSize;
-    const snappedY = Math.round(y / canvasState.gridSize) * canvasState.gridSize;
+    const gridX = Math.floor(x / tileSize);
+    const gridY = Math.floor(y / tileSize);
     
-    return { x: snappedX, y: snappedY };
-  }, [canvasState]);
+    return { 
+      gridX: Math.max(0, Math.min(gridX, gridCols - 1)), 
+      gridY: Math.max(0, Math.min(gridY, gridRows - 1)) 
+    };
+  }, [canvasState, tileSize, gridCols, gridRows]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -90,14 +91,19 @@ export function Canvas({
     }
 
     if (isDragging && selectedTileId) {
-      const pos = getMousePosition(e);
-      onTilesChange(tiles.map(t => 
-        t.id === selectedTileId 
-          ? { ...t, x: pos.x - dragOffset.x, y: pos.y - dragOffset.y }
-          : t
-      ));
+      const { gridX, gridY } = getGridPosition(e);
+      const tile = tiles.find(t => t.id === selectedTileId);
+      if (tile && (tile.gridX !== gridX || tile.gridY !== gridY)) {
+        // Check if position is occupied
+        const isOccupied = tiles.some(t => t.id !== selectedTileId && t.gridX === gridX && t.gridY === gridY);
+        if (!isOccupied) {
+          onTilesChange(tiles.map(t => 
+            t.id === selectedTileId ? { ...t, gridX, gridY } : t
+          ));
+        }
+      }
     }
-  }, [isPanning, isDragging, selectedTileId, canvasState, panStart, getMousePosition, tiles, dragOffset, onCanvasStateChange, onTilesChange]);
+  }, [isPanning, isDragging, selectedTileId, canvasState, panStart, getGridPosition, tiles, onCanvasStateChange, onTilesChange]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
@@ -109,11 +115,9 @@ export function Canvas({
     
     e.stopPropagation();
     onSelectionChange(tile.id);
-    
-    const pos = getMousePosition(e);
-    setDragOffset({ x: pos.x - tile.x, y: pos.y - tile.y });
+    setDragStartGrid({ x: tile.gridX, y: tile.gridY });
     setIsDragging(true);
-  }, [activeTool, getMousePosition, onSelectionChange]);
+  }, [activeTool, onSelectionChange]);
 
   // Drag and drop handling
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -128,12 +132,17 @@ export function Canvas({
 
     try {
       const component: Component = JSON.parse(componentData);
-      const pos = getMousePosition(e);
-      onDropComponent(component, pos.x, pos.y);
+      const { gridX, gridY } = getGridPosition(e);
+      
+      // Check if position is occupied
+      const isOccupied = tiles.some(t => t.gridX === gridX && t.gridY === gridY);
+      if (!isOccupied) {
+        onDropComponent(component, gridX, gridY);
+      }
     } catch (err) {
       console.error('Failed to parse dropped component:', err);
     }
-  }, [getMousePosition, onDropComponent]);
+  }, [getGridPosition, tiles, onDropComponent]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -159,8 +168,20 @@ export function Canvas({
     return 'default';
   };
 
-  const gridPatternId = `grid-${canvasState.gridSize}`;
-  const majorGridPatternId = `major-grid-${canvasState.gridSize}`;
+  // Render a component's shapes scaled to tile size
+  const renderTileShapes = (component: Component) => {
+    return component.shapes.map((shape, idx) => {
+      // Scale normalized shapes (0-1) to tile size
+      const scaledShape: Shape = {
+        ...shape,
+        x: shape.x * tileSize,
+        y: shape.y * tileSize,
+        width: shape.width * tileSize,
+        height: shape.height * tileSize
+      };
+      return <ShapeRenderer key={idx} shape={scaledShape} />;
+    });
+  };
 
   return (
     <svg
@@ -176,29 +197,16 @@ export function Canvas({
     >
       <defs>
         <pattern
-          id={gridPatternId}
-          width={canvasState.gridSize}
-          height={canvasState.gridSize}
+          id="tile-grid"
+          width={tileSize}
+          height={tileSize}
           patternUnits="userSpaceOnUse"
         >
-          <path
-            d={`M ${canvasState.gridSize} 0 L 0 0 0 ${canvasState.gridSize}`}
-            fill="none"
-            stroke="hsl(var(--canvas-grid))"
-            strokeWidth="0.5"
-          />
-        </pattern>
-        <pattern
-          id={majorGridPatternId}
-          width={canvasState.gridSize * 5}
-          height={canvasState.gridSize * 5}
-          patternUnits="userSpaceOnUse"
-        >
-          <rect width={canvasState.gridSize * 5} height={canvasState.gridSize * 5} fill={`url(#${gridPatternId})`} />
-          <path
-            d={`M ${canvasState.gridSize * 5} 0 L 0 0 0 ${canvasState.gridSize * 5}`}
-            fill="none"
-            stroke="hsl(var(--canvas-grid-major))"
+          <rect 
+            width={tileSize} 
+            height={tileSize} 
+            fill="none" 
+            stroke="hsl(var(--canvas-grid))" 
             strokeWidth="1"
           />
         </pattern>
@@ -209,8 +217,8 @@ export function Canvas({
         <rect
           x={4}
           y={4}
-          width={paperWidth}
-          height={paperHeight}
+          width={gridCols * tileSize}
+          height={gridRows * tileSize}
           fill="hsl(var(--foreground) / 0.1)"
           rx={2}
         />
@@ -219,65 +227,59 @@ export function Canvas({
         <rect
           x={0}
           y={0}
-          width={paperWidth}
-          height={paperHeight}
+          width={gridCols * tileSize}
+          height={gridRows * tileSize}
           fill="white"
           stroke="hsl(var(--border))"
-          strokeWidth={1}
+          strokeWidth={2}
           rx={2}
         />
         
-        {/* Grid overlay */}
+        {/* Grid overlay - each cell is one tile */}
         <rect
           x={0}
           y={0}
-          width={paperWidth}
-          height={paperHeight}
-          fill={`url(#${majorGridPatternId})`}
-          rx={2}
+          width={gridCols * tileSize}
+          height={gridRows * tileSize}
+          fill="url(#tile-grid)"
         />
 
         {/* Placed tiles */}
-        {tiles.map(tile => (
-          <g
-            key={tile.id}
-            transform={`translate(${tile.x}, ${tile.y})`}
-            onMouseDown={(e) => handleTileMouseDown(e, tile)}
-            style={{ cursor: activeTool === 'select' ? 'pointer' : 'inherit' }}
-          >
-            {/* Selection highlight */}
-            {tile.id === selectedTileId && (
+        {tiles.map(tile => {
+          const x = tile.gridX * tileSize;
+          const y = tile.gridY * tileSize;
+          const isSelected = tile.id === selectedTileId;
+          
+          return (
+            <g
+              key={tile.id}
+              transform={`translate(${x}, ${y})`}
+              onMouseDown={(e) => handleTileMouseDown(e, tile)}
+              style={{ cursor: activeTool === 'select' ? 'pointer' : 'inherit' }}
+            >
+              {/* Tile background */}
               <rect
-                x={-4}
-                y={-4}
-                width={tile.component.width + 8}
-                height={tile.component.height + 8}
-                fill="hsl(var(--primary) / 0.1)"
-                stroke="hsl(var(--primary))"
+                width={tileSize}
+                height={tileSize}
+                fill={isSelected ? "hsl(var(--primary) / 0.1)" : "hsl(var(--muted) / 0.3)"}
+                stroke={isSelected ? "hsl(var(--primary))" : "transparent"}
                 strokeWidth={2}
-                strokeDasharray="4 2"
-                rx={4}
               />
-            )}
-            {/* Component shapes */}
-            {tile.component.shapes.map((shape, idx) => (
-              <ShapeRenderer key={idx} shape={shape} />
-            ))}
-          </g>
-        ))}
+              {/* Component shapes */}
+              {renderTileShapes(tile.component)}
+            </g>
+          );
+        })}
 
         {/* Paper dimensions label */}
         <text
-          x={paperWidth / 2}
-          y={paperHeight + 20}
+          x={(gridCols * tileSize) / 2}
+          y={gridRows * tileSize + 20}
           textAnchor="middle"
           fontSize={12}
           fill="hsl(var(--muted-foreground))"
         >
-          {canvasState.orientation === 'portrait' 
-            ? `${paperSize.width} × ${paperSize.height} mm`
-            : `${paperSize.height} × ${paperSize.width} mm`
-          }
+          {gridCols} × {gridRows} Kacheln ({tileSize}px)
         </text>
       </g>
     </svg>
