@@ -123,10 +123,13 @@ export function Canvas({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStartGrid, setDragStartGrid] = useState({ x: 0, y: 0 });
+  const [dragStartPositions, setDragStartPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
+  const [dragStartMousePos, setDragStartMousePos] = useState({ x: 0, y: 0 });
   
-  // Select tool state for multi-select
-  const [isSelecting, setIsSelecting] = useState(false);
+  // Selection box state
+  const [isSelectionBox, setIsSelectionBox] = useState(false);
+  const [selectionBoxStart, setSelectionBoxStart] = useState({ x: 0, y: 0 });
+  const [selectionBoxEnd, setSelectionBoxEnd] = useState({ x: 0, y: 0 });
   
   // Connect tool state
   const [connectStartTileId, setConnectStartTileId] = useState<string | null>(null);
@@ -162,6 +165,15 @@ export function Canvas({
       gridY: Math.max(0, Math.min(gridY, gridRows - 1)) 
     };
   }, [canvasState, tileSize, gridCols, gridRows]);
+
+  // Get raw canvas position (not snapped to grid)
+  const getCanvasPosition = useCallback((e: React.MouseEvent): { x: number; y: number } => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left - canvasState.panX) / canvasState.zoom;
+    const y = (e.clientY - rect.top - canvasState.panY) / canvasState.zoom;
+    return { x, y };
+  }, [canvasState]);
 
   // Find tile at grid position
   const getTileAtPosition = useCallback((gridX: number, gridY: number): PlacedTile | null => {
@@ -273,10 +285,14 @@ export function Canvas({
     }
 
     if (activeTool === 'select') {
-      // Click on empty space clears selection
+      // Start selection box on empty space
+      const pos = getCanvasPosition(e);
+      setSelectionBoxStart(pos);
+      setSelectionBoxEnd(pos);
+      setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, onSelectionChange, getGridPosition, getTileAtPosition]);
+  }, [activeTool, canvasState.panX, canvasState.panY, onSelectionChange, getGridPosition, getTileAtPosition, getCanvasPosition]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
@@ -288,14 +304,32 @@ export function Canvas({
       return;
     }
 
-    // Select mode - drag over tiles to multi-select them
-    if (isSelecting && activeTool === 'select') {
-      const { gridX, gridY } = getGridPosition(e);
-      const tile = getTileAtPosition(gridX, gridY);
+    // Selection box mode - expand selection box and select tiles within
+    if (isSelectionBox && activeTool === 'select') {
+      const pos = getCanvasPosition(e);
+      setSelectionBoxEnd(pos);
       
-      if (tile && !selectedTileIds.has(tile.id)) {
-        onSelectionChange(new Set([...selectedTileIds, tile.id]));
+      // Calculate selection box bounds
+      const minX = Math.min(selectionBoxStart.x, pos.x);
+      const maxX = Math.max(selectionBoxStart.x, pos.x);
+      const minY = Math.min(selectionBoxStart.y, pos.y);
+      const maxY = Math.max(selectionBoxStart.y, pos.y);
+      
+      // Find all tiles that intersect with the selection box
+      const selectedIds = new Set<string>();
+      for (const tile of tiles) {
+        const tileX = tile.gridX * tileSize;
+        const tileY = tile.gridY * tileSize;
+        const tileWidth = (tile.component.width || 1) * tileSize;
+        const tileHeight = (tile.component.height || 1) * tileSize;
+        
+        // Check if tile intersects with selection box
+        if (tileX < maxX && tileX + tileWidth > minX &&
+            tileY < maxY && tileY + tileHeight > minY) {
+          selectedIds.add(tile.id);
+        }
       }
+      onSelectionChange(selectedIds);
       return;
     }
 
@@ -319,26 +353,79 @@ export function Canvas({
       return;
     }
 
-    // Dragging selected tiles (only single selection for now)
-    if (isDragging && selectedTileIds.size === 1) {
-      const selectedId = Array.from(selectedTileIds)[0];
-      const { gridX, gridY } = getGridPosition(e);
-      const tile = tiles.find(t => t.id === selectedId);
-      if (tile && (tile.gridX !== gridX || tile.gridY !== gridY)) {
-        // Check if position is valid for this component
-        if (canPlaceComponent(tile.component, gridX, gridY, selectedId)) {
-          onTilesChange(tiles.map(t => 
-            t.id === selectedId ? { ...t, gridX, gridY } : t
-          ));
+    // Dragging selected tiles (supports multiple tiles)
+    if (isDragging && selectedTileIds.size > 0) {
+      const pos = getCanvasPosition(e);
+      const dx = Math.floor((pos.x - dragStartMousePos.x) / tileSize);
+      const dy = Math.floor((pos.y - dragStartMousePos.y) / tileSize);
+      
+      if (dx !== 0 || dy !== 0) {
+        // Check if all tiles can be moved
+        let canMove = true;
+        const newPositions = new Map<string, { x: number; y: number }>();
+        
+        for (const tileId of selectedTileIds) {
+          const startPos = dragStartPositions.get(tileId);
+          const tile = tiles.find(t => t.id === tileId);
+          if (!startPos || !tile) continue;
+          
+          const newX = startPos.x + dx;
+          const newY = startPos.y + dy;
+          
+          // Check bounds
+          if (newX < 0 || newY < 0 || 
+              newX + (tile.component.width || 1) > gridCols ||
+              newY + (tile.component.height || 1) > gridRows) {
+            canMove = false;
+            break;
+          }
+          
+          // Check collision with non-selected tiles
+          for (let cx = 0; cx < (tile.component.width || 1); cx++) {
+            for (let cy = 0; cy < (tile.component.height || 1); cy++) {
+              const checkTile = getTileAtPosition(newX + cx, newY + cy);
+              if (checkTile && !selectedTileIds.has(checkTile.id)) {
+                canMove = false;
+                break;
+              }
+            }
+            if (!canMove) break;
+          }
+          if (!canMove) break;
+          
+          newPositions.set(tileId, { x: newX, y: newY });
+        }
+        
+        if (canMove && newPositions.size === selectedTileIds.size) {
+          onTilesChange(tiles.map(t => {
+            const newPos = newPositions.get(t.id);
+            if (newPos) {
+              return { ...t, gridX: newPos.x, gridY: newPos.y };
+            }
+            return t;
+          }));
+          
+          // Update start positions for next move
+          setDragStartMousePos(pos);
+          const updatedStartPositions = new Map<string, { x: number; y: number }>();
+          for (const [id, oldPos] of dragStartPositions) {
+            const newPos = newPositions.get(id);
+            if (newPos) {
+              updatedStartPositions.set(id, newPos);
+            } else {
+              updatedStartPositions.set(id, oldPos);
+            }
+          }
+          setDragStartPositions(updatedStartPositions);
         }
       }
     }
-  }, [isPanning, isDragging, isSelecting, isConnecting, selectedTileIds, canvasState, panStart, getGridPosition, getTileAtPosition, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, canPlaceComponent, activeTool, connectedTileIds, connectTiles]);
+  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getGridPosition, getCanvasPosition, getTileAtPosition, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, canPlaceComponent, activeTool, connectedTileIds, connectTiles, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
     setIsDragging(false);
-    setIsSelecting(false);
+    setIsSelectionBox(false);
     setIsConnecting(false);
     setConnectStartTileId(null);
     setConnectedTileIds(new Set());
@@ -357,12 +444,29 @@ export function Canvas({
     
     if (activeTool !== 'select') return;
     
-    // Start multi-select or single select
-    onSelectionChange(new Set([tile.id]));
-    setDragStartGrid({ x: tile.gridX, y: tile.gridY });
-    setIsDragging(true);
-    setIsSelecting(true);
-  }, [activeTool, onSelectionChange]);
+    // Check if clicking on already selected tile - start drag
+    if (selectedTileIds.has(tile.id)) {
+      // Start dragging all selected tiles
+      const pos = getCanvasPosition(e);
+      setDragStartMousePos(pos);
+      const startPositions = new Map<string, { x: number; y: number }>();
+      for (const tileId of selectedTileIds) {
+        const t = tiles.find(t => t.id === tileId);
+        if (t) {
+          startPositions.set(tileId, { x: t.gridX, y: t.gridY });
+        }
+      }
+      setDragStartPositions(startPositions);
+      setIsDragging(true);
+    } else {
+      // Select this tile and start dragging
+      onSelectionChange(new Set([tile.id]));
+      const pos = getCanvasPosition(e);
+      setDragStartMousePos(pos);
+      setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
+      setIsDragging(true);
+    }
+  }, [activeTool, onSelectionChange, selectedTileIds, tiles, getCanvasPosition]);
 
   // Handle click-to-click connection
   const handleTileClick = useCallback((e: React.MouseEvent, tile: PlacedTile) => {
@@ -575,6 +679,20 @@ export function Canvas({
             </g>
           );
         })}
+
+        {/* Selection box */}
+        {isSelectionBox && (
+          <rect
+            x={Math.min(selectionBoxStart.x, selectionBoxEnd.x)}
+            y={Math.min(selectionBoxStart.y, selectionBoxEnd.y)}
+            width={Math.abs(selectionBoxEnd.x - selectionBoxStart.x)}
+            height={Math.abs(selectionBoxEnd.y - selectionBoxStart.y)}
+            fill="hsl(var(--primary) / 0.1)"
+            stroke="hsl(var(--primary))"
+            strokeWidth={1}
+            strokeDasharray="4 2"
+          />
+        )}
 
         {/* Paper dimensions label */}
         <text
