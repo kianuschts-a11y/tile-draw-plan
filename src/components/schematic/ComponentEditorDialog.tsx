@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToolButton } from "./ToolButton";
 import { ShapeRenderer } from "./ShapeRenderer";
-import { SelectionHandles } from "./SelectionHandles";
 import { Square, Circle, Minus, Triangle, Diamond, Trash2, MousePointer2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface ComponentEditorDialogProps {
   open: boolean;
   onClose: () => void;
-  onSave: (name: string, shapes: Shape[], width: number, height: number) => void;
+  onSave: (name: string, shapes: Shape[]) => void;
+  tileSize: number;
 }
 
 type EditorTool = 'select' | ShapeType;
@@ -22,19 +22,20 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
-export function ComponentEditorDialog({ open, onClose, onSave }: ComponentEditorDialogProps) {
+export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: ComponentEditorDialogProps) {
   const [name, setName] = useState("Neue Komponente");
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
-  const [activeTool, setActiveTool] = useState<EditorTool>('select');
+  const [activeTool, setActiveTool] = useState<EditorTool>('rectangle');
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawStart, setDrawStart] = useState({ x: 0, y: 0 });
   const [currentShape, setCurrentShape] = useState<Shape | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
+  // Canvas is always square, matching tileSize ratio
   const canvasSize = 200;
-  const gridSize = 10;
+  const gridSize = canvasSize / 10; // 10x10 inner grid for precision
 
   const getMousePosition = (e: React.MouseEvent<SVGSVGElement>): { x: number; y: number } => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -76,7 +77,8 @@ export function ComponentEditorDialog({ open, onClose, onSave }: ComponentEditor
     if (isDragging && selectedShapeId) {
       setShapes(shapes.map(s =>
         s.id === selectedShapeId
-          ? { ...s, x: pos.x - dragOffset.x, y: pos.y - dragOffset.y }
+          ? { ...s, x: Math.max(0, Math.min(pos.x - dragOffset.x, canvasSize - s.width)), 
+                   y: Math.max(0, Math.min(pos.y - dragOffset.y, canvasSize - s.height)) }
           : s
       ));
       return;
@@ -90,6 +92,10 @@ export function ComponentEditorDialog({ open, onClose, onSave }: ComponentEditor
 
       if (width < 0) { x = pos.x; width = Math.abs(width); }
       if (height < 0) { y = pos.y; height = Math.abs(height); }
+
+      // Clamp to canvas bounds
+      width = Math.min(width, canvasSize - x);
+      height = Math.min(height, canvasSize - y);
 
       setCurrentShape({
         ...currentShape,
@@ -109,6 +115,7 @@ export function ComponentEditorDialog({ open, onClose, onSave }: ComponentEditor
     if (isDrawing && currentShape && currentShape.width > 0 && currentShape.height > 0) {
       setShapes([...shapes, currentShape]);
       setSelectedShapeId(currentShape.id);
+      setActiveTool('select');
     }
     setIsDrawing(false);
     setCurrentShape(null);
@@ -137,27 +144,24 @@ export function ComponentEditorDialog({ open, onClose, onSave }: ComponentEditor
   const handleSave = () => {
     if (shapes.length === 0) return;
     
-    // Calculate bounding box
-    const minX = Math.min(...shapes.map(s => s.x));
-    const minY = Math.min(...shapes.map(s => s.y));
-    const maxX = Math.max(...shapes.map(s => s.x + s.width));
-    const maxY = Math.max(...shapes.map(s => s.y + s.height));
-    
-    // Normalize shapes to start at 0,0
+    // Normalize shapes to 0-1 range (relative to canvas size)
+    // They will be scaled to actual tileSize when rendered
     const normalizedShapes = shapes.map(s => ({
       ...s,
-      x: s.x - minX,
-      y: s.y - minY
+      x: s.x / canvasSize,
+      y: s.y / canvasSize,
+      width: s.width / canvasSize,
+      height: s.height / canvasSize
     }));
     
-    onSave(name, normalizedShapes, maxX - minX, maxY - minY);
+    onSave(name, normalizedShapes);
     handleClose();
   };
 
   const handleClose = () => {
     setShapes([]);
     setSelectedShapeId(null);
-    setActiveTool('select');
+    setActiveTool('rectangle');
     setName("Neue Komponente");
     onClose();
   };
@@ -167,9 +171,11 @@ export function ComponentEditorDialog({ open, onClose, onSave }: ComponentEditor
     return 'crosshair';
   };
 
+  const selectedShape = shapes.find(s => s.id === selectedShapeId);
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Komponente erstellen</DialogTitle>
         </DialogHeader>
@@ -244,12 +250,12 @@ export function ComponentEditorDialog({ open, onClose, onSave }: ComponentEditor
               )}
             </div>
 
-            {/* Drawing canvas */}
-            <div className="flex-1">
+            {/* Drawing canvas - always square */}
+            <div className="flex-1 flex flex-col items-center">
               <svg
                 width={canvasSize}
                 height={canvasSize}
-                className="border rounded-lg bg-white"
+                className="border-2 border-dashed border-primary/30 rounded-lg bg-white"
                 style={{ cursor: getCursor() }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -266,22 +272,33 @@ export function ComponentEditorDialog({ open, onClose, onSave }: ComponentEditor
 
                 {/* Shapes */}
                 {shapes.map(shape => (
-                  <ShapeRenderer
-                    key={shape.id}
-                    shape={shape}
-                    isSelected={shape.id === selectedShapeId}
-                    onMouseDown={(e) => handleShapeMouseDown(e, shape)}
-                  />
+                  <g key={shape.id} onMouseDown={(e) => handleShapeMouseDown(e, shape)}>
+                    <ShapeRenderer
+                      shape={shape}
+                      isSelected={shape.id === selectedShapeId}
+                    />
+                  </g>
                 ))}
 
                 {currentShape && <ShapeRenderer shape={currentShape} />}
 
-                {selectedShapeId && shapes.find(s => s.id === selectedShapeId) && (
-                  <SelectionHandles shape={shapes.find(s => s.id === selectedShapeId)!} />
+                {/* Selection box */}
+                {selectedShape && (
+                  <rect
+                    x={selectedShape.x - 2}
+                    y={selectedShape.y - 2}
+                    width={selectedShape.width + 4}
+                    height={selectedShape.height + 4}
+                    fill="none"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    strokeDasharray="4 2"
+                    rx={2}
+                  />
                 )}
               </svg>
-              <p className="text-xs text-muted-foreground mt-2">
-                Zeichnen Sie Formen, um Ihre Komponente zu erstellen
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Quadratische Kachel ({tileSize}×{tileSize} px)
               </p>
             </div>
           </div>

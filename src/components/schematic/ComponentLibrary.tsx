@@ -2,7 +2,6 @@ import { Component, Shape } from "@/types/schematic";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
-import { ShapeRenderer } from "./ShapeRenderer";
 
 interface ComponentLibraryProps {
   components: Component[];
@@ -11,27 +10,42 @@ interface ComponentLibraryProps {
   onDragStart: (e: React.DragEvent, component: Component) => void;
 }
 
+function renderShape(shape: Shape, scale: number = 50) {
+  const x = shape.x * scale;
+  const y = shape.y * scale;
+  const width = shape.width * scale;
+  const height = shape.height * scale;
+
+  const style = {
+    fill: 'none',
+    stroke: 'hsl(220, 25%, 20%)',
+    strokeWidth: 1.5
+  };
+
+  switch (shape.type) {
+    case 'rectangle':
+      return <rect x={x} y={y} width={width} height={height} {...style} />;
+    case 'circle':
+    case 'ellipse':
+      return <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} {...style} />;
+    case 'line':
+      return <line x1={x} y1={y} x2={x + width} y2={y + height} {...style} />;
+    case 'triangle':
+      return <polygon points={`${x + width / 2},${y} ${x},${y + height} ${x + width},${y + height}`} {...style} />;
+    case 'diamond':
+      return <polygon points={`${x + width / 2},${y} ${x + width},${y + height / 2} ${x + width / 2},${y + height} ${x},${y + height / 2}`} {...style} />;
+    default:
+      return null;
+  }
+}
+
 export function ComponentLibrary({ 
   components, 
   onCreateNew, 
   onDeleteComponent,
   onDragStart 
 }: ComponentLibraryProps) {
-  const renderComponentPreview = (component: Component) => {
-    const scale = Math.min(40 / component.width, 40 / component.height, 1);
-    const offsetX = (40 - component.width * scale) / 2;
-    const offsetY = (40 - component.height * scale) / 2;
-
-    return (
-      <svg width="40" height="40" className="component-tile">
-        <g transform={`translate(${offsetX}, ${offsetY}) scale(${scale})`}>
-          {component.shapes.map((shape, idx) => (
-            <ShapeRenderer key={idx} shape={shape} />
-          ))}
-        </g>
-      </svg>
-    );
-  };
+  const previewSize = 50;
 
   return (
     <div className="toolbar-panel border-l w-64 flex flex-col">
@@ -44,7 +58,7 @@ export function ComponentLibrary({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Ziehen Sie Komponenten auf das Blatt
+          Ziehen Sie Kacheln auf das Raster
         </p>
       </div>
       
@@ -57,7 +71,13 @@ export function ComponentLibrary({
               draggable
               onDragStart={(e) => onDragStart(e, component)}
             >
-              {renderComponentPreview(component)}
+              <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-muted-foreground/30 rounded bg-white">
+                <svg width={previewSize} height={previewSize}>
+                  {component.shapes.map((shape, idx) => (
+                    <g key={idx}>{renderShape(shape, previewSize)}</g>
+                  ))}
+                </svg>
+              </div>
               <span className="text-xs text-muted-foreground text-center truncate w-full">
                 {component.name}
               </span>
