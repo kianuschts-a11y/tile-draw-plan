@@ -140,8 +140,22 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   // Magnetischer Snap - Cursor springt zu Rasterpunkt wenn nah genug (Snap-Radius)
   const snapRadius = gridSize * 0.4; // 40% der Rastergröße als Snap-Bereich
   
-  const snapPosition = (pos: Point): Point => {
+  // Strenger Snap für Linien - immer auf Rasterpunkt
+  const strictSnapPosition = (pos: Point): Point => {
     if (!snapToGrid) return pos;
+    return {
+      x: Math.round(pos.x / gridSize) * gridSize,
+      y: Math.round(pos.y / gridSize) * gridSize
+    };
+  };
+  
+  const snapPosition = (pos: Point, strict: boolean = false): Point => {
+    if (!snapToGrid) return pos;
+    
+    // Strenger Modus für Linien - immer auf Rasterpunkt
+    if (strict) {
+      return strictSnapPosition(pos);
+    }
     
     // Nächster Rasterpunkt
     const nearestX = Math.round(pos.x / gridSize) * gridSize;
@@ -157,7 +171,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     };
   };
 
-  const getMousePosition = (e: React.MouseEvent): Point => {
+  const getMousePosition = (e: React.MouseEvent, strict: boolean = false): Point => {
     const svg = (e.target as Element).closest('svg');
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
@@ -165,7 +179,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
       x: e.clientX - rect.left,
       y: e.clientY - rect.top
     };
-    return snapPosition(rawPos);
+    return snapPosition(rawPos, strict);
   };
 
   const getRawMousePosition = (e: React.MouseEvent): Point => {
@@ -239,7 +253,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   };
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    const pos = getMousePosition(e);
+    // Strenger Snap für Linien und Pfeile
+    const isLineType = activeTool === 'line' || activeTool === 'arrow';
+    const pos = getMousePosition(e, isLineType);
     const rawPos = getRawMousePosition(e);
 
     if (activeTool === 'select') {
@@ -346,7 +362,11 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const pos = getMousePosition(e);
+    // Strenger Snap für Linien und Pfeile
+    const isLineType = activeTool === 'line' || activeTool === 'arrow' || 
+      (activeHandle && (shapes.find(s => s.id === activeHandle.shapeId)?.type === 'line' || 
+                        shapes.find(s => s.id === activeHandle.shapeId)?.type === 'arrow'));
+    const pos = getMousePosition(e, isLineType);
 
     // Handle-Resizing
     if (activeHandle) {
