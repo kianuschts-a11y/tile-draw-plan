@@ -51,6 +51,7 @@ export interface Shape {
   // For text
   text?: string;
   fontSize?: number;
+  fontFamily?: string;
 }
 
 // Component variation with connection line
