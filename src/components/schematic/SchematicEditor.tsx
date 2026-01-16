@@ -6,6 +6,7 @@ import { ComponentLibrary } from "./ComponentLibrary";
 import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
+import { VariationEditorDialog } from "./VariationEditorDialog";
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -77,11 +78,12 @@ export function SchematicEditor() {
   const [activeTool, setActiveTool] = useState<'select' | 'pan'>('select');
   const [components, setComponents] = useState<Component[]>(defaultComponents);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [variationEditorComponent, setVariationEditorComponent] = useState<Component | null>(null);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
     panY: 50,
-    gridSize: 40, // Larger default for visible tiles
+    gridSize: 40,
     paperFormat: 'A4',
     orientation: 'portrait'
   });
@@ -157,6 +159,16 @@ export function SchematicEditor() {
 
   const handleDeleteComponent = useCallback((id: string) => {
     setComponents(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  const handleEditVariations = useCallback((component: Component) => {
+    setVariationEditorComponent(component);
+  }, []);
+
+  const handleUpdateComponent = useCallback((updatedComponent: Component) => {
+    setComponents(prev => prev.map(c => 
+      c.id === updatedComponent.id ? updatedComponent : c
+    ));
   }, []);
 
   // Keyboard shortcuts
@@ -259,6 +271,8 @@ export function SchematicEditor() {
           onCreateNew={() => setIsEditorOpen(true)}
           onDeleteComponent={handleDeleteComponent}
           onDragStart={handleDragStart}
+          onEditVariations={handleEditVariations}
+          onUpdateComponent={handleUpdateComponent}
         />
       </div>
 
@@ -274,6 +288,15 @@ export function SchematicEditor() {
         onSave={handleSaveComponent}
         tileSize={canvasState.gridSize}
       />
+
+      {variationEditorComponent && (
+        <VariationEditorDialog
+          open={true}
+          onClose={() => setVariationEditorComponent(null)}
+          component={variationEditorComponent}
+          onSave={handleUpdateComponent}
+        />
+      )}
     </div>
   );
 }
