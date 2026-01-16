@@ -15,6 +15,10 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
   );
 
   const renderShape = () => {
+    const transform = shape.rotation 
+      ? `rotate(${shape.rotation} ${shape.x + shape.width/2} ${shape.y + shape.height/2})` 
+      : undefined;
+
     switch (shape.type) {
       case 'rectangle':
         return (
@@ -25,10 +29,12 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             height={shape.height}
             className={baseClass}
             strokeWidth={shape.strokeWidth || 2}
+            transform={transform}
           />
         );
       
       case 'circle':
+      case 'ellipse':
         return (
           <ellipse
             cx={shape.x + shape.width / 2}
@@ -37,6 +43,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             ry={shape.height / 2}
             className={baseClass}
             strokeWidth={shape.strokeWidth || 2}
+            transform={transform}
           />
         );
       
@@ -63,6 +70,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             points={triPoints}
             className={baseClass}
             strokeWidth={shape.strokeWidth || 2}
+            transform={transform}
           />
         );
       
@@ -78,19 +86,53 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             points={diaPoints}
             className={baseClass}
             strokeWidth={shape.strokeWidth || 2}
+            transform={transform}
           />
         );
       
-      case 'ellipse':
+      case 'polyline':
+        if (!shape.points || shape.points.length < 2) return null;
         return (
-          <ellipse
-            cx={shape.x + shape.width / 2}
-            cy={shape.y + shape.height / 2}
-            rx={shape.width / 2}
-            ry={shape.height / 2}
+          <polyline
+            points={shape.points.map(p => `${p.x},${p.y}`).join(' ')}
             className={baseClass}
             strokeWidth={shape.strokeWidth || 2}
+            fill="none"
           />
+        );
+      
+      case 'arc':
+        const rx = shape.width / 2;
+        const ry = shape.height / 2;
+        const cx = shape.x + rx;
+        const cy = shape.y + ry;
+        const startRad = ((shape.startAngle || 0) * Math.PI) / 180;
+        const endRad = ((shape.endAngle || 180) * Math.PI) / 180;
+        const x1 = cx + rx * Math.cos(startRad);
+        const y1 = cy + ry * Math.sin(startRad);
+        const x2 = cx + rx * Math.cos(endRad);
+        const y2 = cy + ry * Math.sin(endRad);
+        const largeArc = (shape.endAngle || 180) - (shape.startAngle || 0) > 180 ? 1 : 0;
+        return (
+          <path 
+            d={`M ${x1} ${y1} A ${rx} ${ry} 0 ${largeArc} 1 ${x2} ${y2}`} 
+            className={baseClass}
+            strokeWidth={shape.strokeWidth || 2}
+            fill="none"
+          />
+        );
+      
+      case 'text':
+        return (
+          <text 
+            x={shape.x} 
+            y={shape.y + (shape.fontSize || 14)} 
+            fontSize={shape.fontSize || 14} 
+            className="fill-current"
+            style={{ stroke: 'none', fill: 'hsl(var(--component-stroke))' }}
+          >
+            {shape.text}
+          </text>
         );
       
       default:
@@ -103,7 +145,6 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
       onClick={onClick} 
       onMouseDown={onMouseDown}
       style={{ cursor: 'pointer' }}
-      transform={shape.rotation ? `rotate(${shape.rotation} ${shape.x + shape.width/2} ${shape.y + shape.height/2})` : undefined}
     >
       {renderShape()}
     </g>
