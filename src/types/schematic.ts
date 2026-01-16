@@ -7,17 +7,19 @@ export type PaperFormat = 'A5' | 'A4' | 'A3' | 'A2' | 'A1' | 'Letter' | 'Legal';
 export type Orientation = 'portrait' | 'landscape';
 
 // Tile size configurations
-export type TileSize = '1x1' | '3x2'; // 3x2 = 3 high, 2 wide
+export type TileSize = '1x1' | '2x2' | '3x2'; // 2x2 = 2 high, 2 wide; 3x2 = 3 high, 2 wide
 
 export interface TileSizeConfig {
   cols: number;
   rows: number;
   label: string;
+  connectionsPerSide: number; // Number of connection points per side
 }
 
 export const TILE_SIZES: Record<TileSize, TileSizeConfig> = {
-  '1x1': { cols: 1, rows: 1, label: '1×1 Kachel' },
-  '3x2': { cols: 2, rows: 3, label: '3×2 Kachel (3 hoch, 2 breit)' }
+  '1x1': { cols: 1, rows: 1, label: '1×1 Kachel', connectionsPerSide: 1 },
+  '2x2': { cols: 2, rows: 2, label: '2×2 Kachel (2 Anschlüsse pro Seite)', connectionsPerSide: 2 },
+  '3x2': { cols: 2, rows: 3, label: '3×2 Kachel (3 hoch, 2 breit)', connectionsPerSide: 2 }
 };
 
 // Connection directions for component variations

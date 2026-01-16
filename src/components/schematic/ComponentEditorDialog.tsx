@@ -102,8 +102,12 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   // Canvas size based on tile size selection
   const tileSizeConfig = TILE_SIZES[componentTileSize];
   const baseCanvasSize = 300;
-  const canvasWidth = componentTileSize === '3x2' ? baseCanvasSize : baseCanvasSize;
-  const canvasHeight = componentTileSize === '3x2' ? baseCanvasSize * 1.5 : baseCanvasSize;
+  const canvasWidth = tileSizeConfig.cols > 1 ? baseCanvasSize : baseCanvasSize;
+  const canvasHeight = tileSizeConfig.rows > tileSizeConfig.cols 
+    ? baseCanvasSize * (tileSizeConfig.rows / tileSizeConfig.cols)
+    : tileSizeConfig.rows === tileSizeConfig.cols && tileSizeConfig.rows > 1
+      ? baseCanvasSize
+      : baseCanvasSize;
   
   const gridSize = baseCanvasSize / 20;
   const handleSize = 10;
