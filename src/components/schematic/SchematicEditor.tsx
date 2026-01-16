@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Shape, CanvasState, Component, PaperFormat, Orientation } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES } from "@/types/schematic";
 import { Toolbar } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
@@ -146,13 +146,15 @@ export function SchematicEditor() {
     setSelectedTileId(newTile.id);
   }, []);
 
-  const handleSaveComponent = useCallback((name: string, shapes: Shape[]) => {
+  const handleSaveComponent = useCallback((name: string, shapes: Shape[], tileSize: TileSize) => {
+    const config = TILE_SIZES[tileSize];
     const newComponent: Component = {
       id: generateId(),
       name,
       shapes,
-      width: 1,
-      height: 1
+      width: config.cols,
+      height: config.rows,
+      tileSize
     };
     setComponents(prev => [...prev, newComponent]);
   }, []);

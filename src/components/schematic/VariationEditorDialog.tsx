@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Component, ComponentVariation, ConnectionDirection, Shape } from "@/types/schematic";
+import { Component, ComponentVariation, ConnectionDirection, Shape, TILE_SIZES } from "@/types/schematic";
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -75,53 +75,175 @@ function getComponentBounds(shapes: Shape[]): { minX: number; maxX: number; minY
   return { minX, maxX, minY, maxY };
 }
 
-// Generate the connection line shapes based on type and component bounds
-function generateConnectionShapes(type: ConnectionDirection, componentShapes: Shape[]): Shape[] {
+// Generate connection shapes based on type, component bounds, and tile size
+// For 3x2 tiles (3 high, 2 wide): left/right get 3 connections, top/bottom get 2
+function generateConnectionShapes(
+  type: ConnectionDirection, 
+  componentShapes: Shape[], 
+  tileWidth: number, // in grid cells
+  tileHeight: number // in grid cells
+): Shape[] {
   const bounds = getComponentBounds(componentShapes);
   const stroke = "#000000"; // Black lines
   
+  // For multi-cell tiles, calculate connection positions
+  // Left/Right: connections per row (tileHeight positions)
+  // Top/Bottom: connections per column (tileWidth positions)
+  
+  const leftRightConnections = tileHeight; // 3 for 3x2 tile
+  const topBottomConnections = tileWidth;  // 2 for 3x2 tile
+  
   switch (type) {
-    case 'left':
-      // From left edge (0) to component's left boundary
-      return [{ id: generateId(), type: 'line', x: 0, y: 0.5, width: bounds.minX, height: 0, strokeWidth: 2, stroke }];
-    case 'right':
-      // From component's right boundary to right edge (1)
-      return [{ id: generateId(), type: 'line', x: bounds.maxX, y: 0.5, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke }];
-    case 'top':
-      // From top edge (0) to component's top boundary
-      return [{ id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }];
-    case 'bottom':
-      // From component's bottom boundary to bottom edge (1)
-      return [{ id: generateId(), type: 'line', x: 0.5, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }];
-    case 'horizontal':
-      return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: bounds.maxX, y: 0.5, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke }
-      ];
-    case 'vertical':
-      return [
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
-      ];
+    case 'left': {
+      const shapes: Shape[] = [];
+      for (let i = 0; i < leftRightConnections; i++) {
+        // Calculate Y position for each row (centered in each row cell)
+        const rowHeight = 1 / leftRightConnections;
+        const yCenter = rowHeight * i + rowHeight / 2;
+        shapes.push({
+          id: generateId(),
+          type: 'line',
+          x: 0,
+          y: yCenter,
+          width: bounds.minX,
+          height: 0,
+          strokeWidth: 2,
+          stroke
+        });
+      }
+      return shapes;
+    }
+    case 'right': {
+      const shapes: Shape[] = [];
+      for (let i = 0; i < leftRightConnections; i++) {
+        const rowHeight = 1 / leftRightConnections;
+        const yCenter = rowHeight * i + rowHeight / 2;
+        shapes.push({
+          id: generateId(),
+          type: 'line',
+          x: bounds.maxX,
+          y: yCenter,
+          width: 1 - bounds.maxX,
+          height: 0,
+          strokeWidth: 2,
+          stroke
+        });
+      }
+      return shapes;
+    }
+    case 'top': {
+      const shapes: Shape[] = [];
+      for (let i = 0; i < topBottomConnections; i++) {
+        const colWidth = 1 / topBottomConnections;
+        const xCenter = colWidth * i + colWidth / 2;
+        shapes.push({
+          id: generateId(),
+          type: 'line',
+          x: xCenter,
+          y: 0,
+          width: 0,
+          height: bounds.minY,
+          strokeWidth: 2,
+          stroke
+        });
+      }
+      return shapes;
+    }
+    case 'bottom': {
+      const shapes: Shape[] = [];
+      for (let i = 0; i < topBottomConnections; i++) {
+        const colWidth = 1 / topBottomConnections;
+        const xCenter = colWidth * i + colWidth / 2;
+        shapes.push({
+          id: generateId(),
+          type: 'line',
+          x: xCenter,
+          y: bounds.maxY,
+          width: 0,
+          height: 1 - bounds.maxY,
+          strokeWidth: 2,
+          stroke
+        });
+      }
+      return shapes;
+    }
+    case 'horizontal': {
+      // Left and right connections
+      const shapes: Shape[] = [];
+      for (let i = 0; i < leftRightConnections; i++) {
+        const rowHeight = 1 / leftRightConnections;
+        const yCenter = rowHeight * i + rowHeight / 2;
+        shapes.push({
+          id: generateId(),
+          type: 'line',
+          x: 0,
+          y: yCenter,
+          width: bounds.minX,
+          height: 0,
+          strokeWidth: 2,
+          stroke
+        });
+        shapes.push({
+          id: generateId(),
+          type: 'line',
+          x: bounds.maxX,
+          y: yCenter,
+          width: 1 - bounds.maxX,
+          height: 0,
+          strokeWidth: 2,
+          stroke
+        });
+      }
+      return shapes;
+    }
+    case 'vertical': {
+      // Top and bottom connections
+      const shapes: Shape[] = [];
+      for (let i = 0; i < topBottomConnections; i++) {
+        const colWidth = 1 / topBottomConnections;
+        const xCenter = colWidth * i + colWidth / 2;
+        shapes.push({
+          id: generateId(),
+          type: 'line',
+          x: xCenter,
+          y: 0,
+          width: 0,
+          height: bounds.minY,
+          strokeWidth: 2,
+          stroke
+        });
+        shapes.push({
+          id: generateId(),
+          type: 'line',
+          x: xCenter,
+          y: bounds.maxY,
+          width: 0,
+          height: 1 - bounds.maxY,
+          strokeWidth: 2,
+          stroke
+        });
+      }
+      return shapes;
+    }
     case 'corner-tl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: 0, y: 0.5 / leftRightConnections, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5 / topBottomConnections, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
       ];
     case 'corner-tr':
       return [
-        { id: generateId(), type: 'line', x: bounds.maxX, y: 0.5, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: bounds.maxX, y: 0.5 / leftRightConnections, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: (topBottomConnections - 0.5) / topBottomConnections, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
       ];
     case 'corner-bl':
       return [
-        { id: generateId(), type: 'line', x: 0, y: 0.5, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: 0, y: (leftRightConnections - 0.5) / leftRightConnections, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: 0.5 / topBottomConnections, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
       ];
     case 'corner-br':
       return [
-        { id: generateId(), type: 'line', x: bounds.maxX, y: 0.5, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
-        { id: generateId(), type: 'line', x: 0.5, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
+        { id: generateId(), type: 'line', x: bounds.maxX, y: (leftRightConnections - 0.5) / leftRightConnections, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
+        { id: generateId(), type: 'line', x: (topBottomConnections - 0.5) / topBottomConnections, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
       ];
     default:
       return [];
@@ -137,17 +259,21 @@ export function VariationEditorDialog({
   const [variations, setVariations] = useState<ComponentVariation[]>(component.variations || []);
   const [selectedVariationId, setSelectedVariationId] = useState<string | null>(null);
 
+  // Get tile dimensions
+  const tileWidth = component.width || 1;
+  const tileHeight = component.height || 1;
+
   const handleAddVariation = useCallback((type: ConnectionDirection) => {
     const label = CONNECTION_TYPES.find(c => c.type === type)?.label || type;
     const newVariation: ComponentVariation = {
       id: generateId(),
       name: label,
       connectionType: type,
-      shapes: generateConnectionShapes(type, component.shapes)
+      shapes: generateConnectionShapes(type, component.shapes, tileWidth, tileHeight)
     };
     setVariations(prev => [...prev, newVariation]);
     setSelectedVariationId(newVariation.id);
-  }, [component.shapes]);
+  }, [component.shapes, tileWidth, tileHeight]);
 
   const handleDeleteVariation = useCallback((id: string) => {
     setVariations(prev => prev.filter(v => v.id !== id));

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Shape, ShapeType, Point } from "@/types/schematic";
+import { Shape, ShapeType, Point, TileSize, TILE_SIZES } from "@/types/schematic";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { 
   MousePointer2, Square, Circle, Minus, Triangle, Diamond, 
   Trash2, RotateCw, FlipHorizontal, FlipVertical, Copy, 
@@ -30,7 +31,7 @@ const AVAILABLE_FONTS = [
 interface ComponentEditorDialogProps {
   open: boolean;
   onClose: () => void;
-  onSave: (name: string, shapes: Shape[]) => void;
+  onSave: (name: string, shapes: Shape[], tileSize: TileSize) => void;
   tileSize: number;
 }
 
@@ -95,11 +96,17 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
   const [textPosition, setTextPosition] = useState({ x: 0, y: 0 });
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: HandleType } | null>(null);
+  const [componentTileSize, setComponentTileSize] = useState<TileSize>('1x1');
 
-  const canvasSize = 300;
-  const gridSize = canvasSize / 20;
-  const handleSize = 10; // Größerer Griff für einfacheres Greifen
-  const lineHitArea = 12; // Größerer Klickbereich für Linien
+  // Canvas size based on tile size selection
+  const tileSizeConfig = TILE_SIZES[componentTileSize];
+  const baseCanvasSize = 300;
+  const canvasWidth = componentTileSize === '3x2' ? baseCanvasSize : baseCanvasSize;
+  const canvasHeight = componentTileSize === '3x2' ? baseCanvasSize * 1.5 : baseCanvasSize;
+  
+  const gridSize = baseCanvasSize / 20;
+  const handleSize = 10;
+  const lineHitArea = 12;
 
   const pushHistory = useCallback((newShapes: Shape[]) => {
     const newHistory = history.slice(0, historyIndex + 1);
@@ -404,11 +411,11 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         selectedShapeIds.includes(s.id)
           ? { 
               ...s, 
-              x: Math.max(0, Math.min(s.x + dx, canvasSize - Math.abs(s.width))), 
-              y: Math.max(0, Math.min(s.y + dy, canvasSize - Math.abs(s.height))),
+              x: Math.max(0, Math.min(s.x + dx, canvasWidth - Math.abs(s.width))), 
+              y: Math.max(0, Math.min(s.y + dy, canvasHeight - Math.abs(s.height))),
               points: s.points?.map(p => ({
-                x: Math.max(0, Math.min(p.x + dx, canvasSize)),
-                y: Math.max(0, Math.min(p.y + dy, canvasSize))
+                x: Math.max(0, Math.min(p.x + dx, canvasWidth)),
+                y: Math.max(0, Math.min(p.y + dy, canvasHeight))
               }))
             }
           : s
@@ -439,7 +446,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         if (pos.x < drawStart.x) x = drawStart.x - size;
         if (pos.y < drawStart.y) y = drawStart.y - size;
 
-        size = Math.min(size, canvasSize - x, canvasSize - y);
+        size = Math.min(size, canvasWidth - x, canvasHeight - y);
 
         setCurrentShape({
           ...currentShape,
@@ -457,8 +464,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         if (width < 0) { x = pos.x; width = Math.abs(width); }
         if (height < 0) { y = pos.y; height = Math.abs(height); }
 
-        width = Math.min(width, canvasSize - x);
-        height = Math.min(height, canvasSize - y);
+        width = Math.min(width, canvasWidth - x);
+        height = Math.min(height, canvasHeight - y);
 
         setCurrentShape({
           ...currentShape,
@@ -561,11 +568,11 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     const newShapes = selected.map(s => ({
       ...s,
       id: generateId(),
-      x: Math.min(s.x + offset, canvasSize - Math.abs(s.width)),
-      y: Math.min(s.y + offset, canvasSize - Math.abs(s.height)),
+      x: Math.min(s.x + offset, canvasWidth - Math.abs(s.width)),
+      y: Math.min(s.y + offset, canvasHeight - Math.abs(s.height)),
       points: s.points?.map(p => ({ 
-        x: Math.min(p.x + offset, canvasSize), 
-        y: Math.min(p.y + offset, canvasSize) 
+        x: Math.min(p.x + offset, canvasWidth), 
+        y: Math.min(p.y + offset, canvasHeight) 
       }))
     }));
     const updatedShapes = [...shapes, ...newShapes];
@@ -644,13 +651,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     if (shapes.length === 0) return;
     const normalizedShapes = shapes.map(s => ({
       ...s,
-      x: s.x / canvasSize,
-      y: s.y / canvasSize,
-      width: s.width / canvasSize,
-      height: s.height / canvasSize,
-      points: s.points?.map(p => ({ x: p.x / canvasSize, y: p.y / canvasSize }))
+      x: s.x / canvasWidth,
+      y: s.y / canvasHeight,
+      width: s.width / canvasWidth,
+      height: s.height / canvasHeight,
+      points: s.points?.map(p => ({ x: p.x / canvasWidth, y: p.y / canvasHeight }))
     }));
-    onSave(name, normalizedShapes);
+    onSave(name, normalizedShapes, componentTileSize);
     handleClose();
   };
 
@@ -665,6 +672,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
     setPolylinePoints([]);
     setIsDrawingPolyline(false);
     setActiveHandle(null);
+    setComponentTileSize('1x1');
     onClose();
   };
 
@@ -853,6 +861,25 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* Tile size selection */}
+          <div className="space-y-2">
+            <Label>Kachelgröße</Label>
+            <RadioGroup 
+              value={componentTileSize} 
+              onValueChange={(v) => setComponentTileSize(v as TileSize)}
+              className="flex gap-4"
+            >
+              {Object.entries(TILE_SIZES).map(([key, config]) => (
+                <div key={key} className="flex items-center space-x-2">
+                  <RadioGroupItem value={key} id={`tile-${key}`} />
+                  <Label htmlFor={`tile-${key}`} className="cursor-pointer text-sm">
+                    {config.label}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
           <div className="flex gap-4 items-end">
             <div className="flex-1 space-y-2">
               <Label htmlFor="component-name">Name</Label>
@@ -926,8 +953,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
           <div className="flex justify-center">
             <div className="relative">
               <svg
-                width={canvasSize}
-                height={canvasSize}
+                width={canvasWidth}
+                height={canvasHeight}
                 className="border-2 border-dashed border-primary/30 rounded-lg bg-white"
                 style={{ cursor: getCursor() }}
                 onMouseDown={handleMouseDown}
@@ -946,7 +973,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                     <path d={`M ${gridSize * 5} 0 L 0 0 0 ${gridSize * 5}`} fill="none" stroke="#d1d5db" strokeWidth="1" />
                   </pattern>
                 </defs>
-                <rect width={canvasSize} height={canvasSize} fill="url(#editor-grid-major)" />
+                <rect width={canvasWidth} height={canvasHeight} fill="url(#editor-grid-major)" />
 
                 {/* Shapes */}
                 {shapes.map(shape => (
