@@ -370,17 +370,17 @@ export function VariationEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Varianten für "{component.name}"</DialogTitle>
         </DialogHeader>
 
-        <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
-          {/* Left panel - Connection types */}
-          <div className="w-64 flex flex-col gap-3">
-            <Label className="text-sm font-medium">Verbindungstyp hinzufügen</Label>
-            <ScrollArea className="flex-1">
-              <div className="grid grid-cols-2 gap-2 pr-2">
+        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+          <div className="flex gap-4">
+            {/* Left panel - Connection types */}
+            <div className="w-64 flex-shrink-0 space-y-3">
+              <Label className="text-sm font-medium">Verbindungstyp hinzufügen</Label>
+              <div className="grid grid-cols-2 gap-2">
                 {CONNECTION_TYPES.map(({ type, label, icon }) => {
                   const exists = variations.some(v => v.connectionType === type);
                   return (
@@ -399,66 +399,64 @@ export function VariationEditorDialog({
                   );
                 })}
               </div>
-            </ScrollArea>
-          </div>
-
-          <Separator orientation="vertical" />
-
-          {/* Right panel - Preview and list */}
-          <div className="flex-1 flex flex-col gap-4 min-h-0 overflow-hidden">
-            {/* Base component preview */}
-            <div className="flex items-center gap-4">
-              <div className="text-sm font-medium">Basis-Komponente ({tileWidth}x{tileHeight}):</div>
-              <div 
-                className="border rounded bg-white"
-                style={{ width: previewWidth, height: previewHeight }}
-              >
-                <svg width={previewWidth} height={previewHeight} viewBox={`0 0 ${previewWidth} ${previewHeight}`}>
-                  <rect 
-                    width={previewWidth} 
-                    height={previewHeight} 
-                    fill="white" 
-                    stroke="hsl(var(--border))" 
-                    strokeWidth={1}
-                  />
-                  {/* Grid lines for multi-cell tiles */}
-                  {tileHeight > 1 && Array.from({ length: tileHeight - 1 }).map((_, i) => (
-                    <line 
-                      key={`h-${i}`} 
-                      x1={0} 
-                      y1={(i + 1) * previewBaseSize} 
-                      x2={previewWidth} 
-                      y2={(i + 1) * previewBaseSize} 
-                      stroke="hsl(var(--border))" 
-                      strokeWidth={0.5} 
-                      strokeDasharray="4 2"
-                    />
-                  ))}
-                  {tileWidth > 1 && Array.from({ length: tileWidth - 1 }).map((_, i) => (
-                    <line 
-                      key={`v-${i}`} 
-                      x1={(i + 1) * previewBaseSize} 
-                      y1={0} 
-                      x2={(i + 1) * previewBaseSize} 
-                      y2={previewHeight} 
-                      stroke="hsl(var(--border))" 
-                      strokeWidth={0.5} 
-                      strokeDasharray="4 2"
-                    />
-                  ))}
-                  {component.shapes.map(shape => renderShape(shape, previewWidth, previewHeight))}
-                </svg>
-              </div>
             </div>
 
-            <Separator />
+            <Separator orientation="vertical" className="h-auto" />
 
-            {/* Variations list */}
-            <Label className="text-sm font-medium">
-              Erstellte Varianten ({variations.length})
-            </Label>
-            <ScrollArea className="flex-1">
-              <div className="grid grid-cols-3 gap-3 pr-2">
+            {/* Right panel - Preview and list */}
+            <div className="flex-1 space-y-4">
+              {/* Base component preview */}
+              <div className="flex items-start gap-4">
+                <div className="text-sm font-medium">Basis-Komponente ({tileWidth}x{tileHeight}):</div>
+                <div 
+                  className="border rounded bg-white flex-shrink-0"
+                  style={{ width: previewWidth, height: previewHeight }}
+                >
+                  <svg width={previewWidth} height={previewHeight} viewBox={`0 0 ${previewWidth} ${previewHeight}`}>
+                    <rect 
+                      width={previewWidth} 
+                      height={previewHeight} 
+                      fill="white" 
+                      stroke="hsl(var(--border))" 
+                      strokeWidth={1}
+                    />
+                    {/* Grid lines for multi-cell tiles */}
+                    {tileHeight > 1 && Array.from({ length: tileHeight - 1 }).map((_, i) => (
+                      <line 
+                        key={`h-${i}`} 
+                        x1={0} 
+                        y1={(i + 1) * previewBaseSize} 
+                        x2={previewWidth} 
+                        y2={(i + 1) * previewBaseSize} 
+                        stroke="hsl(var(--border))" 
+                        strokeWidth={0.5} 
+                        strokeDasharray="4 2"
+                      />
+                    ))}
+                    {tileWidth > 1 && Array.from({ length: tileWidth - 1 }).map((_, i) => (
+                      <line 
+                        key={`v-${i}`} 
+                        x1={(i + 1) * previewBaseSize} 
+                        y1={0} 
+                        x2={(i + 1) * previewBaseSize} 
+                        y2={previewHeight} 
+                        stroke="hsl(var(--border))" 
+                        strokeWidth={0.5} 
+                        strokeDasharray="4 2"
+                      />
+                    ))}
+                    {component.shapes.map(shape => renderShape(shape, previewWidth, previewHeight))}
+                  </svg>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Variations list */}
+              <Label className="text-sm font-medium">
+                Erstellte Varianten ({variations.length})
+              </Label>
+              <div className="grid grid-cols-3 gap-3 pb-4">
                 {variations.map(variation => (
                   <div
                     key={variation.id}
@@ -540,7 +538,7 @@ export function VariationEditorDialog({
                   </div>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </div>
 
