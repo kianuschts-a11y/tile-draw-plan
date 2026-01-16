@@ -359,8 +359,9 @@ export function Canvas({
       const dx = Math.floor((pos.x - dragStartMousePos.x) / tileSize);
       const dy = Math.floor((pos.y - dragStartMousePos.y) / tileSize);
       
+      // Only move if offset changed
       if (dx !== 0 || dy !== 0) {
-        // Check if all tiles can be moved
+        // Check if all tiles can be moved to new positions
         let canMove = true;
         const newPositions = new Map<string, { x: number; y: number }>();
         
@@ -380,14 +381,23 @@ export function Canvas({
             break;
           }
           
-          // Check collision with non-selected tiles
+          // Check collision with non-selected tiles (using original positions)
           for (let cx = 0; cx < (tile.component.width || 1); cx++) {
             for (let cy = 0; cy < (tile.component.height || 1); cy++) {
-              const checkTile = getTileAtPosition(newX + cx, newY + cy);
-              if (checkTile && !selectedTileIds.has(checkTile.id)) {
-                canMove = false;
-                break;
+              // Find if any non-selected tile occupies this position
+              for (const otherTile of tiles) {
+                if (selectedTileIds.has(otherTile.id)) continue;
+                
+                const otherWidth = otherTile.component.width || 1;
+                const otherHeight = otherTile.component.height || 1;
+                
+                if (newX + cx >= otherTile.gridX && newX + cx < otherTile.gridX + otherWidth &&
+                    newY + cy >= otherTile.gridY && newY + cy < otherTile.gridY + otherHeight) {
+                  canMove = false;
+                  break;
+                }
               }
+              if (!canMove) break;
             }
             if (!canMove) break;
           }
@@ -404,19 +414,6 @@ export function Canvas({
             }
             return t;
           }));
-          
-          // Update start positions for next move
-          setDragStartMousePos(pos);
-          const updatedStartPositions = new Map<string, { x: number; y: number }>();
-          for (const [id, oldPos] of dragStartPositions) {
-            const newPos = newPositions.get(id);
-            if (newPos) {
-              updatedStartPositions.set(id, newPos);
-            } else {
-              updatedStartPositions.set(id, oldPos);
-            }
-          }
-          setDragStartPositions(updatedStartPositions);
         }
       }
     }
