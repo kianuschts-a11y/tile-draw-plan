@@ -1078,6 +1078,89 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 </defs>
                 <rect width={canvasWidth} height={canvasHeight} fill="url(#editor-grid-major)" />
 
+                {/* Connection point markers */}
+                {(() => {
+                  const markers: JSX.Element[] = [];
+                  const markerLength = 12;
+                  const markerStrokeWidth = 2;
+                  const markerColor = "#ef4444"; // Red color for visibility
+                  const connectionsPerSide = tileSizeConfig.connectionsPerSide;
+                  
+                  // Calculate positions based on tile configuration
+                  const cellWidth = canvasWidth / tileSizeConfig.cols;
+                  const cellHeight = canvasHeight / tileSizeConfig.rows;
+                  
+                  // Top edge markers
+                  for (let col = 0; col < tileSizeConfig.cols; col++) {
+                    const x = cellWidth * col + cellWidth / 2;
+                    markers.push(
+                      <line
+                        key={`top-${col}`}
+                        x1={x}
+                        y1={0}
+                        x2={x}
+                        y2={markerLength}
+                        stroke={markerColor}
+                        strokeWidth={markerStrokeWidth}
+                        strokeLinecap="round"
+                      />
+                    );
+                  }
+                  
+                  // Bottom edge markers
+                  for (let col = 0; col < tileSizeConfig.cols; col++) {
+                    const x = cellWidth * col + cellWidth / 2;
+                    markers.push(
+                      <line
+                        key={`bottom-${col}`}
+                        x1={x}
+                        y1={canvasHeight}
+                        x2={x}
+                        y2={canvasHeight - markerLength}
+                        stroke={markerColor}
+                        strokeWidth={markerStrokeWidth}
+                        strokeLinecap="round"
+                      />
+                    );
+                  }
+                  
+                  // Left edge markers
+                  for (let row = 0; row < tileSizeConfig.rows; row++) {
+                    const y = cellHeight * row + cellHeight / 2;
+                    markers.push(
+                      <line
+                        key={`left-${row}`}
+                        x1={0}
+                        y1={y}
+                        x2={markerLength}
+                        y2={y}
+                        stroke={markerColor}
+                        strokeWidth={markerStrokeWidth}
+                        strokeLinecap="round"
+                      />
+                    );
+                  }
+                  
+                  // Right edge markers
+                  for (let row = 0; row < tileSizeConfig.rows; row++) {
+                    const y = cellHeight * row + cellHeight / 2;
+                    markers.push(
+                      <line
+                        key={`right-${row}`}
+                        x1={canvasWidth}
+                        y1={y}
+                        x2={canvasWidth - markerLength}
+                        y2={y}
+                        stroke={markerColor}
+                        strokeWidth={markerStrokeWidth}
+                        strokeLinecap="round"
+                      />
+                    );
+                  }
+                  
+                  return markers;
+                })()}
+
                 {/* Shapes */}
                 {shapes.map(shape => (
                   <g key={shape.id}>
