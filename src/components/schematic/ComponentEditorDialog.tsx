@@ -856,103 +856,199 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="flex-shrink-0">
+      <DialogContent className="max-w-5xl p-4">
+        <DialogHeader className="pb-2">
           <DialogTitle>Komponente erstellen</DialogTitle>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto -mx-6 px-6">
-          <div className="space-y-4 pb-4">
-          {/* Tile size selection */}
-          <div className="space-y-2">
-            <Label>Kachelgröße</Label>
-            <RadioGroup 
-              value={componentTileSize} 
-              onValueChange={(v) => setComponentTileSize(v as TileSize)}
-              className="flex gap-4"
-            >
-              {Object.entries(TILE_SIZES).map(([key, config]) => (
-                <div key={key} className="flex items-center space-x-2">
-                  <RadioGroupItem value={key} id={`tile-${key}`} />
-                  <Label htmlFor={`tile-${key}`} className="cursor-pointer text-sm">
-                    {config.label}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
+        {/* Toolbar - kompakt oben */}
+        <div className="flex items-center gap-1 p-1.5 bg-muted/50 rounded-lg flex-wrap">
+          <ToolBtn icon={MousePointer2} label="Auswählen" shortcut="V" isActive={activeTool === 'select'} onClick={() => setActiveTool('select')} />
+          <Separator orientation="vertical" className="h-5 mx-0.5" />
+          <ToolBtn icon={Square} label="Rechteck" shortcut="R" isActive={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} />
+          <ToolBtn icon={Circle} label="Kreis" shortcut="C" isActive={activeTool === 'circle'} onClick={() => setActiveTool('circle')} />
+          <ToolBtn icon={Minus} label="Linie" shortcut="L" isActive={activeTool === 'line'} onClick={() => setActiveTool('line')} />
+          <ToolBtn icon={Triangle} label="Dreieck" shortcut="T" isActive={activeTool === 'triangle'} onClick={() => setActiveTool('triangle')} />
+          <ToolBtn icon={Diamond} label="Raute" shortcut="D" isActive={activeTool === 'diamond'} onClick={() => setActiveTool('diamond')} />
+          <ToolBtn icon={Spline} label="Polylinie" shortcut="P" isActive={activeTool === 'polyline'} onClick={() => setActiveTool('polyline')} />
+          <ToolBtn icon={CircleDot} label="Bogen" shortcut="A" isActive={activeTool === 'arc'} onClick={() => setActiveTool('arc')} />
+          <ToolBtn icon={Type} label="Text" shortcut="X" isActive={activeTool === 'text'} onClick={() => setActiveTool('text')} />
+          <Separator orientation="vertical" className="h-5 mx-0.5" />
+          <ToolBtn icon={Undo2} label="Rückgängig" shortcut="Ctrl+Z" onClick={undo} disabled={historyIndex <= 0} />
+          <ToolBtn icon={Redo2} label="Wiederholen" shortcut="Ctrl+Y" onClick={redo} disabled={historyIndex >= history.length - 1} />
+          <Separator orientation="vertical" className="h-5 mx-0.5" />
+          <ToolBtn icon={Copy} label="Duplizieren" shortcut="Ctrl+D" onClick={handleDuplicate} disabled={!hasSelection} />
+          <ToolBtn icon={RotateCw} label="90° drehen" onClick={() => handleRotate(90)} disabled={!hasSelection} />
+          <ToolBtn icon={FlipHorizontal} label="Horizontal spiegeln" onClick={handleFlipH} disabled={!hasSelection} />
+          <ToolBtn icon={FlipVertical} label="Vertikal spiegeln" onClick={handleFlipV} disabled={!hasSelection} />
+          <ToolBtn icon={Trash2} label="Löschen" shortcut="Del" onClick={handleDelete} disabled={!hasSelection} />
+        </div>
 
-          <div className="flex gap-4 items-end">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="component-name">Name</Label>
+        {/* Hauptbereich: Optionen links, Canvas rechts */}
+        <div className="flex gap-4 mt-2">
+          {/* Linke Seite - Optionen */}
+          <div className="w-48 flex-shrink-0 space-y-3">
+            {/* Name */}
+            <div className="space-y-1">
+              <Label htmlFor="component-name" className="text-xs">Name</Label>
               <Input
                 id="component-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Komponentenname"
+                className="h-8 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Strichstärke</Label>
-              <div className="flex items-center gap-2 w-32">
+
+            {/* Kachelgröße */}
+            <div className="space-y-1">
+              <Label className="text-xs">Kachelgröße</Label>
+              <RadioGroup 
+                value={componentTileSize} 
+                onValueChange={(v) => setComponentTileSize(v as TileSize)}
+                className="flex flex-col gap-1"
+              >
+                {Object.entries(TILE_SIZES).map(([key, config]) => (
+                  <div key={key} className="flex items-center space-x-2">
+                    <RadioGroupItem value={key} id={`tile-${key}`} />
+                    <Label htmlFor={`tile-${key}`} className="cursor-pointer text-xs">
+                      {config.label}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+
+            {/* Strichstärke */}
+            <div className="space-y-1">
+              <Label className="text-xs">Strichstärke</Label>
+              <div className="flex items-center gap-2">
                 <Slider
                   value={[strokeWidth]}
                   onValueChange={([v]) => setStrokeWidth(v)}
                   min={1}
                   max={6}
                   step={0.5}
+                  className="flex-1"
                 />
-                <span className="text-xs font-mono w-6">{strokeWidth}</span>
+                <span className="text-xs font-mono w-5">{strokeWidth}</span>
               </div>
             </div>
+
+            {/* Raster */}
             <div className="flex items-center gap-2">
               <Switch
                 id="snap-grid"
                 checked={snapToGrid}
                 onCheckedChange={setSnapToGrid}
               />
-              <Label htmlFor="snap-grid" className="flex items-center gap-1.5 cursor-pointer">
-                <Grid3X3 className="w-4 h-4" />
-                <span className="text-sm">Raster</span>
+              <Label htmlFor="snap-grid" className="flex items-center gap-1 cursor-pointer text-xs">
+                <Grid3X3 className="w-3 h-3" />
+                Raster
               </Label>
+            </div>
+
+            <Separator />
+
+            {/* Properties Panel für ausgewählte Shapes */}
+            {selectedShapeIds.length === 1 && (() => {
+              const selectedShape = shapes.find(s => s.id === selectedShapeIds[0]);
+              if (!selectedShape) return null;
+              
+              const updateSelectedShape = (updates: Partial<Shape>) => {
+                const newShapes = shapes.map(s => 
+                  s.id === selectedShape.id ? { ...s, ...updates } : s
+                );
+                setShapes(newShapes);
+                pushHistory(newShapes);
+              };
+              
+              const isTextShape = selectedShape.type === 'text';
+              const isLineShape = selectedShape.type === 'line' || selectedShape.type === 'polyline' || selectedShape.type === 'arc';
+              const hasStroke = isLineShape || ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond'].includes(selectedShape.type);
+              
+              return (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Auswahl: {selectedShape.type}
+                  </div>
+                  
+                  {hasStroke && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Strichstärke</Label>
+                      <div className="flex items-center gap-2">
+                        <Slider
+                          value={[selectedShape.strokeWidth || 2]}
+                          onValueChange={([v]) => updateSelectedShape({ strokeWidth: v })}
+                          min={0.5}
+                          max={8}
+                          step={0.5}
+                          className="flex-1"
+                        />
+                        <span className="text-xs font-mono w-5">{selectedShape.strokeWidth || 2}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {isTextShape && (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Schriftgröße</Label>
+                        <div className="flex items-center gap-2">
+                          <Slider
+                            value={[selectedShape.fontSize || 14]}
+                            onValueChange={([v]) => updateSelectedShape({ fontSize: v })}
+                            min={8}
+                            max={48}
+                            step={1}
+                            className="flex-1"
+                          />
+                          <span className="text-xs font-mono w-5">{selectedShape.fontSize || 14}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs">Schriftart</Label>
+                        <Select
+                          value={selectedShape.fontFamily || 'sans-serif'}
+                          onValueChange={(v) => updateSelectedShape({ fontFamily: v })}
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AVAILABLE_FONTS.map(font => (
+                              <SelectItem key={font.value} value={font.value} className="text-xs">
+                                <span style={{ fontFamily: font.value }}>{font.label}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs">Text</Label>
+                        <Input
+                          value={selectedShape.text || ''}
+                          onChange={(e) => updateSelectedShape({ text: e.target.value })}
+                          className="h-7 text-xs"
+                          placeholder="Text..."
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Status */}
+            <div className="text-xs text-muted-foreground pt-2">
+              {shapes.length} Elemente
             </div>
           </div>
 
-          {/* Toolbar */}
-          <div className="flex items-center gap-1 p-2 bg-muted/50 rounded-lg flex-wrap">
-            {/* Selection */}
-            <ToolBtn icon={MousePointer2} label="Auswählen" shortcut="V" isActive={activeTool === 'select'} onClick={() => setActiveTool('select')} />
-            
-            <Separator orientation="vertical" className="h-6 mx-1" />
-            
-            {/* Shapes */}
-            <ToolBtn icon={Square} label="Rechteck" shortcut="R" isActive={activeTool === 'rectangle'} onClick={() => setActiveTool('rectangle')} />
-            <ToolBtn icon={Circle} label="Kreis" shortcut="C" isActive={activeTool === 'circle'} onClick={() => setActiveTool('circle')} />
-            <ToolBtn icon={Minus} label="Linie" shortcut="L" isActive={activeTool === 'line'} onClick={() => setActiveTool('line')} />
-            <ToolBtn icon={Triangle} label="Dreieck" shortcut="T" isActive={activeTool === 'triangle'} onClick={() => setActiveTool('triangle')} />
-            <ToolBtn icon={Diamond} label="Raute" shortcut="D" isActive={activeTool === 'diamond'} onClick={() => setActiveTool('diamond')} />
-            <ToolBtn icon={Spline} label="Polylinie" shortcut="P" isActive={activeTool === 'polyline'} onClick={() => setActiveTool('polyline')} />
-            <ToolBtn icon={CircleDot} label="Bogen" shortcut="A" isActive={activeTool === 'arc'} onClick={() => setActiveTool('arc')} />
-            <ToolBtn icon={Type} label="Text" shortcut="X" isActive={activeTool === 'text'} onClick={() => setActiveTool('text')} />
-            
-            <Separator orientation="vertical" className="h-6 mx-1" />
-            
-            {/* Edit */}
-            <ToolBtn icon={Undo2} label="Rückgängig" shortcut="Ctrl+Z" onClick={undo} disabled={historyIndex <= 0} />
-            <ToolBtn icon={Redo2} label="Wiederholen" shortcut="Ctrl+Y" onClick={redo} disabled={historyIndex >= history.length - 1} />
-            
-            <Separator orientation="vertical" className="h-6 mx-1" />
-            
-            {/* Transform */}
-            <ToolBtn icon={Copy} label="Duplizieren" shortcut="Ctrl+D" onClick={handleDuplicate} disabled={!hasSelection} />
-            <ToolBtn icon={RotateCw} label="90° drehen" onClick={() => handleRotate(90)} disabled={!hasSelection} />
-            <ToolBtn icon={FlipHorizontal} label="Horizontal spiegeln" onClick={handleFlipH} disabled={!hasSelection} />
-            <ToolBtn icon={FlipVertical} label="Vertikal spiegeln" onClick={handleFlipV} disabled={!hasSelection} />
-            <ToolBtn icon={Trash2} label="Löschen" shortcut="Del" onClick={handleDelete} disabled={!hasSelection} />
-          </div>
-
-          {/* Canvas */}
-          <div className="flex justify-center">
+          {/* Rechte Seite - Canvas */}
+          <div className="flex-1 flex justify-center items-start">
             <div className="relative">
               <svg
                 width={canvasWidth}
@@ -981,7 +1077,6 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 {shapes.map(shape => (
                   <g key={shape.id}>
                     {renderShape(shape)}
-                    {/* Unsichtbarer größerer Klickbereich für Linien */}
                     {shape.type === 'line' && activeTool === 'select' && (
                       <line
                         x1={shape.x}
@@ -1015,8 +1110,6 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
                 {selectedShapeIds.map(id => {
                   const shape = shapes.find(s => s.id === id);
                   if (!shape) return null;
-                  
-                  // Bounding box für nicht-Linien
                   const showBoundingBox = shape.type !== 'line';
                   
                   return (
@@ -1061,111 +1154,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, tileSize }: Compo
               )}
             </div>
           </div>
-
-          {/* Properties Panel für ausgewählte Shapes */}
-          {selectedShapeIds.length === 1 && (() => {
-            const selectedShape = shapes.find(s => s.id === selectedShapeIds[0]);
-            if (!selectedShape) return null;
-            
-            const updateSelectedShape = (updates: Partial<Shape>) => {
-              const newShapes = shapes.map(s => 
-                s.id === selectedShape.id ? { ...s, ...updates } : s
-              );
-              setShapes(newShapes);
-              pushHistory(newShapes);
-            };
-            
-            const isTextShape = selectedShape.type === 'text';
-            const isLineShape = selectedShape.type === 'line' || selectedShape.type === 'polyline' || selectedShape.type === 'arc';
-            const hasStroke = isLineShape || ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond'].includes(selectedShape.type);
-            
-            return (
-              <div className="p-3 bg-muted/30 rounded-lg border">
-                <div className="text-xs font-medium text-muted-foreground mb-2">
-                  Eigenschaften: {selectedShape.type === 'text' ? 'Text' : selectedShape.type === 'line' ? 'Linie' : selectedShape.type === 'polyline' ? 'Polylinie' : selectedShape.type}
-                </div>
-                <div className="flex flex-wrap gap-4">
-                  {/* Strichstärke für alle außer Text */}
-                  {hasStroke && (
-                    <div className="space-y-1">
-                      <Label className="text-xs">Strichstärke</Label>
-                      <div className="flex items-center gap-2 w-32">
-                        <Slider
-                          value={[selectedShape.strokeWidth || 2]}
-                          onValueChange={([v]) => updateSelectedShape({ strokeWidth: v })}
-                          min={0.5}
-                          max={8}
-                          step={0.5}
-                        />
-                        <span className="text-xs font-mono w-6">{selectedShape.strokeWidth || 2}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Schriftgröße für Text */}
-                  {isTextShape && (
-                    <>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Schriftgröße</Label>
-                        <div className="flex items-center gap-2 w-32">
-                          <Slider
-                            value={[selectedShape.fontSize || 14]}
-                            onValueChange={([v]) => updateSelectedShape({ fontSize: v })}
-                            min={8}
-                            max={48}
-                            step={1}
-                          />
-                          <span className="text-xs font-mono w-6">{selectedShape.fontSize || 14}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <Label className="text-xs">Schriftart</Label>
-                        <Select
-                          value={selectedShape.fontFamily || 'sans-serif'}
-                          onValueChange={(v) => updateSelectedShape({ fontFamily: v })}
-                        >
-                          <SelectTrigger className="w-40 h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AVAILABLE_FONTS.map(font => (
-                              <SelectItem key={font.value} value={font.value} className="text-xs">
-                                <span style={{ fontFamily: font.value }}>{font.label}</span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <Label className="text-xs">Text bearbeiten</Label>
-                        <Input
-                          value={selectedShape.text || ''}
-                          onChange={(e) => updateSelectedShape({ text: e.target.value })}
-                          className="w-40 h-8 text-xs"
-                          placeholder="Text eingeben..."
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>
-              {snapToGrid ? "Raster an (G)" : "Raster aus (G)"} • 
-              Linie: Ziehen von Start zu Ende • 
-              Doppelklick beendet Polylinie
-            </span>
-            <span>{shapes.length} Elemente</span>
-          </div>
-          </div>
         </div>
 
-        <DialogFooter className="flex-shrink-0 pt-4 border-t mt-0">
+        <DialogFooter className="pt-3 border-t mt-3">
           <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
           <Button onClick={handleSave} disabled={shapes.length === 0}>
             Komponente speichern
