@@ -209,22 +209,24 @@ function getComponentBounds(shapes: Shape[]): { minX: number; maxX: number; minY
 }
 
 // Calculate intersection point for horizontal line at given Y with shape edge
+// Excludes text, lines, arrows, and polylines from intersection calculation
 function getHorizontalIntersection(shapes: Shape[], y: number, side: 'left' | 'right'): number {
   let intersectionX = side === 'left' ? 1 : 0;
   
-  for (const shape of shapes) {
+  // Filter out shapes that shouldn't affect connection boundaries
+  const boundaryShapes = shapes.filter(s => 
+    s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+  );
+  
+  for (const shape of boundaryShapes) {
     const shapeMinY = shape.y;
     const shapeMaxY = shape.y + shape.height;
     
-    // Check if y is within shape's vertical range
     if (y < shapeMinY || y > shapeMaxY) continue;
     
-    const relativeY = (y - shape.y) / shape.height; // 0 to 1 within shape
+    const relativeY = (y - shape.y) / shape.height;
     
     if (shape.type === 'triangle') {
-      // Triangle: top-center, bottom-left, bottom-right
-      // At relativeY=0 (top), x is at center
-      // At relativeY=1 (bottom), x ranges from shape.x to shape.x + shape.width
       const halfWidthAtY = (shape.width / 2) * relativeY;
       const leftEdge = shape.x + shape.width / 2 - halfWidthAtY;
       const rightEdge = shape.x + shape.width / 2 + halfWidthAtY;
@@ -235,9 +237,6 @@ function getHorizontalIntersection(shapes: Shape[], y: number, side: 'left' | 'r
         intersectionX = Math.max(intersectionX, rightEdge);
       }
     } else if (shape.type === 'diamond') {
-      // Diamond: top, right, bottom, left vertices
-      // At relativeY=0.5 (center), width is at maximum
-      // At relativeY=0 or 1, width is 0 (point)
       const halfWidthAtY = shape.width / 2 * (1 - Math.abs(relativeY * 2 - 1));
       const leftEdge = shape.x + shape.width / 2 - halfWidthAtY;
       const rightEdge = shape.x + shape.width / 2 + halfWidthAtY;
@@ -247,8 +246,25 @@ function getHorizontalIntersection(shapes: Shape[], y: number, side: 'left' | 'r
       } else {
         intersectionX = Math.max(intersectionX, rightEdge);
       }
+    } else if (shape.type === 'circle' || shape.type === 'ellipse') {
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      const rx = shape.width / 2;
+      const ry = shape.height / 2;
+      
+      const dy = y - cy;
+      if (Math.abs(dy) <= ry) {
+        const factor = Math.sqrt(1 - (dy * dy) / (ry * ry));
+        const leftEdge = cx - rx * factor;
+        const rightEdge = cx + rx * factor;
+        
+        if (side === 'left') {
+          intersectionX = Math.min(intersectionX, leftEdge);
+        } else {
+          intersectionX = Math.max(intersectionX, rightEdge);
+        }
+      }
     } else {
-      // Rectangle, circle, etc - use bounding box
       if (side === 'left') {
         intersectionX = Math.min(intersectionX, shape.x);
       } else {
@@ -257,9 +273,11 @@ function getHorizontalIntersection(shapes: Shape[], y: number, side: 'left' | 'r
     }
   }
   
-  // Fallback to bounds if no intersection found
   if ((side === 'left' && intersectionX === 1) || (side === 'right' && intersectionX === 0)) {
-    const bounds = getComponentBounds(shapes);
+    const filteredShapes = shapes.filter(s => 
+      s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+    );
+    const bounds = getComponentBounds(filteredShapes.length > 0 ? filteredShapes : shapes);
     return side === 'left' ? bounds.minX : bounds.maxX;
   }
   
@@ -267,22 +285,25 @@ function getHorizontalIntersection(shapes: Shape[], y: number, side: 'left' | 'r
 }
 
 // Calculate intersection point for vertical line at given X with shape edge
+// Excludes text, lines, arrows, and polylines from intersection calculation
 function getVerticalIntersection(shapes: Shape[], x: number, side: 'top' | 'bottom'): number {
   let intersectionY = side === 'top' ? 1 : 0;
   
-  for (const shape of shapes) {
+  // Filter out shapes that shouldn't affect connection boundaries
+  const boundaryShapes = shapes.filter(s => 
+    s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+  );
+  
+  for (const shape of boundaryShapes) {
     const shapeMinX = shape.x;
     const shapeMaxX = shape.x + shape.width;
     
-    // Check if x is within shape's horizontal range
     if (x < shapeMinX || x > shapeMaxX) continue;
     
-    const relativeX = (x - shape.x) / shape.width; // 0 to 1 within shape
+    const relativeX = (x - shape.x) / shape.width;
     
     if (shape.type === 'triangle') {
-      // Triangle: top-center, bottom-left, bottom-right
-      // The top edge is only at the center (relativeX = 0.5)
-      const distFromCenter = Math.abs(relativeX - 0.5) * 2; // 0 at center, 1 at edges
+      const distFromCenter = Math.abs(relativeX - 0.5) * 2;
       const topEdge = shape.y + shape.height * distFromCenter;
       const bottomEdge = shape.y + shape.height;
       
@@ -292,7 +313,6 @@ function getVerticalIntersection(shapes: Shape[], x: number, side: 'top' | 'bott
         intersectionY = Math.max(intersectionY, bottomEdge);
       }
     } else if (shape.type === 'diamond') {
-      // Diamond shape
       const distFromCenter = Math.abs(relativeX - 0.5) * 2;
       const halfHeightAtX = shape.height / 2 * (1 - distFromCenter);
       const topEdge = shape.y + shape.height / 2 - halfHeightAtX;
@@ -303,8 +323,25 @@ function getVerticalIntersection(shapes: Shape[], x: number, side: 'top' | 'bott
       } else {
         intersectionY = Math.max(intersectionY, bottomEdge);
       }
+    } else if (shape.type === 'circle' || shape.type === 'ellipse') {
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      const rx = shape.width / 2;
+      const ry = shape.height / 2;
+      
+      const dx = x - cx;
+      if (Math.abs(dx) <= rx) {
+        const factor = Math.sqrt(1 - (dx * dx) / (rx * rx));
+        const topEdge = cy - ry * factor;
+        const bottomEdge = cy + ry * factor;
+        
+        if (side === 'top') {
+          intersectionY = Math.min(intersectionY, topEdge);
+        } else {
+          intersectionY = Math.max(intersectionY, bottomEdge);
+        }
+      }
     } else {
-      // Rectangle, etc
       if (side === 'top') {
         intersectionY = Math.min(intersectionY, shape.y);
       } else {
@@ -313,9 +350,11 @@ function getVerticalIntersection(shapes: Shape[], x: number, side: 'top' | 'bott
     }
   }
   
-  // Fallback
   if ((side === 'top' && intersectionY === 1) || (side === 'bottom' && intersectionY === 0)) {
-    const bounds = getComponentBounds(shapes);
+    const filteredShapes = shapes.filter(s => 
+      s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+    );
+    const bounds = getComponentBounds(filteredShapes.length > 0 ? filteredShapes : shapes);
     return side === 'top' ? bounds.minY : bounds.maxY;
   }
   
@@ -635,7 +674,10 @@ export function VariationEditorDialog({
       case 'arrow': {
         const x2 = x + width;
         const y2 = y + height;
-        const arrowSize = shape.arrowSize || Math.max(4, strokeWidth * 2);
+        // Scale arrow size proportionally
+        const scale = Math.min(scaleX, scaleY);
+        const baseArrowSize = shape.arrowSize || 0.05; // Default arrow size in normalized coords
+        const arrowSize = baseArrowSize * scale;
         const angle = Math.atan2(height, width);
         const arrowAngle = Math.PI / 6;
         const ax1 = x2 - arrowSize * Math.cos(angle - arrowAngle);
@@ -717,12 +759,15 @@ export function VariationEditorDialog({
         break;
       }
       case 'text': {
-        const fontSize = shape.fontSize || 12;
+        // Scale font size proportionally
+        const scale = Math.min(scaleX, scaleY);
+        const baseFontSize = shape.fontSize || 0.1; // Default in normalized coords
+        const fontSize = baseFontSize * scale;
         element = (
           <text 
             x={x} 
             y={y + fontSize} 
-            fontSize={fontSize} 
+            fontSize={Math.max(8, fontSize)} 
             fontFamily={shape.fontFamily || 'sans-serif'} 
             fill={baseStroke}
           >
