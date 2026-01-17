@@ -14,7 +14,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MousePointer2, Square, Circle, Minus, Triangle, Diamond, 
   Trash2, RotateCw, FlipHorizontal, FlipVertical, Copy, 
-  Undo2, Redo2, Spline, Type, CircleDot, Grid3X3, ArrowRight
+  Undo2, Redo2, Spline, Type, CircleDot, Grid3X3, ArrowRight,
+  PaintBucket
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -871,6 +872,111 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     return 'crosshair';
   };
 
+  // Funktion zum Erkennen geschlossener Linienzüge
+  const findClosedPolygon = useCallback((lineShapes: Shape[]): Point[] | null => {
+    const lines = lineShapes.filter(s => s.type === 'line');
+    if (lines.length < 3) return null;
+    
+    const tolerance = gridSize * 0.5; // Toleranz für Verbindungen
+    
+    // Hole alle Endpunkte der Linien
+    const getEndpoints = (line: Shape): [Point, Point] => [
+      { x: line.x, y: line.y },
+      { x: line.x + line.width, y: line.y + line.height }
+    ];
+    
+    const pointsEqual = (p1: Point, p2: Point): boolean => {
+      return Math.abs(p1.x - p2.x) < tolerance && Math.abs(p1.y - p2.y) < tolerance;
+    };
+    
+    // Versuche einen geschlossenen Pfad zu finden
+    const findPath = (startLine: Shape, usedLines: Set<string>, path: Point[]): Point[] | null => {
+      const [start, end] = getEndpoints(startLine);
+      const currentEnd = path[path.length - 1];
+      
+      // Finde welcher Endpunkt der nächste ist
+      let nextPoint: Point;
+      if (pointsEqual(start, currentEnd)) {
+        nextPoint = end;
+      } else if (pointsEqual(end, currentEnd)) {
+        nextPoint = start;
+      } else {
+        return null;
+      }
+      
+      path.push(nextPoint);
+      usedLines.add(startLine.id);
+      
+      // Prüfe ob wir zurück zum Startpunkt sind
+      if (path.length >= 4 && pointsEqual(nextPoint, path[0])) {
+        return path;
+      }
+      
+      // Suche nächste verbundene Linie
+      for (const line of lines) {
+        if (usedLines.has(line.id)) continue;
+        const [lineStart, lineEnd] = getEndpoints(line);
+        if (pointsEqual(lineStart, nextPoint) || pointsEqual(lineEnd, nextPoint)) {
+          const result = findPath(line, new Set(usedLines), [...path]);
+          if (result) return result;
+        }
+      }
+      
+      return null;
+    };
+    
+    // Starte von jeder Linie aus
+    for (const startLine of lines) {
+      const [start, end] = getEndpoints(startLine);
+      
+      // Suche Linien die mit dem Startpunkt verbunden sind
+      for (const line of lines) {
+        if (line.id === startLine.id) continue;
+        const [lineStart, lineEnd] = getEndpoints(line);
+        if (pointsEqual(lineStart, end) || pointsEqual(lineEnd, end)) {
+          const result = findPath(line, new Set([startLine.id]), [start, end]);
+          if (result) return result;
+        }
+      }
+    }
+    
+    return null;
+  }, [gridSize]);
+
+  // Prüfe ob ausgewählte Linien ein geschlossenes Polygon bilden
+  const selectedLines = shapes.filter(s => selectedShapeIds.includes(s.id) && s.type === 'line');
+  const closedPolygonPoints = selectedLines.length >= 3 ? findClosedPolygon(selectedLines) : null;
+
+  // Funktion zum Erstellen eines gefüllten Polygons aus Linien
+  const handleCreateFilledPolygon = () => {
+    if (!closedPolygonPoints || closedPolygonPoints.length < 3) return;
+    
+    // Berechne Bounding Box
+    const minX = Math.min(...closedPolygonPoints.map(p => p.x));
+    const maxX = Math.max(...closedPolygonPoints.map(p => p.x));
+    const minY = Math.min(...closedPolygonPoints.map(p => p.y));
+    const maxY = Math.max(...closedPolygonPoints.map(p => p.y));
+    
+    const newShape: Shape = {
+      id: generateId(),
+      type: 'polygon',
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      points: closedPolygonPoints,
+      fillColor: fillColor || '#3b82f6',
+      strokeWidth: strokeWidth
+    };
+    
+    // Entferne die ausgewählten Linien und füge das Polygon hinzu
+    const newShapes = shapes.filter(s => !selectedShapeIds.includes(s.id));
+    newShapes.push(newShape);
+    setShapes(newShapes);
+    pushHistory(newShapes);
+    setSelectedShapeIds([newShape.id]);
+  };
+
   const renderShape = (shape: Shape, isPreview = false) => {
     const isSelected = selectedShapeIds.includes(shape.id) && !isPreview;
     const stroke = isSelected ? "hsl(var(--primary))" : "hsl(220, 25%, 20%)";
@@ -920,6 +1026,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
         return <polygon points={`${shape.x + shape.width/2},${shape.y} ${shape.x},${shape.y + shape.height} ${shape.x + shape.width},${shape.y + shape.height}`} fill={fill} stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'diamond':
         return <polygon points={`${shape.x + shape.width/2},${shape.y} ${shape.x + shape.width},${shape.y + shape.height/2} ${shape.x + shape.width/2},${shape.y + shape.height} ${shape.x},${shape.y + shape.height/2}`} fill={fill} stroke={stroke} strokeWidth={sw} transform={transform} />;
+      case 'polygon':
+        if (!shape.points || shape.points.length < 3) return null;
+        return <polygon points={shape.points.map(p => `${p.x},${p.y}`).join(' ')} fill={fill} stroke={stroke} strokeWidth={sw} transform={transform} />;
       case 'polyline':
         if (!shape.points || shape.points.length < 2) return null;
         return <polyline points={shape.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />;
@@ -1148,8 +1257,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
               
               const isTextShape = selectedShape.type === 'text';
               const isLineShape = selectedShape.type === 'line' || selectedShape.type === 'arrow' || selectedShape.type === 'polyline' || selectedShape.type === 'arc';
-              const hasStroke = isLineShape || ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond'].includes(selectedShape.type);
-              const hasFill = ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond'].includes(selectedShape.type);
+              const hasStroke = isLineShape || ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond', 'polygon'].includes(selectedShape.type);
+              const hasFill = ['rectangle', 'circle', 'ellipse', 'triangle', 'diamond', 'polygon'].includes(selectedShape.type);
               
               return (
                 <div className="space-y-2">
@@ -1258,6 +1367,32 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                 </div>
               );
             })()}
+
+            {/* Geschlossene Fläche füllen - erscheint wenn Linien ein geschlossenes Polygon bilden */}
+            {closedPolygonPoints && closedPolygonPoints.length >= 3 && (
+              <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded border border-blue-200 dark:border-blue-800">
+                <div className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">
+                  Geschlossene Fläche erkannt!
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Label className="text-xs">Füllfarbe:</Label>
+                  <input
+                    type="color"
+                    value={fillColor || "#3b82f6"}
+                    onChange={(e) => setFillColor(e.target.value)}
+                    className="w-6 h-6 rounded border cursor-pointer"
+                  />
+                </div>
+                <Button 
+                  size="sm" 
+                  className="w-full h-7 text-xs gap-1"
+                  onClick={handleCreateFilledPolygon}
+                >
+                  <PaintBucket className="w-3 h-3" />
+                  Fläche füllen
+                </Button>
+              </div>
+            )}
 
             {/* Status */}
             <div className="text-xs text-muted-foreground pt-2">
