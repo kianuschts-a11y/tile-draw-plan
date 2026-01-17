@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Shape, ShapeType, Point, TileSize, TILE_SIZES, Component } from "@/types/schematic";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MousePointer2, Square, Circle, Minus, Triangle, Diamond, 
   Trash2, RotateCw, FlipHorizontal, FlipVertical, Copy, 
-  Undo2, Redo2, Spline, Type, CircleDot, Grid3X3, ArrowRight,
+  Undo2, Redo2, Spline, Type, Grid3X3, ArrowRight,
   PaintBucket
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -104,6 +104,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: HandleType } | null>(null);
   const [componentTileSize, setComponentTileSize] = useState<TileSize>('1x1');
   const [hoverPosition, setHoverPosition] = useState<Point | null>(null);
+  
+  // Fläche-Füllen-Modus
+  const [fillAreaMode, setFillAreaMode] = useState(false);
+  const [fillAreaSelectedIds, setFillAreaSelectedIds] = useState<string[]>([]);
+  
+  // Kurven-Kontrollpunkt (Linie zu Kurve ziehen)
+  const [draggingCurveControl, setDraggingCurveControl] = useState<string | null>(null);
 
   const isEditing = !!editingComponent;
 
@@ -299,7 +306,37 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     const pos = getMousePosition(e, isLineType);
     const rawPos = getRawMousePosition(e);
 
+    // Fläche-Füllen-Modus: Linien auswählen
+    if (fillAreaMode) {
+      const shapeAtPos = findShapeAtPosition(rawPos);
+      if (shapeAtPos && shapeAtPos.type === 'line') {
+        if (fillAreaSelectedIds.includes(shapeAtPos.id)) {
+          setFillAreaSelectedIds(fillAreaSelectedIds.filter(id => id !== shapeAtPos.id));
+        } else {
+          const newSelected = [...fillAreaSelectedIds, shapeAtPos.id];
+          setFillAreaSelectedIds(newSelected);
+        }
+      }
+      return;
+    }
+
     if (activeTool === 'select') {
+      // Prüfe ob ein Kurven-Kontrollpunkt angeklickt wurde
+      if (!moveOnlyMode) {
+        for (const id of selectedShapeIds) {
+          const shape = shapes.find(s => s.id === id);
+          if (shape && (shape.type === 'line' || shape.type === 'arrow')) {
+            const midX = shape.x + shape.width / 2 + (shape.curveOffset?.x || 0);
+            const midY = shape.y + shape.height / 2 + (shape.curveOffset?.y || 0);
+            const hitRadius = handleSize / 2 + 4;
+            if (Math.abs(rawPos.x - midX) <= hitRadius && Math.abs(rawPos.y - midY) <= hitRadius) {
+              setDraggingCurveControl(shape.id);
+              return;
+            }
+          }
+        }
+      }
+
       // Prüfe ob ein Handle angeklickt wurde (nur wenn nicht im "Nur Verschieben"-Modus)
       if (!moveOnlyMode) {
         const clickedShape = shapes.find(s => selectedShapeIds.includes(s.id));
@@ -350,7 +387,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     }
 
     // Zeichnen startet - für alle Formen inkl. Linie und Kreis
-    if (['rectangle', 'circle', 'line', 'arrow', 'triangle', 'diamond', 'ellipse', 'arc'].includes(activeTool)) {
+    if (['rectangle', 'circle', 'line', 'arrow', 'triangle', 'diamond', 'ellipse'].includes(activeTool)) {
       setIsDrawing(true);
       setDrawStart(pos);
       const newShape: Shape = {
@@ -362,8 +399,6 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
         height: 0,
         strokeWidth,
         fillColor: fillColor || undefined,
-        startAngle: activeTool === 'arc' ? 0 : undefined,
-        endAngle: activeTool === 'arc' ? 180 : undefined,
         arrowSize: activeTool === 'arrow' ? Math.max(8, strokeWidth * 4) : undefined
       };
       setCurrentShape(newShape);
@@ -410,13 +445,31 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       (activeHandle && (shapes.find(s => s.id === activeHandle.shapeId)?.type === 'line' || 
                         shapes.find(s => s.id === activeHandle.shapeId)?.type === 'arrow'));
     const pos = getMousePosition(e, isLineType);
+    const rawPos = getRawMousePosition(e);
     
-    // Hover-Position für visuellen Cursor aktualisieren (nicht bei select/text)
-    if (snapToGrid && activeTool !== 'select' && activeTool !== 'text') {
-      const snappedPos = strictSnapPosition(getRawMousePosition(e));
+    // Hover-Position für visuellen Cursor aktualisieren (nicht bei select/text/fillAreaMode)
+    if (snapToGrid && activeTool !== 'select' && activeTool !== 'text' && !fillAreaMode) {
+      const snappedPos = strictSnapPosition(rawPos);
       setHoverPosition(snappedPos);
     } else {
       setHoverPosition(null);
+    }
+
+    // Kurven-Kontrollpunkt ziehen
+    if (draggingCurveControl) {
+      const shape = shapes.find(s => s.id === draggingCurveControl);
+      if (shape) {
+        const midX = shape.x + shape.width / 2;
+        const midY = shape.y + shape.height / 2;
+        const offsetX = rawPos.x - midX;
+        const offsetY = rawPos.y - midY;
+        setShapes(shapes.map(s => 
+          s.id === draggingCurveControl 
+            ? { ...s, curveOffset: { x: offsetX, y: offsetY } }
+            : s
+        ));
+      }
+      return;
     }
 
     // Handle-Resizing
@@ -570,6 +623,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   };
 
   const handleMouseUp = () => {
+    // Kurven-Kontrollpunkt loslassen
+    if (draggingCurveControl) {
+      setDraggingCurveControl(null);
+      pushHistory(shapes);
+      return;
+    }
+
     if (activeHandle) {
       setActiveHandle(null);
       pushHistory(shapes);
@@ -788,6 +848,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     setActiveHandle(null);
     setComponentTileSize('1x1');
     setFillColor("");
+    setFillAreaMode(false);
+    setFillAreaSelectedIds([]);
+    setDraggingCurveControl(null);
     onClose();
   };
 
@@ -834,15 +897,18 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
         case 't': setActiveTool('triangle'); setSelectedShapeIds([]); break;
         case 'd': setActiveTool('diamond'); setSelectedShapeIds([]); break;
         case 'p': setActiveTool('polyline'); setSelectedShapeIds([]); break;
-        case 'a': setActiveTool('arc'); setSelectedShapeIds([]); break;
         case 'x': setActiveTool('text'); setSelectedShapeIds([]); break;
         case 'g': setSnapToGrid(!snapToGrid); break;
+        case 'f': setFillAreaMode(!fillAreaMode); setFillAreaSelectedIds([]); break;
         case 'delete':
         case 'backspace':
           handleDelete();
           break;
         case 'escape':
-          if (isDrawingPolyline) {
+          if (fillAreaMode) {
+            setFillAreaMode(false);
+            setFillAreaSelectedIds([]);
+          } else if (isDrawingPolyline) {
             setPolylinePoints([]);
             setIsDrawingPolyline(false);
           } else {
@@ -854,7 +920,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, selectedShapeIds, shapes, isDrawingPolyline, snapToGrid, undo, redo]);
+  }, [open, selectedShapeIds, shapes, isDrawingPolyline, snapToGrid, fillAreaMode, undo, redo]);
 
   const getCursor = () => {
     if (activeHandle) {
@@ -990,8 +1056,22 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       case 'circle':
       case 'ellipse':
         return <ellipse cx={shape.x + shape.width/2} cy={shape.y + shape.height/2} rx={shape.width/2} ry={shape.height/2} fill={fill} stroke={stroke} strokeWidth={sw} transform={transform} />;
-      case 'line':
-        return <line x1={shape.x} y1={shape.y} x2={shape.x + shape.width} y2={shape.y + shape.height} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />;
+      case 'line': {
+        const x1 = shape.x;
+        const y1 = shape.y;
+        const x2 = shape.x + shape.width;
+        const y2 = shape.y + shape.height;
+        
+        // Curved line (quadratic bezier)
+        if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
+          const cx = midX + shape.curveOffset.x;
+          const cy = midY + shape.curveOffset.y;
+          return <path d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`} fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />;
+        }
+        return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />;
+      }
       case 'arrow': {
         const x1 = shape.x;
         const y1 = shape.y;
@@ -1055,9 +1135,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   // Render Handles für ausgewählte Formen
   const renderHandles = (shape: Shape) => {
     if (shape.type === 'line' || shape.type === 'arrow') {
-      // Start- und Endpunkt für Linien und Pfeile
+      // Start- und Endpunkt für Linien und Pfeile + Kurven-Kontrollpunkt in der Mitte
+      const midX = shape.x + shape.width / 2 + (shape.curveOffset?.x || 0);
+      const midY = shape.y + shape.height / 2 + (shape.curveOffset?.y || 0);
+      
       return (
         <>
+          {/* Startpunkt */}
           <circle
             cx={shape.x}
             cy={shape.y}
@@ -1067,6 +1151,17 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
             strokeWidth={2}
             style={{ cursor: 'crosshair' }}
           />
+          {/* Kurven-Kontrollpunkt (Mitte) */}
+          <circle
+            cx={midX}
+            cy={midY}
+            r={handleSize / 2}
+            fill="hsl(var(--primary))"
+            stroke="white"
+            strokeWidth={2}
+            style={{ cursor: 'move' }}
+          />
+          {/* Endpunkt */}
           <circle
             cx={shape.x + shape.width}
             cy={shape.y + shape.height}
@@ -1115,6 +1210,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       <DialogContent className="max-w-5xl p-4">
         <DialogHeader className="pb-2">
           <DialogTitle>{isEditing ? `"${editingComponent?.name}" bearbeiten` : 'Komponente erstellen'}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Zeichne Formen um eine neue Komponente zu erstellen
+          </DialogDescription>
         </DialogHeader>
         
         {/* Toolbar - kompakt oben */}
@@ -1128,7 +1226,6 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
           <ToolBtn icon={Triangle} label="Dreieck" shortcut="T" isActive={activeTool === 'triangle'} onClick={() => { setActiveTool('triangle'); setSelectedShapeIds([]); }} />
           <ToolBtn icon={Diamond} label="Raute" shortcut="D" isActive={activeTool === 'diamond'} onClick={() => { setActiveTool('diamond'); setSelectedShapeIds([]); }} />
           <ToolBtn icon={Spline} label="Polylinie" shortcut="P" isActive={activeTool === 'polyline'} onClick={() => { setActiveTool('polyline'); setSelectedShapeIds([]); }} />
-          <ToolBtn icon={CircleDot} label="Bogen" shortcut="A" isActive={activeTool === 'arc'} onClick={() => { setActiveTool('arc'); setSelectedShapeIds([]); }} />
           <ToolBtn icon={Type} label="Text" shortcut="X" isActive={activeTool === 'text'} onClick={() => { setActiveTool('text'); setSelectedShapeIds([]); }} />
           <Separator orientation="vertical" className="h-5 mx-0.5" />
           <ToolBtn icon={Undo2} label="Rückgängig" shortcut="Ctrl+Z" onClick={undo} disabled={historyIndex <= 0} />
@@ -1239,6 +1336,98 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                 Nur Verschieben
               </Label>
             </div>
+
+            {/* Fläche Füllen Modus */}
+            <div className="flex items-center gap-2">
+              <Switch
+                id="fill-area"
+                checked={fillAreaMode}
+                onCheckedChange={(checked) => {
+                  setFillAreaMode(checked);
+                  if (!checked) setFillAreaSelectedIds([]);
+                }}
+              />
+              <Label htmlFor="fill-area" className="flex items-center gap-1 cursor-pointer text-xs">
+                <PaintBucket className="w-3 h-3" />
+                Fläche füllen
+              </Label>
+            </div>
+
+            {/* Fläche Füllen Steuerung */}
+            {fillAreaMode && (
+              <div className="p-2 bg-muted/50 rounded space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Klicke auf Linien um sie auszuwählen. Bei geschlossener Form erscheint die Füll-Option.
+                </p>
+                <p className="text-xs font-medium">
+                  Ausgewählt: {fillAreaSelectedIds.length} Linien
+                </p>
+                {(() => {
+                  const fillAreaLines = shapes.filter(s => fillAreaSelectedIds.includes(s.id) && s.type === 'line');
+                  const fillAreaPolygonPoints = fillAreaLines.length >= 3 ? findClosedPolygon(fillAreaLines) : null;
+                  
+                  if (fillAreaPolygonPoints) {
+                    return (
+                      <div className="space-y-2">
+                        <p className="text-xs text-green-600 font-medium">✓ Geschlossene Form erkannt!</p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={fillColor || "#3b82f6"}
+                            onChange={(e) => setFillColor(e.target.value)}
+                            className="w-6 h-6 rounded border cursor-pointer"
+                          />
+                          <Button 
+                            size="sm" 
+                            className="h-7 text-xs flex-1"
+                            onClick={() => {
+                              // Berechne Bounding Box
+                              const minX = Math.min(...fillAreaPolygonPoints.map(p => p.x));
+                              const maxX = Math.max(...fillAreaPolygonPoints.map(p => p.x));
+                              const minY = Math.min(...fillAreaPolygonPoints.map(p => p.y));
+                              const maxY = Math.max(...fillAreaPolygonPoints.map(p => p.y));
+                              
+                              const newShape: Shape = {
+                                id: generateId(),
+                                type: 'polygon',
+                                x: minX,
+                                y: minY,
+                                width: maxX - minX,
+                                height: maxY - minY,
+                                points: fillAreaPolygonPoints,
+                                fillColor: fillColor || '#3b82f6',
+                                strokeWidth: strokeWidth
+                              };
+                              
+                              // Entferne die ausgewählten Linien und füge das Polygon hinzu
+                              const newShapes = shapes.filter(s => !fillAreaSelectedIds.includes(s.id));
+                              newShapes.push(newShape);
+                              setShapes(newShapes);
+                              pushHistory(newShapes);
+                              setSelectedShapeIds([newShape.id]);
+                              setFillAreaMode(false);
+                              setFillAreaSelectedIds([]);
+                            }}
+                          >
+                            <PaintBucket className="w-3 h-3 mr-1" />
+                            Fläche füllen
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs w-full"
+                  onClick={() => setFillAreaSelectedIds([])}
+                >
+                  Auswahl zurücksetzen
+                </Button>
+              </div>
+            )}
 
             <Separator />
 
@@ -1578,15 +1767,44 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                 {currentShape && renderShape(currentShape, true)}
 
                 {/* Polyline preview */}
-                {isDrawingPolyline && polylinePoints.length > 0 && (
-                  <polyline
-                    points={polylinePoints.map(p => `${p.x},${p.y}`).join(' ')}
-                    fill="none"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={strokeWidth}
-                    strokeDasharray="4 2"
-                  />
-                )}
+                {isDrawingPolyline && polylinePoints.length > 0 && (() => {
+                  // Prüfe ob die Polyline geschlossen ist (erstes und letztes Punkt in der Nähe)
+                  const tolerance = gridSize * 0.5;
+                  const firstPoint = polylinePoints[0];
+                  const lastPoint = polylinePoints[polylinePoints.length - 1];
+                  const isClosed = polylinePoints.length >= 3 && 
+                    Math.abs(firstPoint.x - lastPoint.x) < tolerance && 
+                    Math.abs(firstPoint.y - lastPoint.y) < tolerance;
+                  
+                  return (
+                    <polyline
+                      points={polylinePoints.map(p => `${p.x},${p.y}`).join(' ')}
+                      fill="none"
+                      stroke={isClosed ? "hsl(220, 25%, 20%)" : "hsl(var(--muted-foreground))"}
+                      strokeWidth={strokeWidth}
+                      strokeDasharray={isClosed ? undefined : "4 2"}
+                    />
+                  );
+                })()}
+
+                {/* Fill Area Mode - Markierte Linien hervorheben */}
+                {fillAreaMode && fillAreaSelectedIds.map(id => {
+                  const shape = shapes.find(s => s.id === id);
+                  if (!shape || shape.type !== 'line') return null;
+                  return (
+                    <line
+                      key={`fill-${id}`}
+                      x1={shape.x}
+                      y1={shape.y}
+                      x2={shape.x + shape.width}
+                      y2={shape.y + shape.height}
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={(shape.strokeWidth || 2) + 4}
+                      strokeLinecap="round"
+                      opacity={0.5}
+                    />
+                  );
+                })}
 
                 {/* Selection boxes and handles */}
                 {selectedShapeIds.map(id => {

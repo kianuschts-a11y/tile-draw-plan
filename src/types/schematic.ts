@@ -71,6 +71,8 @@ export interface Shape {
   fontFamily?: string;
   // For arrows
   arrowSize?: number;
+  // For curved lines (quadratic bezier)
+  curveOffset?: Point; // Control point offset from line midpoint
 }
 
 // Dynamic connection between two cells
