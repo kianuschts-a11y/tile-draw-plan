@@ -648,7 +648,17 @@ export function Canvas({
         height: shape.height * compHeight,
         strokeWidth: Math.max(0.5, sw), // Match library's minimum
         fontSize: shape.fontSize ? shape.fontSize * refScale : undefined,
-        arrowSize: shape.arrowSize ? shape.arrowSize * refScale : undefined
+        arrowSize: shape.arrowSize ? shape.arrowSize * refScale : undefined,
+        // Scale curveOffset for curved lines
+        curveOffset: shape.curveOffset ? {
+          x: shape.curveOffset.x * compWidth,
+          y: shape.curveOffset.y * compHeight
+        } : undefined,
+        // Scale polygon points
+        points: shape.points ? shape.points.map(p => ({
+          x: p.x * compWidth,
+          y: p.y * compHeight
+        })) : undefined
       };
       return <ShapeRenderer key={idx} shape={scaledShape} />;
     });
