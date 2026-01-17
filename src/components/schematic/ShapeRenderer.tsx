@@ -29,7 +29,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             width={shape.width}
             height={shape.height}
             className={baseClass}
-            fill={fill}
+            style={{ fill }}
             strokeWidth={shape.strokeWidth || 2}
             transform={transform}
           />
@@ -44,7 +44,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             rx={shape.width / 2}
             ry={shape.height / 2}
             className={baseClass}
-            fill={fill}
+            style={{ fill }}
             strokeWidth={shape.strokeWidth || 2}
             transform={transform}
           />
@@ -101,7 +101,7 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
         );
       }
       
-      case 'triangle':
+      case 'triangle': {
         const triPoints = [
           `${shape.x + shape.width / 2},${shape.y}`,
           `${shape.x},${shape.y + shape.height}`,
@@ -111,13 +111,14 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
           <polygon
             points={triPoints}
             className={baseClass}
-            fill={fill}
+            style={{ fill }}
             strokeWidth={shape.strokeWidth || 2}
             transform={transform}
           />
         );
+      }
       
-      case 'diamond':
+      case 'diamond': {
         const diaPoints = [
           `${shape.x + shape.width / 2},${shape.y}`,
           `${shape.x + shape.width},${shape.y + shape.height / 2}`,
@@ -128,11 +129,12 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
           <polygon
             points={diaPoints}
             className={baseClass}
-            fill={fill}
+            style={{ fill }}
             strokeWidth={shape.strokeWidth || 2}
             transform={transform}
           />
         );
+      }
       
       case 'polyline':
         if (!shape.points || shape.points.length < 2) return null;
