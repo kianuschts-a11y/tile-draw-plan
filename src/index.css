@@ -162,7 +162,7 @@
   .component-tile {
     stroke: hsl(var(--component-stroke));
     fill: none;
-    stroke-width: 2;
+    /* stroke-width is set via inline style to allow dynamic scaling */
   }
 
   .component-tile.selected {
