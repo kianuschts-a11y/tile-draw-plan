@@ -181,26 +181,15 @@ export function Canvas({
     const toWidth = toTile.component.width || 1;
     const toHeight = toTile.component.height || 1;
     
-    console.log('createConnection called:', {
-      from: { tileId: fromTile.id, gridX: fromTile.gridX, gridY: fromTile.gridY, cellX: fromCellX, cellY: fromCellY, width: fromWidth, height: fromHeight },
-      to: { tileId: toTile.id, gridX: toTile.gridX, gridY: toTile.gridY, cellX: toCellX, cellY: toCellY, width: toWidth, height: toHeight }
-    });
-    
     const adjacency = areCellsAdjacent(
       fromTile.gridX, fromTile.gridY, fromWidth, fromHeight, fromCellX, fromCellY,
       toTile.gridX, toTile.gridY, toWidth, toHeight, toCellX, toCellY
     );
     
-    console.log('Adjacency result:', adjacency);
-    
-    if (!adjacency) {
-      console.log('Cells are not adjacent - no connection created');
-      return; // Not adjacent
-    }
+    if (!adjacency) return; // Not adjacent
     
     // Check if connection already exists
     if (connectionExists(fromTile.id, fromCellX, fromCellY, toTile.id, toCellX, toCellY)) {
-      console.log('Connection already exists');
       return;
     }
     
@@ -216,7 +205,6 @@ export function Canvas({
       toSide: adjacency.toSide
     };
     
-    console.log('Creating new connection:', newConnection);
     onConnectionsChange([...connections, newConnection]);
   }, [connections, connectionExists, onConnectionsChange]);
 
@@ -244,7 +232,6 @@ export function Canvas({
     if (activeTool === 'connect' || activeTool === 'disconnect') {
       const tileAndCell = getTileAndCellAtPosition(gridX, gridY);
       if (tileAndCell) {
-        console.log('Starting connection from tile:', tileAndCell.tile.id, 'cell:', tileAndCell.cellX, tileAndCell.cellY);
         setConnectStartInfo({
           tileId: tileAndCell.tile.id,
           cellX: tileAndCell.cellX,
@@ -253,7 +240,6 @@ export function Canvas({
           absGridY: gridY
         });
         setIsConnecting(true);
-        // Set initial line position at cell center
         const cellCenterX = (gridX + 0.5) * tileSize;
         const cellCenterY = (gridY + 0.5) * tileSize;
         setConnectLine({ x1: cellCenterX, y1: cellCenterY, x2: cellCenterX, y2: cellCenterY });
@@ -381,24 +367,16 @@ export function Canvas({
       const { gridX, gridY } = getGridFromCanvas(x, y);
       const endTileAndCell = getTileAndCellAtPosition(gridX, gridY);
       
-      console.log('Connection end:', { gridX, gridY, endTileAndCell, connectStartInfo });
-      
       if (endTileAndCell && endTileAndCell.tile.id !== connectStartInfo.tileId) {
         const startTile = tiles.find(t => t.id === connectStartInfo.tileId);
-        console.log('Start tile found:', startTile?.id);
         
         if (startTile) {
           if (activeTool === 'connect') {
-            console.log('Creating connection between:', 
-              startTile.id, `(${connectStartInfo.cellX},${connectStartInfo.cellY})`,
-              'and', endTileAndCell.tile.id, `(${endTileAndCell.cellX},${endTileAndCell.cellY})`
-            );
             createConnection(
               startTile, connectStartInfo.cellX, connectStartInfo.cellY,
               endTileAndCell.tile, endTileAndCell.cellX, endTileAndCell.cellY
             );
           } else if (activeTool === 'disconnect') {
-            // Find and remove connections between these specific cells
             const fromWidth = startTile.component.width || 1;
             const fromHeight = startTile.component.height || 1;
             const toWidth = endTileAndCell.tile.component.width || 1;
