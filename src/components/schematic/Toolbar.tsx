@@ -4,12 +4,13 @@ import {
   RotateCcw,
   ZoomIn,
   ZoomOut,
-  Link2
+  Link2,
+  Unlink2
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
 
-export type MainToolType = 'select' | 'connect';
+export type MainToolType = 'select' | 'connect' | 'disconnect';
 
 interface ToolbarProps {
   activeTool: MainToolType;
@@ -45,6 +46,13 @@ export function Toolbar({
         shortcut="C"
         isActive={activeTool === 'connect'}
         onClick={() => onToolChange('connect')}
+      />
+      <ToolButton
+        icon={Unlink2}
+        label="Verbindung lösen"
+        shortcut="X"
+        isActive={activeTool === 'disconnect'}
+        onClick={() => onToolChange('disconnect')}
       />
       
       <Separator className="my-2 w-8" />

@@ -1,21 +1,14 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, ConnectionDirection } from "@/types/schematic";
+import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, CellConnection } from "@/types/schematic";
 import { ShapeRenderer } from "./ShapeRenderer";
 import { MainToolType } from "./Toolbar";
-
-// Connected direction with indices for multi-cell tiles
-export interface ConnectedDirectionInfo {
-  direction: ConnectionDirection;
-  indices: number[];
-}
+import { generateSingleConnectionLine, areCellsAdjacent, generateConnectionId } from "@/lib/connectionUtils";
 
 export interface PlacedTile {
   id: string;
   component: Component;
   gridX: number; // Grid cell X position
   gridY: number; // Grid cell Y position
-  activeVariationId?: string; // Active variation for this tile
-  connectedDirections?: ConnectedDirectionInfo[]; // Track which directions are connected with indices
 }
 
 interface CanvasProps {
@@ -23,210 +16,12 @@ interface CanvasProps {
   selectedTileIds: Set<string>;
   activeTool: MainToolType;
   canvasState: CanvasState;
+  connections: CellConnection[];
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
   onDropComponent: (component: Component, gridX: number, gridY: number) => void;
-}
-
-// Determine connection direction based on relative positions, including row/column indices
-function getConnectionDirection(
-  fromTile: PlacedTile,
-  toTile: PlacedTile
-): { 
-  fromDirection: ConnectionDirection; 
-  toDirection: ConnectionDirection;
-  fromIndices: number[];
-  toIndices: number[];
-} | null {
-  const fromWidth = fromTile.component.width || 1;
-  const fromHeight = fromTile.component.height || 1;
-  const toWidth = toTile.component.width || 1;
-  const toHeight = toTile.component.height || 1;
-  
-  const fromRight = fromTile.gridX + fromWidth;
-  const fromBottom = fromTile.gridY + fromHeight;
-  const toRight = toTile.gridX + toWidth;
-  const toBottom = toTile.gridY + toHeight;
-
-  // Calculate overlapping rows/columns for the connection
-  const getOverlappingRows = (tile1Y: number, tile1Height: number, tile2Y: number, tile2Height: number, relativeTo: 'tile1' | 'tile2'): number[] => {
-    const overlapStart = Math.max(tile1Y, tile2Y);
-    const overlapEnd = Math.min(tile1Y + tile1Height, tile2Y + tile2Height);
-    const indices: number[] = [];
-    for (let y = overlapStart; y < overlapEnd; y++) {
-      if (relativeTo === 'tile1') {
-        indices.push(y - tile1Y);
-      } else {
-        indices.push(y - tile2Y);
-      }
-    }
-    return indices;
-  };
-
-  const getOverlappingCols = (tile1X: number, tile1Width: number, tile2X: number, tile2Width: number, relativeTo: 'tile1' | 'tile2'): number[] => {
-    const overlapStart = Math.max(tile1X, tile2X);
-    const overlapEnd = Math.min(tile1X + tile1Width, tile2X + tile2Width);
-    const indices: number[] = [];
-    for (let x = overlapStart; x < overlapEnd; x++) {
-      if (relativeTo === 'tile1') {
-        indices.push(x - tile1X);
-      } else {
-        indices.push(x - tile2X);
-      }
-    }
-    return indices;
-  };
-
-  // Check if horizontally adjacent (from is left of to)
-  if (fromRight === toTile.gridX && 
-      fromTile.gridY < toBottom && fromBottom > toTile.gridY) {
-    const fromIndices = getOverlappingRows(fromTile.gridY, fromHeight, toTile.gridY, toHeight, 'tile1');
-    const toIndices = getOverlappingRows(fromTile.gridY, fromHeight, toTile.gridY, toHeight, 'tile2');
-    return { fromDirection: 'right', toDirection: 'left', fromIndices, toIndices };
-  }
-  // Check if horizontally adjacent (from is right of to)
-  if (toRight === fromTile.gridX && 
-      fromTile.gridY < toBottom && fromBottom > toTile.gridY) {
-    const fromIndices = getOverlappingRows(fromTile.gridY, fromHeight, toTile.gridY, toHeight, 'tile1');
-    const toIndices = getOverlappingRows(fromTile.gridY, fromHeight, toTile.gridY, toHeight, 'tile2');
-    return { fromDirection: 'left', toDirection: 'right', fromIndices, toIndices };
-  }
-  // Check if vertically adjacent (from is above to)
-  if (fromBottom === toTile.gridY && 
-      fromTile.gridX < toRight && fromRight > toTile.gridX) {
-    const fromIndices = getOverlappingCols(fromTile.gridX, fromWidth, toTile.gridX, toWidth, 'tile1');
-    const toIndices = getOverlappingCols(fromTile.gridX, fromWidth, toTile.gridX, toWidth, 'tile2');
-    return { fromDirection: 'bottom', toDirection: 'top', fromIndices, toIndices };
-  }
-  // Check if vertically adjacent (from is below to)
-  if (toBottom === fromTile.gridY && 
-      fromTile.gridX < toRight && fromRight > toTile.gridX) {
-    const fromIndices = getOverlappingCols(fromTile.gridX, fromWidth, toTile.gridX, toWidth, 'tile1');
-    const toIndices = getOverlappingCols(fromTile.gridX, fromWidth, toTile.gridX, toWidth, 'tile2');
-    return { fromDirection: 'top', toDirection: 'bottom', fromIndices, toIndices };
-  }
-  
-  return null; // Not adjacent
-}
-
-// getCornerType uses the exported ConnectedDirectionInfo
-
-// Determine which corner variation to use based on connected directions
-function getCornerType(directions: ConnectedDirectionInfo[]): string | null {
-  const hasLeft = directions.some(d => d.direction === 'left');
-  const hasRight = directions.some(d => d.direction === 'right');
-  const hasTop = directions.some(d => d.direction === 'top');
-  const hasBottom = directions.some(d => d.direction === 'bottom');
-  
-  // For corners, we need to combine the indices from both directions
-  // Corner combinations
-  if (hasTop && hasLeft) return 'corner-tl';
-  if (hasTop && hasRight) return 'corner-tr';
-  if (hasBottom && hasLeft) return 'corner-bl';
-  if (hasBottom && hasRight) return 'corner-br';
-  
-  return null;
-}
-
-// Build variation ID from direction and indices
-function buildVariationId(direction: ConnectionDirection, indices: number[]): string {
-  return `${direction}-${indices.join('-')}`;
-}
-
-// Find the best variation for given connected directions with indices
-function findVariationForDirections(
-  component: Component, 
-  directions: ConnectedDirectionInfo[]
-): string | null {
-  if (!component.variations || directions.length === 0) return null;
-  
-  const tileWidth = component.width || 1;
-  const tileHeight = component.height || 1;
-  const is1x1 = tileWidth === 1 && tileHeight === 1;
-  
-  // If only one direction, find exact match for direction + indices
-  if (directions.length === 1) {
-    const dir = directions[0];
-    const expectedId = buildVariationId(dir.direction, dir.indices);
-    const exactMatch = component.variations.find(v => v.connectionType === expectedId);
-    if (exactMatch) return exactMatch.id;
-    
-    // For 1x1 tiles, also try simple direction names (legacy support)
-    if (is1x1) {
-      const simpleMatch = component.variations.find(v => v.connectionType === dir.direction);
-      if (simpleMatch) return simpleMatch.id;
-    }
-    
-    // Fallback: try horizontal/vertical with same indices
-    if (dir.direction === 'left' || dir.direction === 'right') {
-      const horizontalId = `horizontal-${dir.indices.join('-')}`;
-      const horizontal = component.variations.find(v => v.connectionType === horizontalId);
-      if (horizontal) return horizontal.id;
-      
-      // For 1x1, also try simple 'horizontal'
-      if (is1x1) {
-        const simpleHorizontal = component.variations.find(v => v.connectionType === 'horizontal');
-        if (simpleHorizontal) return simpleHorizontal.id;
-      }
-    }
-    if (dir.direction === 'top' || dir.direction === 'bottom') {
-      const verticalId = `vertical-${dir.indices.join('-')}`;
-      const vertical = component.variations.find(v => v.connectionType === verticalId);
-      if (vertical) return vertical.id;
-      
-      // For 1x1, also try simple 'vertical'
-      if (is1x1) {
-        const simpleVertical = component.variations.find(v => v.connectionType === 'vertical');
-        if (simpleVertical) return simpleVertical.id;
-      }
-    }
-    return null;
-  }
-  
-  // Multiple directions - check for horizontal/vertical through or corners
-  const leftDir = directions.find(d => d.direction === 'left');
-  const rightDir = directions.find(d => d.direction === 'right');
-  const topDir = directions.find(d => d.direction === 'top');
-  const bottomDir = directions.find(d => d.direction === 'bottom');
-  
-  // Check for horizontal through (left + right)
-  if (leftDir && rightDir) {
-    // Merge indices from both sides
-    const allIndices = [...new Set([...leftDir.indices, ...rightDir.indices])].sort((a, b) => a - b);
-    const horizontalId = `horizontal-${allIndices.join('-')}`;
-    const horizontal = component.variations.find(v => v.connectionType === horizontalId);
-    if (horizontal) return horizontal.id;
-    
-    // For 1x1, also try simple 'horizontal'
-    if (is1x1) {
-      const simpleHorizontal = component.variations.find(v => v.connectionType === 'horizontal');
-      if (simpleHorizontal) return simpleHorizontal.id;
-    }
-  }
-  
-  // Check for vertical through (top + bottom)
-  if (topDir && bottomDir) {
-    const allIndices = [...new Set([...topDir.indices, ...bottomDir.indices])].sort((a, b) => a - b);
-    const verticalId = `vertical-${allIndices.join('-')}`;
-    const vertical = component.variations.find(v => v.connectionType === verticalId);
-    if (vertical) return vertical.id;
-    
-    // For 1x1, also try simple 'vertical'
-    if (is1x1) {
-      const simpleVertical = component.variations.find(v => v.connectionType === 'vertical');
-      if (simpleVertical) return simpleVertical.id;
-    }
-  }
-  
-  // Check for corner connections
-  const cornerType = getCornerType(directions);
-  if (cornerType) {
-    const match = component.variations.find(v => v.connectionType === cornerType);
-    if (match) return match.id;
-  }
-  
-  return null;
+  onConnectionsChange: (connections: CellConnection[]) => void;
 }
 
 export function Canvas({
@@ -234,10 +29,12 @@ export function Canvas({
   selectedTileIds,
   activeTool,
   canvasState,
+  connections,
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
-  onDropComponent
+  onDropComponent,
+  onConnectionsChange
 }: CanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -251,10 +48,16 @@ export function Canvas({
   const [selectionBoxStart, setSelectionBoxStart] = useState({ x: 0, y: 0 });
   const [selectionBoxEnd, setSelectionBoxEnd] = useState({ x: 0, y: 0 });
   
-  // Connect tool state
-  const [connectStartTileId, setConnectStartTileId] = useState<string | null>(null);
+  // Connect tool state - now tracks specific cell positions
+  const [connectStartInfo, setConnectStartInfo] = useState<{
+    tileId: string;
+    cellX: number;
+    cellY: number;
+    absGridX: number;
+    absGridY: number;
+  } | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectedTileIds, setConnectedTileIds] = useState<Set<string>>(new Set());
+  const [connectLine, setConnectLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
 
   // Calculate paper dimensions in pixels
   const paperSize = PAPER_SIZES[canvasState.paperFormat];
@@ -271,23 +74,8 @@ export function Canvas({
   const gridCols = Math.floor(paperWidth / tileSize);
   const gridRows = Math.floor(paperHeight / tileSize);
 
-  const getGridPosition = useCallback((e: React.MouseEvent | React.DragEvent): { gridX: number; gridY: number } => {
-    if (!svgRef.current) return { gridX: 0, gridY: 0 };
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left - canvasState.panX) / canvasState.zoom;
-    const y = (e.clientY - rect.top - canvasState.panY) / canvasState.zoom;
-    
-    const gridX = Math.floor(x / tileSize);
-    const gridY = Math.floor(y / tileSize);
-    
-    return { 
-      gridX: Math.max(0, Math.min(gridX, gridCols - 1)), 
-      gridY: Math.max(0, Math.min(gridY, gridRows - 1)) 
-    };
-  }, [canvasState, tileSize, gridCols, gridRows]);
-
   // Get raw canvas position (not snapped to grid)
-  const getCanvasPosition = useCallback((e: React.MouseEvent): { x: number; y: number } => {
+  const getCanvasPosition = useCallback((e: React.MouseEvent | React.DragEvent): { x: number; y: number } => {
     if (!svgRef.current) return { x: 0, y: 0 };
     const rect = svgRef.current.getBoundingClientRect();
     const x = (e.clientX - rect.left - canvasState.panX) / canvasState.zoom;
@@ -295,21 +83,47 @@ export function Canvas({
     return { x, y };
   }, [canvasState]);
 
-  // Find tile at grid position
-  const getTileAtPosition = useCallback((gridX: number, gridY: number): PlacedTile | null => {
+  // Get grid cell position from canvas position
+  const getGridFromCanvas = useCallback((canvasX: number, canvasY: number): { gridX: number; gridY: number } => {
+    return {
+      gridX: Math.floor(canvasX / tileSize),
+      gridY: Math.floor(canvasY / tileSize)
+    };
+  }, [tileSize]);
+
+  const getGridPosition = useCallback((e: React.MouseEvent | React.DragEvent): { gridX: number; gridY: number } => {
+    const { x, y } = getCanvasPosition(e);
+    const gridX = Math.floor(x / tileSize);
+    const gridY = Math.floor(y / tileSize);
+    return { 
+      gridX: Math.max(0, Math.min(gridX, gridCols - 1)), 
+      gridY: Math.max(0, Math.min(gridY, gridRows - 1)) 
+    };
+  }, [getCanvasPosition, tileSize, gridCols, gridRows]);
+
+  // Find tile at grid position and return the specific cell within that tile
+  const getTileAndCellAtPosition = useCallback((gridX: number, gridY: number): {
+    tile: PlacedTile;
+    cellX: number;
+    cellY: number;
+  } | null => {
     for (const tile of tiles) {
       const tileWidth = tile.component.width || 1;
       const tileHeight = tile.component.height || 1;
       
       if (gridX >= tile.gridX && gridX < tile.gridX + tileWidth &&
           gridY >= tile.gridY && gridY < tile.gridY + tileHeight) {
-        return tile;
+        return {
+          tile,
+          cellX: gridX - tile.gridX,
+          cellY: gridY - tile.gridY
+        };
       }
     }
     return null;
   }, [tiles]);
 
-  // Check if a position is occupied by any tile (considering multi-cell tiles)
+  // Check if a position is occupied by any tile
   const isPositionOccupied = useCallback((gridX: number, gridY: number, excludeTileId?: string): boolean => {
     for (const tile of tiles) {
       if (tile.id === excludeTileId) continue;
@@ -317,7 +131,6 @@ export function Canvas({
       const tileWidth = tile.component.width || 1;
       const tileHeight = tile.component.height || 1;
       
-      // Check if the position falls within this tile's bounds
       if (gridX >= tile.gridX && gridX < tile.gridX + tileWidth &&
           gridY >= tile.gridY && gridY < tile.gridY + tileHeight) {
         return true;
@@ -331,12 +144,10 @@ export function Canvas({
     const compWidth = component.width || 1;
     const compHeight = component.height || 1;
     
-    // Check bounds
     if (gridX + compWidth > gridCols || gridY + compHeight > gridRows) {
       return false;
     }
     
-    // Check all cells the component would occupy
     for (let dx = 0; dx < compWidth; dx++) {
       for (let dy = 0; dy < compHeight; dy++) {
         if (isPositionOccupied(gridX + dx, gridY + dy, excludeTileId)) {
@@ -347,130 +158,104 @@ export function Canvas({
     return true;
   }, [gridCols, gridRows, isPositionOccupied]);
 
-  // Helper to check if a direction info already exists (same direction, possibly different indices)
-  const hasDirectionInfo = (dirs: ConnectedDirectionInfo[], direction: ConnectionDirection, indices: number[]): boolean => {
-    return dirs.some(d => 
-      d.direction === direction && 
-      d.indices.length === indices.length && 
-      d.indices.every((idx, i) => idx === indices[i])
+  // Check if a connection already exists between two cells
+  const connectionExists = useCallback((
+    tile1Id: string, cell1X: number, cell1Y: number,
+    tile2Id: string, cell2X: number, cell2Y: number
+  ): boolean => {
+    return connections.some(c => 
+      (c.fromTileId === tile1Id && c.fromCellX === cell1X && c.fromCellY === cell1Y &&
+       c.toTileId === tile2Id && c.toCellX === cell2X && c.toCellY === cell2Y) ||
+      (c.fromTileId === tile2Id && c.fromCellX === cell2X && c.fromCellY === cell2Y &&
+       c.toTileId === tile1Id && c.toCellX === cell1X && c.toCellY === cell1Y)
     );
-  };
+  }, [connections]);
 
-  // Helper to merge or add direction info - merges indices if same direction exists
-  const mergeDirectionInfo = (existingDirs: ConnectedDirectionInfo[], newDir: ConnectedDirectionInfo): ConnectedDirectionInfo[] => {
-    const existingForDirection = existingDirs.find(d => d.direction === newDir.direction);
+  // Create a connection between two adjacent cells
+  const createConnection = useCallback((
+    fromTile: PlacedTile, fromCellX: number, fromCellY: number,
+    toTile: PlacedTile, toCellX: number, toCellY: number
+  ) => {
+    const fromWidth = fromTile.component.width || 1;
+    const fromHeight = fromTile.component.height || 1;
+    const toWidth = toTile.component.width || 1;
+    const toHeight = toTile.component.height || 1;
     
-    if (existingForDirection) {
-      // Merge indices for same direction
-      const mergedIndices = [...new Set([...existingForDirection.indices, ...newDir.indices])].sort((a, b) => a - b);
-      return existingDirs.map(d => 
-        d.direction === newDir.direction 
-          ? { ...d, indices: mergedIndices }
-          : d
-      );
-    } else {
-      // Add new direction
-      return [...existingDirs, newDir];
+    const adjacency = areCellsAdjacent(
+      fromTile.gridX, fromTile.gridY, fromWidth, fromHeight, fromCellX, fromCellY,
+      toTile.gridX, toTile.gridY, toWidth, toHeight, toCellX, toCellY
+    );
+    
+    if (!adjacency) return; // Not adjacent
+    
+    // Check if connection already exists
+    if (connectionExists(fromTile.id, fromCellX, fromCellY, toTile.id, toCellX, toCellY)) {
+      return;
     }
-  };
+    
+    const newConnection: CellConnection = {
+      id: generateConnectionId(),
+      fromTileId: fromTile.id,
+      fromCellX,
+      fromCellY,
+      fromSide: adjacency.fromSide,
+      toTileId: toTile.id,
+      toCellX,
+      toCellY,
+      toSide: adjacency.toSide
+    };
+    
+    onConnectionsChange([...connections, newConnection]);
+  }, [connections, connectionExists, onConnectionsChange]);
 
-  // Connect two tiles by setting their variations (with corner detection)
-  const connectTiles = useCallback((fromTile: PlacedTile, toTile: PlacedTile) => {
-    const connectionInfo = getConnectionDirection(fromTile, toTile);
-    if (!connectionInfo) return; // Not adjacent
-    
-    const { fromDirection, toDirection, fromIndices, toIndices } = connectionInfo;
-    
-    // Debug log to verify indices
-    console.log('Connecting tiles:', {
-      from: fromTile.component.name,
-      to: toTile.component.name,
-      fromDirection,
-      toDirection,
-      fromIndices,
-      toIndices
+  // Remove a connection at a specific cell
+  const removeConnectionAtCell = useCallback((tileId: string, cellX: number, cellY: number, side: 'left' | 'right' | 'top' | 'bottom') => {
+    const newConnections = connections.filter(c => {
+      // Remove connection if it involves this cell on this side
+      if (c.fromTileId === tileId && c.fromCellX === cellX && c.fromCellY === cellY && c.fromSide === side) {
+        return false;
+      }
+      if (c.toTileId === tileId && c.toCellX === cellX && c.toCellY === cellY && c.toSide === side) {
+        return false;
+      }
+      return true;
     });
-    
-    onTilesChange(tiles.map(t => {
-      if (t.id === fromTile.id) {
-        // Merge new direction info with existing connected directions
-        const existingDirs = t.connectedDirections || [];
-        const newDirInfo: ConnectedDirectionInfo = { direction: fromDirection, indices: fromIndices };
-        
-        // Check if this exact direction+indices already exists
-        if (hasDirectionInfo(existingDirs, fromDirection, fromIndices)) {
-          return t; // Already connected in this way
-        }
-        
-        // Merge with existing directions (combines indices for same direction)
-        const newDirs = mergeDirectionInfo(existingDirs, newDirInfo);
-        const variation = findVariationForDirections(t.component, newDirs);
-        console.log('From tile variation search:', { 
-          newDirs,
-          expectedId: `${fromDirection}-${fromIndices.join('-')}`,
-          foundVariation: variation,
-          availableVariations: t.component.variations?.map(v => v.connectionType)
-        });
-        return { 
-          ...t, 
-          connectedDirections: newDirs,
-          activeVariationId: variation || undefined // Clear if no match found
-        };
-      }
-      if (t.id === toTile.id) {
-        // Merge new direction info with existing connected directions
-        const existingDirs = t.connectedDirections || [];
-        const newDirInfo: ConnectedDirectionInfo = { direction: toDirection, indices: toIndices };
-        
-        // Check if this exact direction+indices already exists
-        if (hasDirectionInfo(existingDirs, toDirection, toIndices)) {
-          return t; // Already connected in this way
-        }
-        
-        // Merge with existing directions (combines indices for same direction)
-        const newDirs = mergeDirectionInfo(existingDirs, newDirInfo);
-        const variation = findVariationForDirections(t.component, newDirs);
-        console.log('To tile variation search:', { 
-          newDirs,
-          expectedId: `${toDirection}-${toIndices.join('-')}`,
-          foundVariation: variation,
-          availableVariations: t.component.variations?.map(v => v.connectionType)
-        });
-        return { 
-          ...t, 
-          connectedDirections: newDirs,
-          activeVariationId: variation || undefined // Clear if no match found
-        };
-      }
-      return t;
-    }));
-  }, [tiles, onTilesChange]);
+    onConnectionsChange(newConnections);
+  }, [connections, onConnectionsChange]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
 
-
-    if (activeTool === 'connect') {
-      // Start connecting - check if mouse is over a tile
-      const { gridX, gridY } = getGridPosition(e);
-      const tile = getTileAtPosition(gridX, gridY);
-      if (tile) {
-        setConnectStartTileId(tile.id);
+    const { x, y } = getCanvasPosition(e);
+    const { gridX, gridY } = getGridFromCanvas(x, y);
+    
+    if (activeTool === 'connect' || activeTool === 'disconnect') {
+      const tileAndCell = getTileAndCellAtPosition(gridX, gridY);
+      if (tileAndCell) {
+        setConnectStartInfo({
+          tileId: tileAndCell.tile.id,
+          cellX: tileAndCell.cellX,
+          cellY: tileAndCell.cellY,
+          absGridX: gridX,
+          absGridY: gridY
+        });
         setIsConnecting(true);
-        setConnectedTileIds(new Set([tile.id]));
+        // Set initial line position at cell center
+        const cellCenterX = (gridX + 0.5) * tileSize;
+        const cellCenterY = (gridY + 0.5) * tileSize;
+        setConnectLine({ x1: cellCenterX, y1: cellCenterY, x2: cellCenterX, y2: cellCenterY });
       }
       return;
     }
 
     if (activeTool === 'select') {
-      // Start selection box on empty space
       const pos = getCanvasPosition(e);
       setSelectionBoxStart(pos);
       setSelectionBoxEnd(pos);
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, onSelectionChange, getGridPosition, getTileAtPosition, getCanvasPosition]);
+  }, [activeTool, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
@@ -482,18 +267,23 @@ export function Canvas({
       return;
     }
 
-    // Selection box mode - expand selection box and select tiles within
+    // Update connect line preview
+    if (isConnecting && connectStartInfo && (activeTool === 'connect' || activeTool === 'disconnect')) {
+      const { x, y } = getCanvasPosition(e);
+      setConnectLine(prev => prev ? { ...prev, x2: x, y2: y } : null);
+      return;
+    }
+
+    // Selection box mode
     if (isSelectionBox && activeTool === 'select') {
       const pos = getCanvasPosition(e);
       setSelectionBoxEnd(pos);
       
-      // Calculate selection box bounds
       const minX = Math.min(selectionBoxStart.x, pos.x);
       const maxX = Math.max(selectionBoxStart.x, pos.x);
       const minY = Math.min(selectionBoxStart.y, pos.y);
       const maxY = Math.max(selectionBoxStart.y, pos.y);
       
-      // Find all tiles that intersect with the selection box
       const selectedIds = new Set<string>();
       for (const tile of tiles) {
         const tileX = tile.gridX * tileSize;
@@ -501,7 +291,6 @@ export function Canvas({
         const tileWidth = (tile.component.width || 1) * tileSize;
         const tileHeight = (tile.component.height || 1) * tileSize;
         
-        // Check if tile intersects with selection box
         if (tileX < maxX && tileX + tileWidth > minX &&
             tileY < maxY && tileY + tileHeight > minY) {
           selectedIds.add(tile.id);
@@ -511,35 +300,13 @@ export function Canvas({
       return;
     }
 
-    // Connect mode - drag over tiles to connect them
-    if (isConnecting && activeTool === 'connect') {
-      const { gridX, gridY } = getGridPosition(e);
-      const tile = getTileAtPosition(gridX, gridY);
-      
-      if (tile && !connectedTileIds.has(tile.id)) {
-        // Find the last connected tile
-        const connectedArray = Array.from(connectedTileIds);
-        const lastTileId = connectedArray[connectedArray.length - 1];
-        const lastTile = tiles.find(t => t.id === lastTileId);
-        
-        if (lastTile) {
-          // Try to connect lastTile with current tile
-          connectTiles(lastTile, tile);
-          setConnectedTileIds(prev => new Set([...prev, tile.id]));
-        }
-      }
-      return;
-    }
-
-    // Dragging selected tiles (supports multiple tiles)
+    // Dragging selected tiles
     if (isDragging && selectedTileIds.size > 0) {
       const pos = getCanvasPosition(e);
       const dx = Math.floor((pos.x - dragStartMousePos.x) / tileSize);
       const dy = Math.floor((pos.y - dragStartMousePos.y) / tileSize);
       
-      // Only move if offset changed
       if (dx !== 0 || dy !== 0) {
-        // Check if all tiles can be moved to new positions
         let canMove = true;
         const newPositions = new Map<string, { x: number; y: number }>();
         
@@ -551,7 +318,6 @@ export function Canvas({
           const newX = startPos.x + dx;
           const newY = startPos.y + dy;
           
-          // Check bounds
           if (newX < 0 || newY < 0 || 
               newX + (tile.component.width || 1) > gridCols ||
               newY + (tile.component.height || 1) > gridRows) {
@@ -559,10 +325,8 @@ export function Canvas({
             break;
           }
           
-          // Check collision with non-selected tiles (using original positions)
           for (let cx = 0; cx < (tile.component.width || 1); cx++) {
             for (let cy = 0; cy < (tile.component.height || 1); cy++) {
-              // Find if any non-selected tile occupies this position
               for (const otherTile of tiles) {
                 if (selectedTileIds.has(otherTile.id)) continue;
                 
@@ -595,33 +359,84 @@ export function Canvas({
         }
       }
     }
-  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getGridPosition, getCanvasPosition, getTileAtPosition, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, canPlaceComponent, activeTool, connectedTileIds, connectTiles, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions]);
+  }, [isPanning, isDragging, isSelectionBox, isConnecting, connectStartInfo, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    // Handle connection completion
+    if (isConnecting && connectStartInfo && (activeTool === 'connect' || activeTool === 'disconnect')) {
+      const { x, y } = getCanvasPosition(e);
+      const { gridX, gridY } = getGridFromCanvas(x, y);
+      const endTileAndCell = getTileAndCellAtPosition(gridX, gridY);
+      
+      if (endTileAndCell && endTileAndCell.tile.id !== connectStartInfo.tileId) {
+        const startTile = tiles.find(t => t.id === connectStartInfo.tileId);
+        if (startTile) {
+          if (activeTool === 'connect') {
+            createConnection(
+              startTile, connectStartInfo.cellX, connectStartInfo.cellY,
+              endTileAndCell.tile, endTileAndCell.cellX, endTileAndCell.cellY
+            );
+          } else if (activeTool === 'disconnect') {
+            // Find and remove connections between these specific cells
+            const fromWidth = startTile.component.width || 1;
+            const fromHeight = startTile.component.height || 1;
+            const toWidth = endTileAndCell.tile.component.width || 1;
+            const toHeight = endTileAndCell.tile.component.height || 1;
+            
+            const adjacency = areCellsAdjacent(
+              startTile.gridX, startTile.gridY, fromWidth, fromHeight,
+              connectStartInfo.cellX, connectStartInfo.cellY,
+              endTileAndCell.tile.gridX, endTileAndCell.tile.gridY, toWidth, toHeight,
+              endTileAndCell.cellX, endTileAndCell.cellY
+            );
+            
+            if (adjacency) {
+              removeConnectionAtCell(
+                connectStartInfo.tileId, 
+                connectStartInfo.cellX, 
+                connectStartInfo.cellY, 
+                adjacency.fromSide
+              );
+            }
+          }
+        }
+      }
+    }
+    
     setIsPanning(false);
     setIsDragging(false);
     setIsSelectionBox(false);
     setIsConnecting(false);
-    setConnectStartTileId(null);
-    setConnectedTileIds(new Set());
-  }, []);
+    setConnectStartInfo(null);
+    setConnectLine(null);
+  }, [isConnecting, connectStartInfo, activeTool, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tiles, createConnection, removeConnectionAtCell]);
 
   const handleTileMouseDown = useCallback((e: React.MouseEvent, tile: PlacedTile) => {
     e.stopPropagation();
     
-    if (activeTool === 'connect') {
-      // Start connect from this tile
-      setConnectStartTileId(tile.id);
+    const { x, y } = getCanvasPosition(e);
+    const { gridX, gridY } = getGridFromCanvas(x, y);
+    const cellX = gridX - tile.gridX;
+    const cellY = gridY - tile.gridY;
+    
+    if (activeTool === 'connect' || activeTool === 'disconnect') {
+      setConnectStartInfo({
+        tileId: tile.id,
+        cellX,
+        cellY,
+        absGridX: gridX,
+        absGridY: gridY
+      });
       setIsConnecting(true);
-      setConnectedTileIds(new Set([tile.id]));
+      const cellCenterX = (gridX + 0.5) * tileSize;
+      const cellCenterY = (gridY + 0.5) * tileSize;
+      setConnectLine({ x1: cellCenterX, y1: cellCenterY, x2: cellCenterX, y2: cellCenterY });
       return;
     }
     
     if (activeTool !== 'select') return;
     
-    // Check if clicking on already selected tile - start drag
     if (selectedTileIds.has(tile.id)) {
-      // Start dragging all selected tiles
       const pos = getCanvasPosition(e);
       setDragStartMousePos(pos);
       const startPositions = new Map<string, { x: number; y: number }>();
@@ -634,33 +449,13 @@ export function Canvas({
       setDragStartPositions(startPositions);
       setIsDragging(true);
     } else {
-      // Select this tile and start dragging
       onSelectionChange(new Set([tile.id]));
       const pos = getCanvasPosition(e);
       setDragStartMousePos(pos);
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
       setIsDragging(true);
     }
-  }, [activeTool, onSelectionChange, selectedTileIds, tiles, getCanvasPosition]);
-
-  // Handle click-to-click connection
-  const handleTileClick = useCallback((e: React.MouseEvent, tile: PlacedTile) => {
-    if (activeTool !== 'connect') return;
-    
-    e.stopPropagation();
-    
-    if (connectStartTileId && connectStartTileId !== tile.id && !isConnecting) {
-      // Second click - connect the two tiles
-      const startTile = tiles.find(t => t.id === connectStartTileId);
-      if (startTile) {
-        connectTiles(startTile, tile);
-      }
-      setConnectStartTileId(tile.id); // Set this as new start for chaining
-    } else if (!isConnecting) {
-      // First click - set as start tile
-      setConnectStartTileId(tile.id);
-    }
-  }, [activeTool, connectStartTileId, isConnecting, tiles, connectTiles]);
+  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize]);
 
   // Drag and drop handling
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -677,7 +472,6 @@ export function Canvas({
       const component: Component = JSON.parse(componentData);
       const { gridX, gridY } = getGridPosition(e);
       
-      // Check if component can be placed
       if (canPlaceComponent(component, gridX, gridY)) {
         onDropComponent(component, gridX, gridY);
       }
@@ -692,6 +486,11 @@ export function Canvas({
       if (e.target instanceof HTMLInputElement) return;
       
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTileIds.size > 0) {
+        // Also remove connections involving deleted tiles
+        const newConnections = connections.filter(c => 
+          !selectedTileIds.has(c.fromTileId) && !selectedTileIds.has(c.toTileId)
+        );
+        onConnectionsChange(newConnections);
         onTilesChange(tiles.filter(t => !selectedTileIds.has(t.id)));
         onSelectionChange(new Set());
       }
@@ -702,43 +501,77 @@ export function Canvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTileIds, tiles, onTilesChange, onSelectionChange]);
+  }, [selectedTileIds, tiles, connections, onTilesChange, onSelectionChange, onConnectionsChange]);
 
   const getCursor = () => {
     if (activeTool === 'connect') return 'crosshair';
+    if (activeTool === 'disconnect') return 'not-allowed';
     if (isDragging) return 'grabbing';
     return 'default';
   };
 
-  // Render a component's shapes scaled to tile size (accounting for multi-cell components)
-  const renderTileShapes = (tile: PlacedTile) => {
-    const component = tile.component;
-    const compWidth = (component.width || 1) * tileSize;
-    const compHeight = (component.height || 1) * tileSize;
+  // Render connection lines for a tile
+  const renderConnectionLines = (tile: PlacedTile) => {
+    const tileConnections = connections.filter(c => c.fromTileId === tile.id);
+    const shapes: Shape[] = [];
     
-    // Berechne den Referenz-Skalierungsfaktor basierend auf der kleineren Dimension
-    // Dies stellt sicher, dass Linienbreiten und Text proportional bleiben
-    const refScale = Math.min(compWidth, compHeight);
-    
-    // Get all shapes to render (base + active variation)
-    let shapesToRender = [...component.shapes];
-    if (tile.activeVariationId && component.variations) {
-      const activeVariation = component.variations.find(v => v.id === tile.activeVariationId);
-      if (activeVariation) {
-        shapesToRender = [...shapesToRender, ...activeVariation.shapes];
-      }
+    for (const conn of tileConnections) {
+      const lineShapes = generateSingleConnectionLine(
+        tile.component.shapes,
+        conn.fromCellX,
+        conn.fromCellY,
+        conn.fromSide,
+        tile.component.width || 1,
+        tile.component.height || 1
+      );
+      shapes.push(...lineShapes);
     }
     
-    return shapesToRender.map((shape, idx) => {
-      // Scale normalized shapes (0-1) to actual component size
+    // Also render "to" side connections
+    const toConnections = connections.filter(c => c.toTileId === tile.id);
+    for (const conn of toConnections) {
+      const lineShapes = generateSingleConnectionLine(
+        tile.component.shapes,
+        conn.toCellX,
+        conn.toCellY,
+        conn.toSide,
+        tile.component.width || 1,
+        tile.component.height || 1
+      );
+      shapes.push(...lineShapes);
+    }
+    
+    const compWidth = (tile.component.width || 1) * tileSize;
+    const compHeight = (tile.component.height || 1) * tileSize;
+    const refScale = Math.min(compWidth, compHeight);
+    
+    return shapes.map((shape, idx) => {
       const scaledShape: Shape = {
         ...shape,
         x: shape.x * compWidth,
         y: shape.y * compHeight,
         width: shape.width * compWidth,
         height: shape.height * compHeight,
-        // strokeWidth, fontSize und arrowSize wurden als Bruchteil der baseCanvasSize (300) gespeichert
-        // Skaliere proportional zur Referenzgröße
+        strokeWidth: shape.strokeWidth ? shape.strokeWidth * refScale : undefined
+      };
+      return <ShapeRenderer key={`conn-${idx}`} shape={scaledShape} />;
+    });
+  };
+
+  // Render a component's shapes scaled to tile size
+  const renderTileShapes = (tile: PlacedTile) => {
+    const component = tile.component;
+    const compWidth = (component.width || 1) * tileSize;
+    const compHeight = (component.height || 1) * tileSize;
+    const refScale = Math.min(compWidth, compHeight);
+    
+    return component.shapes.map((shape, idx) => {
+      const scaledShape: Shape = {
+        ...shape,
+        x: shape.x * compWidth,
+        y: shape.y * compHeight,
+        width: shape.width * compWidth,
+        height: shape.height * compHeight,
         strokeWidth: shape.strokeWidth ? shape.strokeWidth * refScale : undefined,
         fontSize: shape.fontSize ? shape.fontSize * refScale : undefined,
         arrowSize: shape.arrowSize ? shape.arrowSize * refScale : undefined
@@ -799,7 +632,7 @@ export function Canvas({
           rx={2}
         />
         
-        {/* Grid overlay - each cell is one tile */}
+        {/* Grid overlay */}
         <rect
           x={0}
           y={0}
@@ -815,44 +648,54 @@ export function Canvas({
           const compWidth = (tile.component.width || 1) * tileSize;
           const compHeight = (tile.component.height || 1) * tileSize;
           const isSelected = selectedTileIds.has(tile.id);
-          const isConnectStart = activeTool === 'connect' && tile.id === connectStartTileId;
-          const isBeingConnected = activeTool === 'connect' && connectedTileIds.has(tile.id);
+          const isConnectStart = (activeTool === 'connect' || activeTool === 'disconnect') && 
+            connectStartInfo?.tileId === tile.id;
           
           return (
             <g
               key={tile.id}
               transform={`translate(${x}, ${y})`}
               onMouseDown={(e) => handleTileMouseDown(e, tile)}
-              onClick={(e) => handleTileClick(e, tile)}
-              style={{ cursor: activeTool === 'select' || activeTool === 'connect' ? 'pointer' : 'inherit' }}
+              style={{ cursor: activeTool === 'select' || activeTool === 'connect' || activeTool === 'disconnect' ? 'pointer' : 'inherit' }}
             >
-              {/* Tile background - sized for multi-cell components */}
+              {/* Tile background */}
               <rect
                 width={compWidth}
                 height={compHeight}
                 fill={
                   isConnectStart 
                     ? "hsl(var(--primary) / 0.2)" 
-                    : isBeingConnected 
+                    : isSelected 
                       ? "hsl(var(--primary) / 0.1)" 
-                      : isSelected 
-                        ? "hsl(var(--primary) / 0.1)" 
-                        : "hsl(var(--muted) / 0.3)"
+                      : "hsl(var(--muted) / 0.3)"
                 }
                 stroke={
-                  isConnectStart || isBeingConnected 
+                  isConnectStart || isSelected 
                     ? "hsl(var(--primary))" 
-                    : isSelected 
-                      ? "hsl(var(--primary))" 
-                      : "transparent"
+                    : "transparent"
                 }
                 strokeWidth={2}
               />
               {/* Component shapes */}
               {renderTileShapes(tile)}
+              {/* Connection lines */}
+              {renderConnectionLines(tile)}
             </g>
           );
         })}
+
+        {/* Connection line preview */}
+        {connectLine && isConnecting && (
+          <line
+            x1={connectLine.x1}
+            y1={connectLine.y1}
+            x2={connectLine.x2}
+            y2={connectLine.y2}
+            stroke={activeTool === 'disconnect' ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
+            strokeWidth={2}
+            strokeDasharray="4 2"
+          />
+        )}
 
         {/* Selection box */}
         {isSelectionBox && (
