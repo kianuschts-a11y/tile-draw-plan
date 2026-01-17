@@ -88,6 +88,41 @@ function lineIntersectsVertical(
 }
 
 /**
+ * Get triangle edges as line segments
+ * Triangle points up by default: apex at top center, base at bottom
+ */
+function getTriangleEdges(x: number, y: number, width: number, height: number): Array<{x1: number, y1: number, x2: number, y2: number}> {
+  // Apex at top center
+  const apex = { x: x + width / 2, y: y };
+  // Bottom left and right corners
+  const bottomLeft = { x: x, y: y + height };
+  const bottomRight = { x: x + width, y: y + height };
+  
+  return [
+    { x1: apex.x, y1: apex.y, x2: bottomLeft.x, y2: bottomLeft.y },     // Left edge
+    { x1: apex.x, y1: apex.y, x2: bottomRight.x, y2: bottomRight.y },   // Right edge
+    { x1: bottomLeft.x, y1: bottomLeft.y, x2: bottomRight.x, y2: bottomRight.y } // Bottom edge
+  ];
+}
+
+/**
+ * Get diamond edges as line segments
+ */
+function getDiamondEdges(x: number, y: number, width: number, height: number): Array<{x1: number, y1: number, x2: number, y2: number}> {
+  const top = { x: x + width / 2, y: y };
+  const right = { x: x + width, y: y + height / 2 };
+  const bottom = { x: x + width / 2, y: y + height };
+  const left = { x: x, y: y + height / 2 };
+  
+  return [
+    { x1: top.x, y1: top.y, x2: right.x, y2: right.y },
+    { x1: right.x, y1: right.y, x2: bottom.x, y2: bottom.y },
+    { x1: bottom.x, y1: bottom.y, x2: left.x, y2: left.y },
+    { x1: left.x, y1: left.y, x2: top.x, y2: top.y }
+  ];
+}
+
+/**
  * Generate a single connection line from tile edge to component edge
  */
 export function generateSingleConnectionLine(
@@ -101,65 +136,107 @@ export function generateSingleConnectionLine(
   const shapes: Shape[] = [];
   const strokeWidth = 0.02;
 
-  // Calculate the normalized position within the tile based on cell
   const cellWidthNorm = 1 / tileWidth;
   const cellHeightNorm = 1 / tileHeight;
 
   if (side === 'left' || side === 'right') {
-    // Y position at center of the cell (normalized 0-1)
     const yNorm = (cellY + 0.5) * cellHeightNorm;
-    
-    // Tile edge position (0 for left, 1 for right)
     const tileEdgeX = side === 'left' ? 0 : 1;
-    
-    // Find where connection line should stop (at component edge)
     let componentEdgeX = tileEdgeX;
     
-    // Check rectangles, circles, ellipses, etc.
     for (const shape of componentShapes) {
       if (['text', 'arrow'].includes(shape.type)) continue;
       
-      const shapeTop = shape.y;
-      const shapeBottom = shape.y + shape.height;
-      
-      // For line/polyline shapes, check actual line intersection
+      // For line/polyline shapes
       if (shape.type === 'line' || shape.type === 'polyline') {
-        // A line shape: from (x, y) to (x + width, y + height)
-        const lineX1 = shape.x;
-        const lineY1 = shape.y;
-        const lineX2 = shape.x + shape.width;
-        const lineY2 = shape.y + shape.height;
-        
-        // Find where this line intersects our horizontal connection line
         const intersectX = lineIntersectsHorizontal(
-          lineX1, lineY1, lineX2, lineY2,
+          shape.x, shape.y, shape.x + shape.width, shape.y + shape.height,
           yNorm, 0, 1
         );
-        
         if (intersectX !== null) {
-          if (side === 'left' && intersectX > componentEdgeX && intersectX < 0.5) {
+          if (side === 'left' && intersectX > componentEdgeX) {
             componentEdgeX = intersectX;
-          } else if (side === 'right' && intersectX < componentEdgeX && intersectX > 0.5) {
+          } else if (side === 'right' && intersectX < componentEdgeX) {
             componentEdgeX = intersectX;
           }
         }
         continue;
       }
       
-      // For solid shapes, check bounding box
+      // For triangles - check each edge
+      if (shape.type === 'triangle') {
+        const edges = getTriangleEdges(shape.x, shape.y, shape.width, shape.height);
+        for (const edge of edges) {
+          const intersectX = lineIntersectsHorizontal(
+            edge.x1, edge.y1, edge.x2, edge.y2,
+            yNorm, 0, 1
+          );
+          if (intersectX !== null) {
+            if (side === 'left' && intersectX > componentEdgeX) {
+              componentEdgeX = intersectX;
+            } else if (side === 'right' && intersectX < componentEdgeX) {
+              componentEdgeX = intersectX;
+            }
+          }
+        }
+        continue;
+      }
+      
+      // For diamonds
+      if (shape.type === 'diamond') {
+        const edges = getDiamondEdges(shape.x, shape.y, shape.width, shape.height);
+        for (const edge of edges) {
+          const intersectX = lineIntersectsHorizontal(
+            edge.x1, edge.y1, edge.x2, edge.y2,
+            yNorm, 0, 1
+          );
+          if (intersectX !== null) {
+            if (side === 'left' && intersectX > componentEdgeX) {
+              componentEdgeX = intersectX;
+            } else if (side === 'right' && intersectX < componentEdgeX) {
+              componentEdgeX = intersectX;
+            }
+          }
+        }
+        continue;
+      }
+      
+      // For circles/ellipses - calculate actual intersection
+      if (shape.type === 'circle' || shape.type === 'ellipse') {
+        const cx = shape.x + shape.width / 2;
+        const cy = shape.y + shape.height / 2;
+        const rx = shape.width / 2;
+        const ry = shape.height / 2;
+        
+        // Check if horizontal line at yNorm intersects ellipse
+        const dy = yNorm - cy;
+        if (Math.abs(dy) <= ry) {
+          // x = cx ± rx * sqrt(1 - (dy/ry)²)
+          const factor = Math.sqrt(1 - (dy * dy) / (ry * ry));
+          const xLeft = cx - rx * factor;
+          const xRight = cx + rx * factor;
+          
+          if (side === 'left' && xLeft > componentEdgeX) {
+            componentEdgeX = xLeft;
+          } else if (side === 'right' && xRight < componentEdgeX) {
+            componentEdgeX = xRight;
+          }
+        }
+        continue;
+      }
+      
+      // For rectangles and other solid shapes - use bounding box
+      const shapeTop = shape.y;
+      const shapeBottom = shape.y + shape.height;
       if (yNorm >= shapeTop && yNorm <= shapeBottom) {
         if (side === 'left') {
-          // Find the leftmost edge of shapes from tile edge inward
           componentEdgeX = Math.max(componentEdgeX, shape.x);
         } else {
-          // Find the rightmost edge of shapes from tile edge inward
-          const shapeRight = shape.x + shape.width;
-          componentEdgeX = Math.min(componentEdgeX, shapeRight);
+          componentEdgeX = Math.min(componentEdgeX, shape.x + shape.width);
         }
       }
     }
     
-    // Create line from tile edge to component edge
     const startX = side === 'left' ? 0 : componentEdgeX;
     const endX = side === 'left' ? componentEdgeX : 1;
     
@@ -209,7 +286,6 @@ export function generateSingleConnectionLine(
     // Top or bottom connection
     const xNorm = (cellX + 0.5) * cellWidthNorm;
     const tileEdgeY = side === 'top' ? 0 : 1;
-    
     let componentEdgeY = tileEdgeY;
     
     for (const shape of componentShapes) {
@@ -217,35 +293,88 @@ export function generateSingleConnectionLine(
       
       // For line/polyline shapes
       if (shape.type === 'line' || shape.type === 'polyline') {
-        const lineX1 = shape.x;
-        const lineY1 = shape.y;
-        const lineX2 = shape.x + shape.width;
-        const lineY2 = shape.y + shape.height;
-        
         const intersectY = lineIntersectsVertical(
-          lineX1, lineY1, lineX2, lineY2,
+          shape.x, shape.y, shape.x + shape.width, shape.y + shape.height,
           xNorm, 0, 1
         );
-        
         if (intersectY !== null) {
-          if (side === 'top' && intersectY > componentEdgeY && intersectY < 0.5) {
+          if (side === 'top' && intersectY > componentEdgeY) {
             componentEdgeY = intersectY;
-          } else if (side === 'bottom' && intersectY < componentEdgeY && intersectY > 0.5) {
+          } else if (side === 'bottom' && intersectY < componentEdgeY) {
             componentEdgeY = intersectY;
           }
         }
         continue;
       }
       
+      // For triangles
+      if (shape.type === 'triangle') {
+        const edges = getTriangleEdges(shape.x, shape.y, shape.width, shape.height);
+        for (const edge of edges) {
+          const intersectY = lineIntersectsVertical(
+            edge.x1, edge.y1, edge.x2, edge.y2,
+            xNorm, 0, 1
+          );
+          if (intersectY !== null) {
+            if (side === 'top' && intersectY > componentEdgeY) {
+              componentEdgeY = intersectY;
+            } else if (side === 'bottom' && intersectY < componentEdgeY) {
+              componentEdgeY = intersectY;
+            }
+          }
+        }
+        continue;
+      }
+      
+      // For diamonds
+      if (shape.type === 'diamond') {
+        const edges = getDiamondEdges(shape.x, shape.y, shape.width, shape.height);
+        for (const edge of edges) {
+          const intersectY = lineIntersectsVertical(
+            edge.x1, edge.y1, edge.x2, edge.y2,
+            xNorm, 0, 1
+          );
+          if (intersectY !== null) {
+            if (side === 'top' && intersectY > componentEdgeY) {
+              componentEdgeY = intersectY;
+            } else if (side === 'bottom' && intersectY < componentEdgeY) {
+              componentEdgeY = intersectY;
+            }
+          }
+        }
+        continue;
+      }
+      
+      // For circles/ellipses
+      if (shape.type === 'circle' || shape.type === 'ellipse') {
+        const cx = shape.x + shape.width / 2;
+        const cy = shape.y + shape.height / 2;
+        const rx = shape.width / 2;
+        const ry = shape.height / 2;
+        
+        const dx = xNorm - cx;
+        if (Math.abs(dx) <= rx) {
+          const factor = Math.sqrt(1 - (dx * dx) / (rx * rx));
+          const yTop = cy - ry * factor;
+          const yBottom = cy + ry * factor;
+          
+          if (side === 'top' && yTop > componentEdgeY) {
+            componentEdgeY = yTop;
+          } else if (side === 'bottom' && yBottom < componentEdgeY) {
+            componentEdgeY = yBottom;
+          }
+        }
+        continue;
+      }
+      
+      // For rectangles - bounding box
       const shapeLeft = shape.x;
       const shapeRight = shape.x + shape.width;
-      
       if (xNorm >= shapeLeft && xNorm <= shapeRight) {
         if (side === 'top') {
           componentEdgeY = Math.max(componentEdgeY, shape.y);
         } else {
-          const shapeBottom = shape.y + shape.height;
-          componentEdgeY = Math.min(componentEdgeY, shapeBottom);
+          componentEdgeY = Math.min(componentEdgeY, shape.y + shape.height);
         }
       }
     }
