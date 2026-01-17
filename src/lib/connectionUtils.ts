@@ -448,7 +448,14 @@ export function generateSingleConnectionLine(
     
     console.log('Text breaks:', textBreaks);
     
-    if (textBreaks.length === 0) {
+    // Filter text breaks to only those within our line range
+    const relevantTextBreaks = textBreaks.filter(tb => 
+      tb.maxY > lineStartY && tb.minY < lineEndY
+    );
+    
+    console.log('Relevant text breaks:', relevantTextBreaks);
+    
+    if (relevantTextBreaks.length === 0) {
       const newShape = {
         id: `conn-${side}-${cellX}-${cellY}`,
         type: 'line' as const,
@@ -462,19 +469,23 @@ export function generateSingleConnectionLine(
       shapes.push(newShape);
     } else {
       let currentY = lineStartY;
-      for (const textBreak of textBreaks) {
-        if (textBreak.minY > currentY && textBreak.minY < lineEndY) {
+      for (const textBreak of relevantTextBreaks) {
+        // Clamp text break to our line range
+        const clampedMinY = Math.max(textBreak.minY, lineStartY);
+        const clampedMaxY = Math.min(textBreak.maxY, lineEndY);
+        
+        if (clampedMinY > currentY) {
           shapes.push({
             id: `conn-${side}-${cellX}-${cellY}-seg-${currentY}`,
             type: 'line',
             x: xNorm,
             y: currentY,
             width: 0,
-            height: textBreak.minY - currentY,
+            height: clampedMinY - currentY,
             strokeWidth
           });
         }
-        currentY = Math.max(currentY, textBreak.maxY);
+        currentY = Math.max(currentY, clampedMaxY);
       }
       if (currentY < lineEndY) {
         shapes.push({
