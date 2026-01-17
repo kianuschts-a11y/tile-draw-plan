@@ -1,6 +1,164 @@
 import { Shape } from "@/types/schematic";
 
 /**
+ * Find the intersection point between two line segments
+ * Returns the intersection point or null if no intersection
+ */
+function lineSegmentIntersection(
+  ax1: number, ay1: number, ax2: number, ay2: number,  // Line A
+  bx1: number, by1: number, bx2: number, by2: number   // Line B
+): { x: number; y: number } | null {
+  const dAx = ax2 - ax1;
+  const dAy = ay2 - ay1;
+  const dBx = bx2 - bx1;
+  const dBy = by2 - by1;
+  
+  const cross = dAx * dBy - dAy * dBx;
+  if (Math.abs(cross) < 1e-10) return null; // Parallel
+  
+  const dx = bx1 - ax1;
+  const dy = by1 - ay1;
+  
+  const t = (dx * dBy - dy * dBx) / cross;
+  const u = (dx * dAy - dy * dAx) / cross;
+  
+  // Check if intersection is within both segments
+  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+    return {
+      x: ax1 + t * dAx,
+      y: ay1 + t * dAy
+    };
+  }
+  return null;
+}
+
+/**
+ * Get all edges of a shape as line segments
+ */
+function getShapeEdges(shape: Shape): Array<{ x1: number; y1: number; x2: number; y2: number }> {
+  const { x, y, width, height, type } = shape;
+  
+  switch (type) {
+    case 'rectangle':
+      return [
+        { x1: x, y1: y, x2: x + width, y2: y },           // Top
+        { x1: x + width, y1: y, x2: x + width, y2: y + height }, // Right
+        { x1: x + width, y1: y + height, x2: x, y2: y + height }, // Bottom
+        { x1: x, y1: y + height, x2: x, y2: y }           // Left
+      ];
+      
+    case 'triangle':
+      // Triangle with apex at top center
+      return [
+        { x1: x + width / 2, y1: y, x2: x, y2: y + height },           // Left edge
+        { x1: x + width / 2, y1: y, x2: x + width, y2: y + height },   // Right edge
+        { x1: x, y1: y + height, x2: x + width, y2: y + height }       // Bottom edge
+      ];
+      
+    case 'diamond':
+      return [
+        { x1: x + width / 2, y1: y, x2: x + width, y2: y + height / 2 },     // Top-right
+        { x1: x + width, y1: y + height / 2, x2: x + width / 2, y2: y + height }, // Bottom-right
+        { x1: x + width / 2, y1: y + height, x2: x, y2: y + height / 2 },    // Bottom-left
+        { x1: x, y1: y + height / 2, x2: x + width / 2, y2: y }              // Top-left
+      ];
+      
+    case 'line':
+    case 'polyline':
+      // A line is itself an edge
+      return [{ x1: x, y1: y, x2: x + width, y2: y + height }];
+      
+    default:
+      // For other shapes (circle, ellipse, etc.), approximate with bounding box
+      return [
+        { x1: x, y1: y, x2: x + width, y2: y },
+        { x1: x + width, y1: y, x2: x + width, y2: y + height },
+        { x1: x + width, y1: y + height, x2: x, y2: y + height },
+        { x1: x, y1: y + height, x2: x, y2: y }
+      ];
+  }
+}
+
+/**
+ * Find intersection of a ray with an ellipse
+ */
+function rayEllipseIntersection(
+  rayX1: number, rayY1: number, rayX2: number, rayY2: number,
+  cx: number, cy: number, rx: number, ry: number
+): { x: number; y: number } | null {
+  // Normalize ray direction
+  const dx = rayX2 - rayX1;
+  const dy = rayY2 - rayY1;
+  
+  // Transform to unit circle space
+  const a = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+  const b = 2 * ((rayX1 - cx) * dx / (rx * rx) + (rayY1 - cy) * dy / (ry * ry));
+  const c = ((rayX1 - cx) * (rayX1 - cx)) / (rx * rx) + ((rayY1 - cy) * (rayY1 - cy)) / (ry * ry) - 1;
+  
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return null;
+  
+  const sqrtD = Math.sqrt(discriminant);
+  const t1 = (-b - sqrtD) / (2 * a);
+  const t2 = (-b + sqrtD) / (2 * a);
+  
+  // Find the intersection point that's in the direction of the ray (t >= 0) and within segment (t <= 1)
+  let t: number | null = null;
+  if (t1 >= 0 && t1 <= 1) t = t1;
+  else if (t2 >= 0 && t2 <= 1) t = t2;
+  
+  if (t === null) return null;
+  
+  return {
+    x: rayX1 + t * dx,
+    y: rayY1 + t * dy
+  };
+}
+
+/**
+ * Find ALL intersection points between a connection line and a shape
+ */
+function findShapeIntersections(
+  lineX1: number, lineY1: number, lineX2: number, lineY2: number,
+  shape: Shape
+): Array<{ x: number; y: number }> {
+  const intersections: Array<{ x: number; y: number }> = [];
+  
+  // Handle circles/ellipses specially
+  if (shape.type === 'circle' || shape.type === 'ellipse') {
+    const cx = shape.x + shape.width / 2;
+    const cy = shape.y + shape.height / 2;
+    const rx = shape.width / 2;
+    const ry = shape.height / 2;
+    
+    const intersection = rayEllipseIntersection(lineX1, lineY1, lineX2, lineY2, cx, cy, rx, ry);
+    if (intersection) {
+      intersections.push(intersection);
+    }
+    // Check the other direction too
+    const intersection2 = rayEllipseIntersection(lineX2, lineY2, lineX1, lineY1, cx, cy, rx, ry);
+    if (intersection2) {
+      intersections.push(intersection2);
+    }
+    return intersections;
+  }
+  
+  // For polygon-based shapes, check each edge
+  const edges = getShapeEdges(shape);
+  for (const edge of edges) {
+    const intersection = lineSegmentIntersection(
+      lineX1, lineY1, lineX2, lineY2,
+      edge.x1, edge.y1, edge.x2, edge.y2
+    );
+    if (intersection) {
+      intersections.push(intersection);
+    }
+  }
+  
+  return intersections;
+}
+
+/**
  * Find text shapes that intersect a horizontal line
  */
 function findTextIntersectionsHorizontal(
@@ -51,79 +209,8 @@ function findTextIntersectionsVertical(
 }
 
 /**
- * Calculate intersection point of two line segments
- * Returns the x or y coordinate of intersection, or null if no intersection
- */
-function lineIntersectsHorizontal(
-  x1: number, y1: number, x2: number, y2: number, // Line segment
-  hY: number, hMinX: number, hMaxX: number // Horizontal line
-): number | null {
-  // Check if the line segment crosses the horizontal Y
-  if ((y1 <= hY && y2 >= hY) || (y1 >= hY && y2 <= hY)) {
-    if (y1 === y2) return null; // Parallel
-    // Calculate x at intersection
-    const t = (hY - y1) / (y2 - y1);
-    const intersectX = x1 + t * (x2 - x1);
-    if (intersectX >= hMinX && intersectX <= hMaxX) {
-      return intersectX;
-    }
-  }
-  return null;
-}
-
-function lineIntersectsVertical(
-  x1: number, y1: number, x2: number, y2: number, // Line segment
-  vX: number, vMinY: number, vMaxY: number // Vertical line
-): number | null {
-  // Check if the line segment crosses the vertical X
-  if ((x1 <= vX && x2 >= vX) || (x1 >= vX && x2 <= vX)) {
-    if (x1 === x2) return null; // Parallel
-    const t = (vX - x1) / (x2 - x1);
-    const intersectY = y1 + t * (y2 - y1);
-    if (intersectY >= vMinY && intersectY <= vMaxY) {
-      return intersectY;
-    }
-  }
-  return null;
-}
-
-/**
- * Get triangle edges as line segments
- * Triangle points up by default: apex at top center, base at bottom
- */
-function getTriangleEdges(x: number, y: number, width: number, height: number): Array<{x1: number, y1: number, x2: number, y2: number}> {
-  // Apex at top center
-  const apex = { x: x + width / 2, y: y };
-  // Bottom left and right corners
-  const bottomLeft = { x: x, y: y + height };
-  const bottomRight = { x: x + width, y: y + height };
-  
-  return [
-    { x1: apex.x, y1: apex.y, x2: bottomLeft.x, y2: bottomLeft.y },     // Left edge
-    { x1: apex.x, y1: apex.y, x2: bottomRight.x, y2: bottomRight.y },   // Right edge
-    { x1: bottomLeft.x, y1: bottomLeft.y, x2: bottomRight.x, y2: bottomRight.y } // Bottom edge
-  ];
-}
-
-/**
- * Get diamond edges as line segments
- */
-function getDiamondEdges(x: number, y: number, width: number, height: number): Array<{x1: number, y1: number, x2: number, y2: number}> {
-  const top = { x: x + width / 2, y: y };
-  const right = { x: x + width, y: y + height / 2 };
-  const bottom = { x: x + width / 2, y: y + height };
-  const left = { x: x, y: y + height / 2 };
-  
-  return [
-    { x1: top.x, y1: top.y, x2: right.x, y2: right.y },
-    { x1: right.x, y1: right.y, x2: bottom.x, y2: bottom.y },
-    { x1: bottom.x, y1: bottom.y, x2: left.x, y2: left.y },
-    { x1: left.x, y1: left.y, x2: top.x, y2: top.y }
-  ];
-}
-
-/**
- * Generate a single connection line from tile edge to component edge
+ * Generate a single connection line from tile edge to the FIRST shape intersection
+ * This ensures lines never pass through any shape
  */
 export function generateSingleConnectionLine(
   componentShapes: Shape[],
@@ -139,125 +226,63 @@ export function generateSingleConnectionLine(
   const cellWidthNorm = 1 / tileWidth;
   const cellHeightNorm = 1 / tileHeight;
 
+  // Get all non-text, non-arrow shapes that could block the connection
+  const blockingShapes = componentShapes.filter(s => !['text', 'arrow'].includes(s.type));
+
   if (side === 'left' || side === 'right') {
     const yNorm = (cellY + 0.5) * cellHeightNorm;
-    const tileEdgeX = side === 'left' ? 0 : 1;
-    let componentEdgeX = tileEdgeX;
+    const startX = side === 'left' ? 0 : 1;
+    const endX = side === 'left' ? 1 : 0;
     
-    for (const shape of componentShapes) {
-      if (['text', 'arrow'].includes(shape.type)) continue;
+    // Find the FIRST intersection from the edge towards center
+    let closestIntersectionX: number | null = null;
+    
+    for (const shape of blockingShapes) {
+      const intersections = findShapeIntersections(startX, yNorm, endX, yNorm, shape);
       
-      // For line/polyline shapes
-      if (shape.type === 'line' || shape.type === 'polyline') {
-        const intersectX = lineIntersectsHorizontal(
-          shape.x, shape.y, shape.x + shape.width, shape.y + shape.height,
-          yNorm, 0, 1
-        );
-        if (intersectX !== null) {
-          if (side === 'left' && intersectX > componentEdgeX) {
-            componentEdgeX = intersectX;
-          } else if (side === 'right' && intersectX < componentEdgeX) {
-            componentEdgeX = intersectX;
-          }
-        }
-        continue;
-      }
-      
-      // For triangles - check each edge
-      if (shape.type === 'triangle') {
-        const edges = getTriangleEdges(shape.x, shape.y, shape.width, shape.height);
-        for (const edge of edges) {
-          const intersectX = lineIntersectsHorizontal(
-            edge.x1, edge.y1, edge.x2, edge.y2,
-            yNorm, 0, 1
-          );
-          if (intersectX !== null) {
-            if (side === 'left' && intersectX > componentEdgeX) {
-              componentEdgeX = intersectX;
-            } else if (side === 'right' && intersectX < componentEdgeX) {
-              componentEdgeX = intersectX;
-            }
-          }
-        }
-        continue;
-      }
-      
-      // For diamonds
-      if (shape.type === 'diamond') {
-        const edges = getDiamondEdges(shape.x, shape.y, shape.width, shape.height);
-        for (const edge of edges) {
-          const intersectX = lineIntersectsHorizontal(
-            edge.x1, edge.y1, edge.x2, edge.y2,
-            yNorm, 0, 1
-          );
-          if (intersectX !== null) {
-            if (side === 'left' && intersectX > componentEdgeX) {
-              componentEdgeX = intersectX;
-            } else if (side === 'right' && intersectX < componentEdgeX) {
-              componentEdgeX = intersectX;
-            }
-          }
-        }
-        continue;
-      }
-      
-      // For circles/ellipses - calculate actual intersection
-      if (shape.type === 'circle' || shape.type === 'ellipse') {
-        const cx = shape.x + shape.width / 2;
-        const cy = shape.y + shape.height / 2;
-        const rx = shape.width / 2;
-        const ry = shape.height / 2;
-        
-        // Check if horizontal line at yNorm intersects ellipse
-        const dy = yNorm - cy;
-        if (Math.abs(dy) <= ry) {
-          // x = cx ± rx * sqrt(1 - (dy/ry)²)
-          const factor = Math.sqrt(1 - (dy * dy) / (ry * ry));
-          const xLeft = cx - rx * factor;
-          const xRight = cx + rx * factor;
-          
-          if (side === 'left' && xLeft > componentEdgeX) {
-            componentEdgeX = xLeft;
-          } else if (side === 'right' && xRight < componentEdgeX) {
-            componentEdgeX = xRight;
-          }
-        }
-        continue;
-      }
-      
-      // For rectangles and other solid shapes - use bounding box
-      const shapeTop = shape.y;
-      const shapeBottom = shape.y + shape.height;
-      if (yNorm >= shapeTop && yNorm <= shapeBottom) {
+      for (const intersection of intersections) {
         if (side === 'left') {
-          componentEdgeX = Math.max(componentEdgeX, shape.x);
+          // Coming from left, find the smallest X that's > startX
+          if (closestIntersectionX === null || intersection.x < closestIntersectionX) {
+            closestIntersectionX = intersection.x;
+          }
         } else {
-          componentEdgeX = Math.min(componentEdgeX, shape.x + shape.width);
+          // Coming from right, find the largest X that's < startX (=1)
+          if (closestIntersectionX === null || intersection.x > closestIntersectionX) {
+            closestIntersectionX = intersection.x;
+          }
         }
       }
     }
     
-    const startX = side === 'left' ? 0 : componentEdgeX;
-    const endX = side === 'left' ? componentEdgeX : 1;
+    // If no intersection found, line would go all the way across - that's wrong
+    // We should stop at the center or find the edge properly
+    if (closestIntersectionX === null) {
+      return shapes; // No valid connection
+    }
     
-    if (Math.abs(endX - startX) < 0.001) return shapes;
+    const lineStartX = side === 'left' ? 0 : closestIntersectionX;
+    const lineEndX = side === 'left' ? closestIntersectionX : 1;
     
+    if (Math.abs(lineEndX - lineStartX) < 0.001) return shapes;
+    
+    // Handle text breaks
     const textBreaks = findTextIntersectionsHorizontal(componentShapes, yNorm);
     
     if (textBreaks.length === 0) {
       shapes.push({
         id: `conn-${side}-${cellX}-${cellY}`,
         type: 'line',
-        x: startX,
+        x: lineStartX,
         y: yNorm,
-        width: endX - startX,
+        width: lineEndX - lineStartX,
         height: 0,
         strokeWidth
       });
     } else {
-      let currentX = startX;
+      let currentX = lineStartX;
       for (const textBreak of textBreaks) {
-        if (textBreak.minX > currentX && textBreak.minX < endX) {
+        if (textBreak.minX > currentX && textBreak.minX < lineEndX) {
           shapes.push({
             id: `conn-${side}-${cellX}-${cellY}-seg-${currentX}`,
             type: 'line',
@@ -270,13 +295,13 @@ export function generateSingleConnectionLine(
         }
         currentX = Math.max(currentX, textBreak.maxX);
       }
-      if (currentX < endX) {
+      if (currentX < lineEndX) {
         shapes.push({
           id: `conn-${side}-${cellX}-${cellY}-seg-end`,
           type: 'line',
           x: currentX,
           y: yNorm,
-          width: endX - currentX,
+          width: lineEndX - currentX,
           height: 0,
           strokeWidth
         });
@@ -285,105 +310,40 @@ export function generateSingleConnectionLine(
   } else {
     // Top or bottom connection
     const xNorm = (cellX + 0.5) * cellWidthNorm;
-    const tileEdgeY = side === 'top' ? 0 : 1;
-    let componentEdgeY = tileEdgeY;
+    const startY = side === 'top' ? 0 : 1;
+    const endY = side === 'top' ? 1 : 0;
     
-    for (const shape of componentShapes) {
-      if (['text', 'arrow'].includes(shape.type)) continue;
+    // Find the FIRST intersection from the edge towards center
+    let closestIntersectionY: number | null = null;
+    
+    for (const shape of blockingShapes) {
+      const intersections = findShapeIntersections(xNorm, startY, xNorm, endY, shape);
       
-      // For line/polyline shapes
-      if (shape.type === 'line' || shape.type === 'polyline') {
-        const intersectY = lineIntersectsVertical(
-          shape.x, shape.y, shape.x + shape.width, shape.y + shape.height,
-          xNorm, 0, 1
-        );
-        if (intersectY !== null) {
-          if (side === 'top' && intersectY > componentEdgeY) {
-            componentEdgeY = intersectY;
-          } else if (side === 'bottom' && intersectY < componentEdgeY) {
-            componentEdgeY = intersectY;
-          }
-        }
-        continue;
-      }
-      
-      // For triangles
-      if (shape.type === 'triangle') {
-        const edges = getTriangleEdges(shape.x, shape.y, shape.width, shape.height);
-        for (const edge of edges) {
-          const intersectY = lineIntersectsVertical(
-            edge.x1, edge.y1, edge.x2, edge.y2,
-            xNorm, 0, 1
-          );
-          if (intersectY !== null) {
-            if (side === 'top' && intersectY > componentEdgeY) {
-              componentEdgeY = intersectY;
-            } else if (side === 'bottom' && intersectY < componentEdgeY) {
-              componentEdgeY = intersectY;
-            }
-          }
-        }
-        continue;
-      }
-      
-      // For diamonds
-      if (shape.type === 'diamond') {
-        const edges = getDiamondEdges(shape.x, shape.y, shape.width, shape.height);
-        for (const edge of edges) {
-          const intersectY = lineIntersectsVertical(
-            edge.x1, edge.y1, edge.x2, edge.y2,
-            xNorm, 0, 1
-          );
-          if (intersectY !== null) {
-            if (side === 'top' && intersectY > componentEdgeY) {
-              componentEdgeY = intersectY;
-            } else if (side === 'bottom' && intersectY < componentEdgeY) {
-              componentEdgeY = intersectY;
-            }
-          }
-        }
-        continue;
-      }
-      
-      // For circles/ellipses
-      if (shape.type === 'circle' || shape.type === 'ellipse') {
-        const cx = shape.x + shape.width / 2;
-        const cy = shape.y + shape.height / 2;
-        const rx = shape.width / 2;
-        const ry = shape.height / 2;
-        
-        const dx = xNorm - cx;
-        if (Math.abs(dx) <= rx) {
-          const factor = Math.sqrt(1 - (dx * dx) / (rx * rx));
-          const yTop = cy - ry * factor;
-          const yBottom = cy + ry * factor;
-          
-          if (side === 'top' && yTop > componentEdgeY) {
-            componentEdgeY = yTop;
-          } else if (side === 'bottom' && yBottom < componentEdgeY) {
-            componentEdgeY = yBottom;
-          }
-        }
-        continue;
-      }
-      
-      // For rectangles - bounding box
-      const shapeLeft = shape.x;
-      const shapeRight = shape.x + shape.width;
-      if (xNorm >= shapeLeft && xNorm <= shapeRight) {
+      for (const intersection of intersections) {
         if (side === 'top') {
-          componentEdgeY = Math.max(componentEdgeY, shape.y);
+          // Coming from top, find the smallest Y that's > startY (=0)
+          if (closestIntersectionY === null || intersection.y < closestIntersectionY) {
+            closestIntersectionY = intersection.y;
+          }
         } else {
-          componentEdgeY = Math.min(componentEdgeY, shape.y + shape.height);
+          // Coming from bottom, find the largest Y that's < startY (=1)
+          if (closestIntersectionY === null || intersection.y > closestIntersectionY) {
+            closestIntersectionY = intersection.y;
+          }
         }
       }
     }
     
-    const startY = side === 'top' ? 0 : componentEdgeY;
-    const endY = side === 'top' ? componentEdgeY : 1;
+    if (closestIntersectionY === null) {
+      return shapes; // No valid connection
+    }
     
-    if (Math.abs(endY - startY) < 0.001) return shapes;
+    const lineStartY = side === 'top' ? 0 : closestIntersectionY;
+    const lineEndY = side === 'top' ? closestIntersectionY : 1;
     
+    if (Math.abs(lineEndY - lineStartY) < 0.001) return shapes;
+    
+    // Handle text breaks
     const textBreaks = findTextIntersectionsVertical(componentShapes, xNorm);
     
     if (textBreaks.length === 0) {
@@ -391,15 +351,15 @@ export function generateSingleConnectionLine(
         id: `conn-${side}-${cellX}-${cellY}`,
         type: 'line',
         x: xNorm,
-        y: startY,
+        y: lineStartY,
         width: 0,
-        height: endY - startY,
+        height: lineEndY - lineStartY,
         strokeWidth
       });
     } else {
-      let currentY = startY;
+      let currentY = lineStartY;
       for (const textBreak of textBreaks) {
-        if (textBreak.minY > currentY && textBreak.minY < endY) {
+        if (textBreak.minY > currentY && textBreak.minY < lineEndY) {
           shapes.push({
             id: `conn-${side}-${cellX}-${cellY}-seg-${currentY}`,
             type: 'line',
@@ -412,14 +372,14 @@ export function generateSingleConnectionLine(
         }
         currentY = Math.max(currentY, textBreak.maxY);
       }
-      if (currentY < endY) {
+      if (currentY < lineEndY) {
         shapes.push({
           id: `conn-${side}-${cellX}-${cellY}-seg-end`,
           type: 'line',
           x: xNorm,
           y: currentY,
           width: 0,
-          height: endY - currentY,
+          height: lineEndY - currentY,
           strokeWidth
         });
       }
