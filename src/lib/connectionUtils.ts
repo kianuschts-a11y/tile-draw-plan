@@ -168,7 +168,54 @@ function findShapeIntersections(
   
   // For polygon-based shapes, check each edge
   const edges = getShapeEdges(shape);
+  
+  // Determine if the line is vertical or horizontal
+  const isVerticalLine = Math.abs(lineX2 - lineX1) < 1e-6;
+  const isHorizontalLine = Math.abs(lineY2 - lineY1) < 1e-6;
+  
   for (const edge of edges) {
+    const isVerticalEdge = Math.abs(edge.x2 - edge.x1) < 1e-6;
+    const isHorizontalEdge = Math.abs(edge.y2 - edge.y1) < 1e-6;
+    
+    // Handle collinear case: vertical line intersecting vertical edge
+    if (isVerticalLine && isVerticalEdge && Math.abs(lineX1 - edge.x1) < 1e-6) {
+      // Lines are collinear - find overlap
+      const minLineY = Math.min(lineY1, lineY2);
+      const maxLineY = Math.max(lineY1, lineY2);
+      const minEdgeY = Math.min(edge.y1, edge.y2);
+      const maxEdgeY = Math.max(edge.y1, edge.y2);
+      
+      // If they overlap, return the edge endpoints that are within the line range
+      if (minLineY < maxEdgeY && maxLineY > minEdgeY) {
+        // Use the edge's min/max Y as intersection points
+        if (minEdgeY >= minLineY && minEdgeY <= maxLineY) {
+          intersections.push({ x: edge.x1, y: minEdgeY });
+        }
+        if (maxEdgeY >= minLineY && maxEdgeY <= maxLineY && maxEdgeY !== minEdgeY) {
+          intersections.push({ x: edge.x1, y: maxEdgeY });
+        }
+      }
+      continue;
+    }
+    
+    // Handle collinear case: horizontal line intersecting horizontal edge
+    if (isHorizontalLine && isHorizontalEdge && Math.abs(lineY1 - edge.y1) < 1e-6) {
+      const minLineX = Math.min(lineX1, lineX2);
+      const maxLineX = Math.max(lineX1, lineX2);
+      const minEdgeX = Math.min(edge.x1, edge.x2);
+      const maxEdgeX = Math.max(edge.x1, edge.x2);
+      
+      if (minLineX < maxEdgeX && maxLineX > minEdgeX) {
+        if (minEdgeX >= minLineX && minEdgeX <= maxLineX) {
+          intersections.push({ x: minEdgeX, y: edge.y1 });
+        }
+        if (maxEdgeX >= minLineX && maxEdgeX <= maxLineX && maxEdgeX !== minEdgeX) {
+          intersections.push({ x: maxEdgeX, y: edge.y1 });
+        }
+      }
+      continue;
+    }
+    
     const intersection = lineSegmentIntersection(
       lineX1, lineY1, lineX2, lineY2,
       edge.x1, edge.y1, edge.x2, edge.y2
