@@ -73,7 +73,22 @@ export interface Shape {
   arrowSize?: number;
 }
 
-// Component variation with connection line
+// Dynamic connection between two cells
+export interface CellConnection {
+  id: string;
+  // Source tile and cell position within the tile
+  fromTileId: string;
+  fromCellX: number; // Cell X relative to tile (0 to width-1)
+  fromCellY: number; // Cell Y relative to tile (0 to height-1)
+  fromSide: 'left' | 'right' | 'top' | 'bottom';
+  // Target tile and cell position within the tile
+  toTileId: string;
+  toCellX: number;
+  toCellY: number;
+  toSide: 'left' | 'right' | 'top' | 'bottom';
+}
+
+// Legacy - keeping for compatibility but will be phased out
 export interface ComponentVariation {
   id: string;
   name: string;
@@ -89,8 +104,8 @@ export interface Component {
   height: number; // Grid cells tall
   tileSize?: TileSize; // '1x1' or '3x2'
   thumbnail?: string;
-  variations?: ComponentVariation[]; // Optional variations for connections
-  activeVariationId?: string; // Currently active variation
+  variations?: ComponentVariation[]; // Legacy - kept for compatibility
+  activeVariationId?: string; // Legacy
 }
 
 export interface PlacedComponent {

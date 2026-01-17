@@ -1,29 +1,25 @@
 import { useState, useCallback, useEffect } from "react";
-import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
 import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
-import { VariationEditorDialog } from "./VariationEditorDialog";
-import { updateComponentVariations } from "@/lib/variationUtils";
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
 const STORAGE_KEY = 'schematic-editor-components';
+const CONNECTIONS_KEY = 'schematic-editor-connections';
 
 function loadComponentsFromStorage(): Component[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const userComponents = JSON.parse(stored) as Component[];
-      return userComponents;
-    }
+    if (stored) return JSON.parse(stored) as Component[];
   } catch (e) {
-    console.error('Failed to load components from storage:', e);
+    console.error('Failed to load components:', e);
   }
   return [];
 }
@@ -32,18 +28,18 @@ function saveComponentsToStorage(components: Component[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(components));
   } catch (e) {
-    console.error('Failed to save components to storage:', e);
+    console.error('Failed to save components:', e);
   }
 }
 
 export function SchematicEditor() {
   const [tiles, setTiles] = useState<PlacedTile[]>([]);
+  const [connections, setConnections] = useState<CellConnection[]>([]);
   const [selectedTileIds, setSelectedTileIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<MainToolType>('select');
   const [components, setComponents] = useState<Component[]>(loadComponentsFromStorage);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
-  const [variationEditorComponent, setVariationEditorComponent] = useState<Component | null>(null);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -54,30 +50,22 @@ export function SchematicEditor() {
   });
 
   const handleZoomIn = useCallback(() => {
-    setCanvasState(prev => ({
-      ...prev,
-      zoom: Math.min(prev.zoom * 1.25, 4)
-    }));
+    setCanvasState(prev => ({ ...prev, zoom: Math.min(prev.zoom * 1.25, 4) }));
   }, []);
 
   const handleZoomOut = useCallback(() => {
-    setCanvasState(prev => ({
-      ...prev,
-      zoom: Math.max(prev.zoom / 1.25, 0.25)
-    }));
+    setCanvasState(prev => ({ ...prev, zoom: Math.max(prev.zoom / 1.25, 0.25) }));
   }, []);
 
   const handleResetView = useCallback(() => {
-    setCanvasState(prev => ({
-      ...prev,
-      zoom: 1,
-      panX: 50,
-      panY: 50
-    }));
+    setCanvasState(prev => ({ ...prev, zoom: 1, panX: 50, panY: 50 }));
   }, []);
 
   const handleDelete = useCallback(() => {
     if (selectedTileIds.size > 0) {
+      setConnections(prev => prev.filter(c => 
+        !selectedTileIds.has(c.fromTileId) && !selectedTileIds.has(c.toTileId)
+      ));
       setTiles(prev => prev.filter(t => !selectedTileIds.has(t.id)));
       setSelectedTileIds(new Set());
     }
@@ -101,17 +89,11 @@ export function SchematicEditor() {
   }, []);
 
   const handleDropComponent = useCallback((component: Component, gridX: number, gridY: number) => {
-    const newTile: PlacedTile = {
-      id: generateId(),
-      component,
-      gridX,
-      gridY
-    };
+    const newTile: PlacedTile = { id: generateId(), component, gridX, gridY };
     setTiles(prev => [...prev, newTile]);
     setSelectedTileIds(new Set([newTile.id]));
   }, []);
 
-  // Persist components to localStorage whenever they change
   useEffect(() => {
     saveComponentsToStorage(components);
   }, [components]);
@@ -138,10 +120,6 @@ export function SchematicEditor() {
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  const handleEditVariations = useCallback((component: Component) => {
-    setVariationEditorComponent(component);
-  }, []);
-
   const handleEditComponent = useCallback((component: Component) => {
     setEditingComponent(component);
     setIsEditorOpen(true);
@@ -149,67 +127,33 @@ export function SchematicEditor() {
 
   const handleUpdateComponentShapes = useCallback((id: string, name: string, shapes: Shape[], tileSize: TileSize) => {
     const config = TILE_SIZES[tileSize];
-    setComponents(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      
-      // Update variations to use new shapes
-      const updatedVariations = updateComponentVariations(
-        c.variations,
-        shapes,
-        config.cols,
-        config.rows
-      );
-      
-      return { 
-        ...c, 
-        name, 
-        shapes, 
-        width: config.cols, 
-        height: config.rows, 
-        tileSize,
-        variations: updatedVariations
-      };
-    }));
-  }, []);
-
-  const handleUpdateComponent = useCallback((updatedComponent: Component) => {
     setComponents(prev => prev.map(c => 
-      c.id === updatedComponent.id ? updatedComponent : c
+      c.id === id ? { ...c, name, shapes, width: config.cols, height: config.rows, tileSize } : c
     ));
   }, []);
 
-  // Keyboard shortcuts
+  const handleUpdateComponent = useCallback((updatedComponent: Component) => {
+    setComponents(prev => prev.map(c => c.id === updatedComponent.id ? updatedComponent : c));
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
-      
       switch (e.key.toLowerCase()) {
-        case 'v':
-          setActiveTool('select');
-          break;
-        case 'c':
-          setActiveTool('connect');
-          break;
-        case '+':
-        case '=':
-          handleZoomIn();
-          break;
-        case '-':
-          handleZoomOut();
-          break;
-        case '0':
-          handleResetView();
-          break;
+        case 'v': setActiveTool('select'); break;
+        case 'c': setActiveTool('connect'); break;
+        case 'x': setActiveTool('disconnect'); break;
+        case '+': case '=': handleZoomIn(); break;
+        case '-': handleZoomOut(); break;
+        case '0': handleResetView(); break;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleZoomIn, handleZoomOut, handleResetView]);
 
   return (
     <div className="flex flex-col h-screen bg-background no-select">
-      {/* Header */}
       <header className="toolbar-panel h-14 border-b flex items-center px-4 gap-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -225,9 +169,7 @@ export function SchematicEditor() {
             <p className="text-xs text-muted-foreground">Anlagen-Diagramm Zeichner</p>
           </div>
         </div>
-        
         <div className="h-8 w-px bg-border mx-2" />
-        
         <PaperSettings
           paperFormat={canvasState.paperFormat}
           orientation={canvasState.orientation}
@@ -236,19 +178,16 @@ export function SchematicEditor() {
           onOrientationChange={handleOrientationChange}
           onGridSizeChange={handleGridSizeChange}
         />
-        
         <div className="flex-1" />
-        
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">V</kbd>
-          <span>Auswählen</span>
+          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">V</kbd><span>Auswählen</span>
           <span className="mx-1">•</span>
-          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">C</kbd>
-          <span>Verbinden</span>
+          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">C</kbd><span>Verbinden</span>
+          <span className="mx-1">•</span>
+          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">X</kbd><span>Lösen</span>
         </div>
       </header>
 
-      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         <Toolbar
           activeTool={activeTool}
@@ -266,10 +205,12 @@ export function SchematicEditor() {
             selectedTileIds={selectedTileIds}
             activeTool={activeTool}
             canvasState={canvasState}
+            connections={connections}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
             onDropComponent={handleDropComponent}
+            onConnectionsChange={setConnections}
           />
         </div>
 
@@ -279,17 +220,13 @@ export function SchematicEditor() {
           onDeleteComponent={handleDeleteComponent}
           onClearAll={handleClearAllComponents}
           onDragStart={handleDragStart}
-          onEditVariations={handleEditVariations}
+          onEditVariations={() => {}}
           onEditComponent={handleEditComponent}
           onUpdateComponent={handleUpdateComponent}
         />
       </div>
 
-      <StatusBar 
-        canvasState={canvasState} 
-        shapeCount={tiles.length} 
-        selectedCount={selectedTileIds.size} 
-      />
+      <StatusBar canvasState={canvasState} shapeCount={tiles.length} selectedCount={selectedTileIds.size} />
 
       <ComponentEditorDialog
         open={isEditorOpen}
@@ -299,15 +236,6 @@ export function SchematicEditor() {
         tileSize={canvasState.gridSize}
         editingComponent={editingComponent}
       />
-
-      {variationEditorComponent && (
-        <VariationEditorDialog
-          open={true}
-          onClose={() => setVariationEditorComponent(null)}
-          component={variationEditorComponent}
-          onSave={handleUpdateComponent}
-        />
-      )}
     </div>
   );
 }
