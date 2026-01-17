@@ -18,7 +18,8 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
     const transform = shape.rotation 
       ? `rotate(${shape.rotation} ${shape.x + shape.width/2} ${shape.y + shape.height/2})` 
       : undefined;
-    const fill = shape.fillColor || "none";
+    // Support both fillColor and fill properties for backward compatibility
+    const fill = shape.fillColor || shape.fill || "none";
 
     switch (shape.type) {
       case 'rectangle':
