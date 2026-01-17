@@ -28,22 +28,20 @@ export function getComponentBounds(shapes: Shape[]): { minX: number; maxX: numbe
 }
 
 // Find text shapes that intersect with a horizontal line at given y
+// Uses the actual bounding box stored in the shape (width/height)
 function findTextIntersectionsHorizontal(shapes: Shape[], y: number): { minX: number; maxX: number }[] {
   const textShapes = shapes.filter(s => s.type === 'text');
   const intersections: { minX: number; maxX: number }[] = [];
   
   for (const text of textShapes) {
-    // Estimate text bounds - text is centered at (x, y) with some height based on fontSize
-    const fontSize = text.fontSize || 14;
-    const estimatedHeight = fontSize / 100; // Approximate height in normalized coords
-    const estimatedWidth = (text.text?.length || 5) * fontSize * 0.6 / 100; // Approximate width
+    // Use actual stored dimensions (x, y is top-left corner, width/height define the box)
+    const textMinX = text.x;
+    const textMaxX = text.x + text.width;
+    const textMinY = text.y;
+    const textMaxY = text.y + text.height;
     
-    const textMinY = text.y - estimatedHeight / 2;
-    const textMaxY = text.y + estimatedHeight / 2;
-    
+    // Check if horizontal line at y intersects the text bounding box
     if (y >= textMinY && y <= textMaxY) {
-      const textMinX = text.x - estimatedWidth / 2;
-      const textMaxX = text.x + estimatedWidth / 2;
       intersections.push({ minX: textMinX, maxX: textMaxX });
     }
   }
@@ -52,21 +50,20 @@ function findTextIntersectionsHorizontal(shapes: Shape[], y: number): { minX: nu
 }
 
 // Find text shapes that intersect with a vertical line at given x
+// Uses the actual bounding box stored in the shape (width/height)
 function findTextIntersectionsVertical(shapes: Shape[], x: number): { minY: number; maxY: number }[] {
   const textShapes = shapes.filter(s => s.type === 'text');
   const intersections: { minY: number; maxY: number }[] = [];
   
   for (const text of textShapes) {
-    const fontSize = text.fontSize || 14;
-    const estimatedHeight = fontSize / 100;
-    const estimatedWidth = (text.text?.length || 5) * fontSize * 0.6 / 100;
+    // Use actual stored dimensions
+    const textMinX = text.x;
+    const textMaxX = text.x + text.width;
+    const textMinY = text.y;
+    const textMaxY = text.y + text.height;
     
-    const textMinX = text.x - estimatedWidth / 2;
-    const textMaxX = text.x + estimatedWidth / 2;
-    
+    // Check if vertical line at x intersects the text bounding box
     if (x >= textMinX && x <= textMaxX) {
-      const textMinY = text.y - estimatedHeight / 2;
-      const textMaxY = text.y + estimatedHeight / 2;
       intersections.push({ minY: textMinY, maxY: textMaxY });
     }
   }

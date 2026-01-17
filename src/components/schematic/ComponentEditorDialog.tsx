@@ -718,15 +718,20 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
 
   const handleTextSubmit = () => {
     if (textInput.trim()) {
+      // Calculate text dimensions based on font size
+      const fontSize = 14;
+      const textWidth = textInput.length * fontSize * 0.6; // Approximate character width
+      const textHeight = fontSize * 1.2; // Line height
+      
       const newShape: Shape = {
         id: generateId(),
         type: 'text',
         x: textPosition.x,
         y: textPosition.y,
-        width: textInput.length * 8,
-        height: 16,
+        width: textWidth,
+        height: textHeight,
         text: textInput,
-        fontSize: 14,
+        fontSize: fontSize,
         strokeWidth: 1
       };
       const newShapes = [...shapes, newShape];
@@ -1182,7 +1187,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                         <div className="flex items-center gap-2">
                           <Slider
                             value={[selectedShape.fontSize || 14]}
-                            onValueChange={([v]) => updateSelectedShape({ fontSize: v })}
+                            onValueChange={([v]) => {
+                              // Recalculate text dimensions when font size changes
+                              const textLength = selectedShape.text?.length || 5;
+                              const newWidth = textLength * v * 0.6;
+                              const newHeight = v * 1.2;
+                              updateSelectedShape({ fontSize: v, width: newWidth, height: newHeight });
+                            }}
                             min={8}
                             max={48}
                             step={1}
@@ -1215,7 +1226,13 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                         <Label className="text-xs">Text</Label>
                         <Input
                           value={selectedShape.text || ''}
-                          onChange={(e) => updateSelectedShape({ text: e.target.value })}
+                          onChange={(e) => {
+                            // Recalculate text dimensions when text changes
+                            const fontSize = selectedShape.fontSize || 14;
+                            const newWidth = e.target.value.length * fontSize * 0.6;
+                            const newHeight = fontSize * 1.2;
+                            updateSelectedShape({ text: e.target.value, width: newWidth, height: newHeight });
+                          }}
                           className="h-7 text-xs"
                           placeholder="Text..."
                         />
