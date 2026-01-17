@@ -51,8 +51,44 @@ function findTextIntersectionsVertical(
 }
 
 /**
- * Generate a single connection line from component edge to tile edge
- * with proper cell-based positioning for multi-cell components
+ * Calculate intersection point of two line segments
+ * Returns the x or y coordinate of intersection, or null if no intersection
+ */
+function lineIntersectsHorizontal(
+  x1: number, y1: number, x2: number, y2: number, // Line segment
+  hY: number, hMinX: number, hMaxX: number // Horizontal line
+): number | null {
+  // Check if the line segment crosses the horizontal Y
+  if ((y1 <= hY && y2 >= hY) || (y1 >= hY && y2 <= hY)) {
+    if (y1 === y2) return null; // Parallel
+    // Calculate x at intersection
+    const t = (hY - y1) / (y2 - y1);
+    const intersectX = x1 + t * (x2 - x1);
+    if (intersectX >= hMinX && intersectX <= hMaxX) {
+      return intersectX;
+    }
+  }
+  return null;
+}
+
+function lineIntersectsVertical(
+  x1: number, y1: number, x2: number, y2: number, // Line segment
+  vX: number, vMinY: number, vMaxY: number // Vertical line
+): number | null {
+  // Check if the line segment crosses the vertical X
+  if ((x1 <= vX && x2 >= vX) || (x1 >= vX && x2 <= vX)) {
+    if (x1 === x2) return null; // Parallel
+    const t = (vX - x1) / (x2 - x1);
+    const intersectY = y1 + t * (y2 - y1);
+    if (intersectY >= vMinY && intersectY <= vMaxY) {
+      return intersectY;
+    }
+  }
+  return null;
+}
+
+/**
+ * Generate a single connection line from tile edge to component edge
  */
 export function generateSingleConnectionLine(
   componentShapes: Shape[],
@@ -65,11 +101,6 @@ export function generateSingleConnectionLine(
   const shapes: Shape[] = [];
   const strokeWidth = 0.02;
 
-  // Filter only geometric shapes (exclude text, lines, arrows)
-  const geometricShapes = componentShapes.filter(s => 
-    !['text', 'line', 'arrow', 'polyline'].includes(s.type)
-  );
-
   // Calculate the normalized position within the tile based on cell
   const cellWidthNorm = 1 / tileWidth;
   const cellHeightNorm = 1 / tileHeight;
@@ -81,20 +112,47 @@ export function generateSingleConnectionLine(
     // Tile edge position (0 for left, 1 for right)
     const tileEdgeX = side === 'left' ? 0 : 1;
     
-    // Find the component shape edge that intersects at this Y
-    let componentEdgeX = tileEdgeX; // default: line goes to tile edge
+    // Find where connection line should stop (at component edge)
+    let componentEdgeX = tileEdgeX;
     
-    for (const shape of geometricShapes) {
+    // Check rectangles, circles, ellipses, etc.
+    for (const shape of componentShapes) {
+      if (['text', 'arrow'].includes(shape.type)) continue;
+      
       const shapeTop = shape.y;
       const shapeBottom = shape.y + shape.height;
       
-      // Check if this Y intersects the shape
+      // For line/polyline shapes, check actual line intersection
+      if (shape.type === 'line' || shape.type === 'polyline') {
+        // A line shape: from (x, y) to (x + width, y + height)
+        const lineX1 = shape.x;
+        const lineY1 = shape.y;
+        const lineX2 = shape.x + shape.width;
+        const lineY2 = shape.y + shape.height;
+        
+        // Find where this line intersects our horizontal connection line
+        const intersectX = lineIntersectsHorizontal(
+          lineX1, lineY1, lineX2, lineY2,
+          yNorm, 0, 1
+        );
+        
+        if (intersectX !== null) {
+          if (side === 'left' && intersectX > componentEdgeX && intersectX < 0.5) {
+            componentEdgeX = intersectX;
+          } else if (side === 'right' && intersectX < componentEdgeX && intersectX > 0.5) {
+            componentEdgeX = intersectX;
+          }
+        }
+        continue;
+      }
+      
+      // For solid shapes, check bounding box
       if (yNorm >= shapeTop && yNorm <= shapeBottom) {
         if (side === 'left') {
-          // For left side connection, find the leftmost edge of the shape
+          // Find the leftmost edge of shapes from tile edge inward
           componentEdgeX = Math.max(componentEdgeX, shape.x);
         } else {
-          // For right side connection, find the rightmost edge of the shape
+          // Find the rightmost edge of shapes from tile edge inward
           const shapeRight = shape.x + shape.width;
           componentEdgeX = Math.min(componentEdgeX, shapeRight);
         }
@@ -105,7 +163,6 @@ export function generateSingleConnectionLine(
     const startX = side === 'left' ? 0 : componentEdgeX;
     const endX = side === 'left' ? componentEdgeX : 1;
     
-    // Skip if no line to draw
     if (Math.abs(endX - startX) < 0.001) return shapes;
     
     const textBreaks = findTextIntersectionsHorizontal(componentShapes, yNorm);
@@ -151,22 +208,42 @@ export function generateSingleConnectionLine(
   } else {
     // Top or bottom connection
     const xNorm = (cellX + 0.5) * cellWidthNorm;
-    
-    // Tile edge position (0 for top, 1 for bottom)
     const tileEdgeY = side === 'top' ? 0 : 1;
     
     let componentEdgeY = tileEdgeY;
     
-    for (const shape of geometricShapes) {
+    for (const shape of componentShapes) {
+      if (['text', 'arrow'].includes(shape.type)) continue;
+      
+      // For line/polyline shapes
+      if (shape.type === 'line' || shape.type === 'polyline') {
+        const lineX1 = shape.x;
+        const lineY1 = shape.y;
+        const lineX2 = shape.x + shape.width;
+        const lineY2 = shape.y + shape.height;
+        
+        const intersectY = lineIntersectsVertical(
+          lineX1, lineY1, lineX2, lineY2,
+          xNorm, 0, 1
+        );
+        
+        if (intersectY !== null) {
+          if (side === 'top' && intersectY > componentEdgeY && intersectY < 0.5) {
+            componentEdgeY = intersectY;
+          } else if (side === 'bottom' && intersectY < componentEdgeY && intersectY > 0.5) {
+            componentEdgeY = intersectY;
+          }
+        }
+        continue;
+      }
+      
       const shapeLeft = shape.x;
       const shapeRight = shape.x + shape.width;
       
       if (xNorm >= shapeLeft && xNorm <= shapeRight) {
         if (side === 'top') {
-          // For top side, find the topmost edge of the shape
           componentEdgeY = Math.max(componentEdgeY, shape.y);
         } else {
-          // For bottom side, find the bottommost edge of the shape
           const shapeBottom = shape.y + shape.height;
           componentEdgeY = Math.min(componentEdgeY, shapeBottom);
         }
@@ -176,7 +253,6 @@ export function generateSingleConnectionLine(
     const startY = side === 'top' ? 0 : componentEdgeY;
     const endY = side === 'top' ? componentEdgeY : 1;
     
-    // Skip if no line to draw
     if (Math.abs(endY - startY) < 0.001) return shapes;
     
     const textBreaks = findTextIntersectionsVertical(componentShapes, xNorm);
