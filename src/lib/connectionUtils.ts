@@ -48,12 +48,35 @@ function getShapeEdges(shape: Shape): Array<{ x1: number; y1: number; x2: number
       ];
       
     case 'triangle':
-      // Triangle with apex at top center
-      return [
-        { x1: x + width / 2, y1: y, x2: x, y2: y + height },           // Left edge
-        { x1: x + width / 2, y1: y, x2: x + width, y2: y + height },   // Right edge
-        { x1: x, y1: y + height, x2: x + width, y2: y + height }       // Bottom edge
-      ];
+      // Determine triangle orientation based on aspect ratio and shape dimensions
+      // Check if the shape has a rotation or specific pattern
+      // Default: apex at top center (pointing up)
+      // We'll detect orientation based on width vs height ratio
+      const isWide = width > height * 1.5;
+      const isTall = height > width * 1.5;
+      
+      if (isWide) {
+        // Horizontal triangle - apex pointing right
+        return [
+          { x1: x, y1: y, x2: x + width, y2: y + height / 2 },           // Top edge to apex
+          { x1: x + width, y1: y + height / 2, x2: x, y2: y + height },  // Apex to bottom
+          { x1: x, y1: y + height, x2: x, y2: y }                         // Left edge (base)
+        ];
+      } else if (isTall) {
+        // Vertical triangle - apex at top
+        return [
+          { x1: x + width / 2, y1: y, x2: x, y2: y + height },           // Left edge
+          { x1: x + width / 2, y1: y, x2: x + width, y2: y + height },   // Right edge
+          { x1: x, y1: y + height, x2: x + width, y2: y + height }       // Bottom edge
+        ];
+      } else {
+        // Square-ish triangle - default to apex at top
+        return [
+          { x1: x + width / 2, y1: y, x2: x, y2: y + height },           // Left edge
+          { x1: x + width / 2, y1: y, x2: x + width, y2: y + height },   // Right edge
+          { x1: x, y1: y + height, x2: x + width, y2: y + height }       // Bottom edge
+        ];
+      }
       
     case 'diamond':
       return [

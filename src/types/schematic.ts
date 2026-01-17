@@ -86,6 +86,8 @@ export interface CellConnection {
   toCellX: number;
   toCellY: number;
   toSide: 'left' | 'right' | 'top' | 'bottom';
+  // Connection line color (default: black)
+  color?: string;
 }
 
 // Legacy - keeping for compatibility but will be phased out
