@@ -99,6 +99,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   const [showTextInput, setShowTextInput] = useState(false);
   const [textPosition, setTextPosition] = useState({ x: 0, y: 0 });
   const [snapToGrid, setSnapToGrid] = useState(true);
+  const [moveOnlyMode, setMoveOnlyMode] = useState(false);
   const [activeHandle, setActiveHandle] = useState<{ shapeId: string; handle: HandleType } | null>(null);
   const [componentTileSize, setComponentTileSize] = useState<TileSize>('1x1');
   const [hoverPosition, setHoverPosition] = useState<Point | null>(null);
@@ -298,13 +299,15 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     const rawPos = getRawMousePosition(e);
 
     if (activeTool === 'select') {
-      // Prüfe ob ein Handle angeklickt wurde
-      const clickedShape = shapes.find(s => selectedShapeIds.includes(s.id));
-      if (clickedShape) {
-        const handle = getHandleAtPosition(clickedShape, rawPos);
-        if (handle) {
-          setActiveHandle({ shapeId: clickedShape.id, handle });
-          return;
+      // Prüfe ob ein Handle angeklickt wurde (nur wenn nicht im "Nur Verschieben"-Modus)
+      if (!moveOnlyMode) {
+        const clickedShape = shapes.find(s => selectedShapeIds.includes(s.id));
+        if (clickedShape) {
+          const handle = getHandleAtPosition(clickedShape, rawPos);
+          if (handle) {
+            setActiveHandle({ shapeId: clickedShape.id, handle });
+            return;
+          }
         }
       }
 
@@ -1115,6 +1118,19 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
               </Label>
             </div>
 
+            {/* Nur Verschieben Modus */}
+            <div className="flex items-center gap-2">
+              <Switch
+                id="move-only"
+                checked={moveOnlyMode}
+                onCheckedChange={setMoveOnlyMode}
+              />
+              <Label htmlFor="move-only" className="flex items-center gap-1 cursor-pointer text-xs">
+                <MousePointer2 className="w-3 h-3" />
+                Nur Verschieben
+              </Label>
+            </div>
+
             <Separator />
 
             {/* Properties Panel für ausgewählte Shapes */}
@@ -1458,7 +1474,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                           rx={2}
                         />
                       )}
-                      {renderHandles(shape)}
+                      {!moveOnlyMode && renderHandles(shape)}
                     </g>
                   );
                 })}
