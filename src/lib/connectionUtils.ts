@@ -431,24 +431,35 @@ export function generateSingleConnectionLine(
     
     console.log('Closest intersection Y:', closestIntersectionY);
     
+    // If no intersection found within cell, draw line to cell center
+    if (closestIntersectionY === null) {
+      closestIntersectionY = (cellTopNorm + cellBottomNorm) / 2;
+    }
+    
     const lineStartY = side === 'top' ? cellTopNorm : closestIntersectionY;
     const lineEndY = side === 'top' ? closestIntersectionY : cellBottomNorm;
+    
+    console.log('Line Y range:', { lineStartY, lineEndY, diff: lineEndY - lineStartY });
     
     if (Math.abs(lineEndY - lineStartY) < 0.001) return shapes;
     
     // Handle text breaks
     const textBreaks = findTextIntersectionsVertical(componentShapes, xNorm);
     
+    console.log('Text breaks:', textBreaks);
+    
     if (textBreaks.length === 0) {
-      shapes.push({
+      const newShape = {
         id: `conn-${side}-${cellX}-${cellY}`,
-        type: 'line',
+        type: 'line' as const,
         x: xNorm,
         y: lineStartY,
         width: 0,
         height: lineEndY - lineStartY,
         strokeWidth
-      });
+      };
+      console.log('Created connection shape:', newShape);
+      shapes.push(newShape);
     } else {
       let currentY = lineStartY;
       for (const textBreak of textBreaks) {
