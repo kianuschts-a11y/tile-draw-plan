@@ -1275,38 +1275,6 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                 </defs>
                 <rect width={canvasWidth} height={canvasHeight} fill="url(#editor-grid-major)" />
 
-                {/* Hover cursor indicator - springt von Raster zu Raster */}
-                {hoverPosition && snapToGrid && activeTool !== 'select' && activeTool !== 'text' && (
-                  <g>
-                    {/* Crosshair */}
-                    <line 
-                      x1={hoverPosition.x - 8} 
-                      y1={hoverPosition.y} 
-                      x2={hoverPosition.x + 8} 
-                      y2={hoverPosition.y} 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth="1.5"
-                      pointerEvents="none"
-                    />
-                    <line 
-                      x1={hoverPosition.x} 
-                      y1={hoverPosition.y - 8} 
-                      x2={hoverPosition.x} 
-                      y2={hoverPosition.y + 8} 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth="1.5"
-                      pointerEvents="none"
-                    />
-                    {/* Center dot */}
-                    <circle 
-                      cx={hoverPosition.x} 
-                      cy={hoverPosition.y} 
-                      r="3" 
-                      fill="hsl(var(--primary))" 
-                      pointerEvents="none"
-                    />
-                  </g>
-                )}
 
                 {/* Connection point markers */}
                 {(() => {
@@ -1449,6 +1417,39 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                     </g>
                   );
                 })}
+
+                {/* Hover cursor indicator - rendered last to always be visible */}
+                {hoverPosition && snapToGrid && activeTool !== 'select' && activeTool !== 'text' && (
+                  <g>
+                    {/* Crosshair */}
+                    <line 
+                      x1={hoverPosition.x - 8} 
+                      y1={hoverPosition.y} 
+                      x2={hoverPosition.x + 8} 
+                      y2={hoverPosition.y} 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth="1.5"
+                      pointerEvents="none"
+                    />
+                    <line 
+                      x1={hoverPosition.x} 
+                      y1={hoverPosition.y - 8} 
+                      x2={hoverPosition.x} 
+                      y2={hoverPosition.y + 8} 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth="1.5"
+                      pointerEvents="none"
+                    />
+                    {/* Center dot */}
+                    <circle 
+                      cx={hoverPosition.x} 
+                      cy={hoverPosition.y} 
+                      r="3" 
+                      fill="hsl(var(--primary))" 
+                      pointerEvents="none"
+                    />
+                  </g>
+                )}
               </svg>
 
               {/* Text input overlay */}
