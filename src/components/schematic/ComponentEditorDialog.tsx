@@ -972,14 +972,42 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     return 'crosshair';
   };
 
-  // Funktion zum Erkennen geschlossener Linienzüge
-  const findClosedPolygon = useCallback((lineShapes: Shape[]): Point[] | null => {
+  // Hilfsfunktion: Punkte einer Linie (gerade oder gebogen) ermitteln
+  const getLinePoints = useCallback((line: Shape, numSegments: number = 10): Point[] => {
+    const x1 = line.x;
+    const y1 = line.y;
+    const x2 = line.x + line.width;
+    const y2 = line.y + line.height;
+    
+    if (line.curveOffset && (line.curveOffset.x !== 0 || line.curveOffset.y !== 0)) {
+      // Gebogene Linie - Bezier-Punkte berechnen
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+      const cx = midX + line.curveOffset.x;
+      const cy = midY + line.curveOffset.y;
+      
+      const points: Point[] = [];
+      for (let i = 0; i <= numSegments; i++) {
+        const t = i / numSegments;
+        // Quadratische Bezier-Formel: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+        const bx = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * cx + t * t * x2;
+        const by = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * cy + t * t * y2;
+        points.push({ x: bx, y: by });
+      }
+      return points;
+    } else {
+      // Gerade Linie
+      return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+    }
+  }, []);
+
+  // Funktion zum Erkennen geschlossener Linienzüge (mit Kurvenunterstützung)
+  const findClosedPolygonWithCurves = useCallback((lineShapes: Shape[]): { points: Point[], lineOrder: { line: Shape, reversed: boolean }[] } | null => {
     const lines = lineShapes.filter(s => s.type === 'line');
     if (lines.length < 3) return null;
     
-    const tolerance = gridSize * 0.5; // Toleranz für Verbindungen
+    const tolerance = gridSize * 0.5;
     
-    // Hole alle Endpunkte der Linien
     const getEndpoints = (line: Shape): [Point, Point] => [
       { x: line.x, y: line.y },
       { x: line.x + line.width, y: line.y + line.height }
@@ -989,35 +1017,41 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       return Math.abs(p1.x - p2.x) < tolerance && Math.abs(p1.y - p2.y) < tolerance;
     };
     
-    // Versuche einen geschlossenen Pfad zu finden
-    const findPath = (startLine: Shape, usedLines: Set<string>, path: Point[]): Point[] | null => {
+    // Versuche einen geschlossenen Pfad zu finden und merke die Reihenfolge
+    const findPath = (
+      startLine: Shape, 
+      usedLines: Set<string>, 
+      path: Point[],
+      lineOrder: { line: Shape, reversed: boolean }[]
+    ): { points: Point[], lineOrder: { line: Shape, reversed: boolean }[] } | null => {
       const [start, end] = getEndpoints(startLine);
       const currentEnd = path[path.length - 1];
       
-      // Finde welcher Endpunkt der nächste ist
       let nextPoint: Point;
+      let reversed: boolean;
       if (pointsEqual(start, currentEnd)) {
         nextPoint = end;
+        reversed = false;
       } else if (pointsEqual(end, currentEnd)) {
         nextPoint = start;
+        reversed = true;
       } else {
         return null;
       }
       
       path.push(nextPoint);
       usedLines.add(startLine.id);
+      lineOrder.push({ line: startLine, reversed });
       
-      // Prüfe ob wir zurück zum Startpunkt sind
       if (path.length >= 4 && pointsEqual(nextPoint, path[0])) {
-        return path;
+        return { points: path, lineOrder };
       }
       
-      // Suche nächste verbundene Linie
       for (const line of lines) {
         if (usedLines.has(line.id)) continue;
         const [lineStart, lineEnd] = getEndpoints(line);
         if (pointsEqual(lineStart, nextPoint) || pointsEqual(lineEnd, nextPoint)) {
-          const result = findPath(line, new Set(usedLines), [...path]);
+          const result = findPath(line, new Set(usedLines), [...path], [...lineOrder]);
           if (result) return result;
         }
       }
@@ -1025,16 +1059,14 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       return null;
     };
     
-    // Starte von jeder Linie aus
     for (const startLine of lines) {
       const [start, end] = getEndpoints(startLine);
       
-      // Suche Linien die mit dem Startpunkt verbunden sind
       for (const line of lines) {
         if (line.id === startLine.id) continue;
         const [lineStart, lineEnd] = getEndpoints(line);
         if (pointsEqual(lineStart, end) || pointsEqual(lineEnd, end)) {
-          const result = findPath(line, new Set([startLine.id]), [start, end]);
+          const result = findPath(line, new Set([startLine.id]), [start, end], [{ line: startLine, reversed: false }]);
           if (result) return result;
         }
       }
@@ -1043,9 +1075,38 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     return null;
   }, [gridSize]);
 
+  // Erstelle Polygon-Punkte aus der Linienreihenfolge (mit Kurven)
+  const buildPolygonPoints = useCallback((lineOrder: { line: Shape, reversed: boolean }[]): Point[] => {
+    const allPoints: Point[] = [];
+    
+    for (const { line, reversed } of lineOrder) {
+      const linePoints = getLinePoints(line, 10);
+      const orderedPoints = reversed ? [...linePoints].reverse() : linePoints;
+      
+      // Füge Punkte hinzu, aber überspringe den ersten wenn er dem letzten entspricht
+      for (let i = 0; i < orderedPoints.length; i++) {
+        if (allPoints.length === 0 || i > 0) {
+          allPoints.push(orderedPoints[i]);
+        }
+      }
+    }
+    
+    // Entferne den letzten Punkt wenn er dem ersten entspricht (geschlossen)
+    if (allPoints.length > 1) {
+      const first = allPoints[0];
+      const last = allPoints[allPoints.length - 1];
+      if (Math.abs(first.x - last.x) < 1 && Math.abs(first.y - last.y) < 1) {
+        allPoints.pop();
+      }
+    }
+    
+    return allPoints;
+  }, [getLinePoints]);
+
   // Prüfe ob ausgewählte Linien ein geschlossenes Polygon bilden
   const selectedLines = shapes.filter(s => selectedShapeIds.includes(s.id) && s.type === 'line');
-  const closedPolygonPoints = selectedLines.length >= 3 ? findClosedPolygon(selectedLines) : null;
+  const closedPolygonResult = selectedLines.length >= 3 ? findClosedPolygonWithCurves(selectedLines) : null;
+  const closedPolygonPoints = closedPolygonResult ? buildPolygonPoints(closedPolygonResult.lineOrder) : null;
 
   // Funktion zum Erstellen eines gefüllten Polygons aus Linien
   const handleCreateFilledPolygon = () => {
@@ -1398,9 +1459,10 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                 </p>
                 {(() => {
                   const fillAreaLines = shapes.filter(s => fillAreaSelectedIds.includes(s.id) && s.type === 'line');
-                  const fillAreaPolygonPoints = fillAreaLines.length >= 3 ? findClosedPolygon(fillAreaLines) : null;
+                  const fillAreaResult = fillAreaLines.length >= 3 ? findClosedPolygonWithCurves(fillAreaLines) : null;
+                  const fillAreaPolygonPoints = fillAreaResult ? buildPolygonPoints(fillAreaResult.lineOrder) : null;
                   
-                  if (fillAreaPolygonPoints) {
+                  if (fillAreaPolygonPoints && fillAreaPolygonPoints.length >= 3) {
                     return (
                       <div className="space-y-2">
                         <p className="text-xs text-green-600 font-medium">✓ Geschlossene Form erkannt!</p>
@@ -1825,13 +1887,39 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                 {fillAreaMode && fillAreaSelectedIds.map(id => {
                   const shape = shapes.find(s => s.id === id);
                   if (!shape || shape.type !== 'line') return null;
+                  
+                  const x1 = shape.x;
+                  const y1 = shape.y;
+                  const x2 = shape.x + shape.width;
+                  const y2 = shape.y + shape.height;
+                  
+                  // Gebogene Linie
+                  if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+                    const midX = (x1 + x2) / 2;
+                    const midY = (y1 + y2) / 2;
+                    const cx = midX + shape.curveOffset.x;
+                    const cy = midY + shape.curveOffset.y;
+                    return (
+                      <path
+                        key={`fill-${id}`}
+                        d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
+                        fill="none"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={(shape.strokeWidth || 2) + 4}
+                        strokeLinecap="round"
+                        opacity={0.5}
+                      />
+                    );
+                  }
+                  
+                  // Gerade Linie
                   return (
                     <line
                       key={`fill-${id}`}
-                      x1={shape.x}
-                      y1={shape.y}
-                      x2={shape.x + shape.width}
-                      y2={shape.y + shape.height}
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
                       stroke="hsl(var(--primary))"
                       strokeWidth={(shape.strokeWidth || 2) + 4}
                       strokeLinecap="round"
