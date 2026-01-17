@@ -3,13 +3,19 @@ import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, ConnectionDirecti
 import { ShapeRenderer } from "./ShapeRenderer";
 import { MainToolType } from "./Toolbar";
 
+// Connected direction with indices for multi-cell tiles
+export interface ConnectedDirectionInfo {
+  direction: ConnectionDirection;
+  indices: number[];
+}
+
 export interface PlacedTile {
   id: string;
   component: Component;
   gridX: number; // Grid cell X position
   gridY: number; // Grid cell Y position
   activeVariationId?: string; // Active variation for this tile
-  connectedDirections?: ConnectionDirection[]; // Track which directions are connected
+  connectedDirections?: ConnectedDirectionInfo[]; // Track which directions are connected with indices
 }
 
 interface CanvasProps {
@@ -23,86 +29,166 @@ interface CanvasProps {
   onDropComponent: (component: Component, gridX: number, gridY: number) => void;
 }
 
-// Determine connection direction based on relative positions
+// Determine connection direction based on relative positions, including row/column indices
 function getConnectionDirection(
   fromTile: PlacedTile,
   toTile: PlacedTile
-): { fromDirection: ConnectionDirection; toDirection: ConnectionDirection } | null {
-  const fromRight = fromTile.gridX + (fromTile.component.width || 1);
-  const fromBottom = fromTile.gridY + (fromTile.component.height || 1);
-  const toRight = toTile.gridX + (toTile.component.width || 1);
-  const toBottom = toTile.gridY + (toTile.component.height || 1);
+): { 
+  fromDirection: ConnectionDirection; 
+  toDirection: ConnectionDirection;
+  fromIndices: number[];
+  toIndices: number[];
+} | null {
+  const fromWidth = fromTile.component.width || 1;
+  const fromHeight = fromTile.component.height || 1;
+  const toWidth = toTile.component.width || 1;
+  const toHeight = toTile.component.height || 1;
+  
+  const fromRight = fromTile.gridX + fromWidth;
+  const fromBottom = fromTile.gridY + fromHeight;
+  const toRight = toTile.gridX + toWidth;
+  const toBottom = toTile.gridY + toHeight;
+
+  // Calculate overlapping rows/columns for the connection
+  const getOverlappingRows = (tile1Y: number, tile1Height: number, tile2Y: number, tile2Height: number, relativeTo: 'tile1' | 'tile2'): number[] => {
+    const overlapStart = Math.max(tile1Y, tile2Y);
+    const overlapEnd = Math.min(tile1Y + tile1Height, tile2Y + tile2Height);
+    const indices: number[] = [];
+    for (let y = overlapStart; y < overlapEnd; y++) {
+      if (relativeTo === 'tile1') {
+        indices.push(y - tile1Y);
+      } else {
+        indices.push(y - tile2Y);
+      }
+    }
+    return indices;
+  };
+
+  const getOverlappingCols = (tile1X: number, tile1Width: number, tile2X: number, tile2Width: number, relativeTo: 'tile1' | 'tile2'): number[] => {
+    const overlapStart = Math.max(tile1X, tile2X);
+    const overlapEnd = Math.min(tile1X + tile1Width, tile2X + tile2Width);
+    const indices: number[] = [];
+    for (let x = overlapStart; x < overlapEnd; x++) {
+      if (relativeTo === 'tile1') {
+        indices.push(x - tile1X);
+      } else {
+        indices.push(x - tile2X);
+      }
+    }
+    return indices;
+  };
 
   // Check if horizontally adjacent (from is left of to)
   if (fromRight === toTile.gridX && 
       fromTile.gridY < toBottom && fromBottom > toTile.gridY) {
-    return { fromDirection: 'right', toDirection: 'left' };
+    const fromIndices = getOverlappingRows(fromTile.gridY, fromHeight, toTile.gridY, toHeight, 'tile1');
+    const toIndices = getOverlappingRows(fromTile.gridY, fromHeight, toTile.gridY, toHeight, 'tile2');
+    return { fromDirection: 'right', toDirection: 'left', fromIndices, toIndices };
   }
   // Check if horizontally adjacent (from is right of to)
   if (toRight === fromTile.gridX && 
       fromTile.gridY < toBottom && fromBottom > toTile.gridY) {
-    return { fromDirection: 'left', toDirection: 'right' };
+    const fromIndices = getOverlappingRows(fromTile.gridY, fromHeight, toTile.gridY, toHeight, 'tile1');
+    const toIndices = getOverlappingRows(fromTile.gridY, fromHeight, toTile.gridY, toHeight, 'tile2');
+    return { fromDirection: 'left', toDirection: 'right', fromIndices, toIndices };
   }
   // Check if vertically adjacent (from is above to)
   if (fromBottom === toTile.gridY && 
       fromTile.gridX < toRight && fromRight > toTile.gridX) {
-    return { fromDirection: 'bottom', toDirection: 'top' };
+    const fromIndices = getOverlappingCols(fromTile.gridX, fromWidth, toTile.gridX, toWidth, 'tile1');
+    const toIndices = getOverlappingCols(fromTile.gridX, fromWidth, toTile.gridX, toWidth, 'tile2');
+    return { fromDirection: 'bottom', toDirection: 'top', fromIndices, toIndices };
   }
   // Check if vertically adjacent (from is below to)
   if (toBottom === fromTile.gridY && 
       fromTile.gridX < toRight && fromRight > toTile.gridX) {
-    return { fromDirection: 'top', toDirection: 'bottom' };
+    const fromIndices = getOverlappingCols(fromTile.gridX, fromWidth, toTile.gridX, toWidth, 'tile1');
+    const toIndices = getOverlappingCols(fromTile.gridX, fromWidth, toTile.gridX, toWidth, 'tile2');
+    return { fromDirection: 'top', toDirection: 'bottom', fromIndices, toIndices };
   }
   
   return null; // Not adjacent
 }
 
+// getCornerType uses the exported ConnectedDirectionInfo
+
 // Determine which corner variation to use based on connected directions
-function getCornerType(directions: ConnectionDirection[]): ConnectionDirection | null {
-  const hasLeft = directions.includes('left');
-  const hasRight = directions.includes('right');
-  const hasTop = directions.includes('top');
-  const hasBottom = directions.includes('bottom');
+function getCornerType(directions: ConnectedDirectionInfo[]): string | null {
+  const hasLeft = directions.some(d => d.direction === 'left');
+  const hasRight = directions.some(d => d.direction === 'right');
+  const hasTop = directions.some(d => d.direction === 'top');
+  const hasBottom = directions.some(d => d.direction === 'bottom');
   
+  // For corners, we need to combine the indices from both directions
   // Corner combinations
   if (hasTop && hasLeft) return 'corner-tl';
   if (hasTop && hasRight) return 'corner-tr';
   if (hasBottom && hasLeft) return 'corner-bl';
   if (hasBottom && hasRight) return 'corner-br';
   
-  // Horizontal/vertical through connections
-  if (hasLeft && hasRight) return 'horizontal';
-  if (hasTop && hasBottom) return 'vertical';
-  
   return null;
 }
 
-// Find the best variation for given connected directions
-function findVariationForDirections(component: Component, directions: ConnectionDirection[]): string | null {
+// Build variation ID from direction and indices
+function buildVariationId(direction: ConnectionDirection, indices: number[]): string {
+  return `${direction}-${indices.join('-')}`;
+}
+
+// Find the best variation for given connected directions with indices
+function findVariationForDirections(
+  component: Component, 
+  directions: ConnectedDirectionInfo[]
+): string | null {
   if (!component.variations || directions.length === 0) return null;
   
-  // If only one direction, find simple match
+  // If only one direction, find exact match for direction + indices
   if (directions.length === 1) {
     const dir = directions[0];
-    const exactMatch = component.variations.find(v => v.connectionType === dir);
+    const expectedId = buildVariationId(dir.direction, dir.indices);
+    const exactMatch = component.variations.find(v => v.connectionType === expectedId);
     if (exactMatch) return exactMatch.id;
     
-    // Fallback to horizontal/vertical
-    if (dir === 'left' || dir === 'right') {
-      const horizontal = component.variations.find(v => v.connectionType === 'horizontal');
+    // Fallback: try horizontal/vertical with same indices
+    if (dir.direction === 'left' || dir.direction === 'right') {
+      const horizontalId = `horizontal-${dir.indices.join('-')}`;
+      const horizontal = component.variations.find(v => v.connectionType === horizontalId);
       if (horizontal) return horizontal.id;
     }
-    if (dir === 'top' || dir === 'bottom') {
-      const vertical = component.variations.find(v => v.connectionType === 'vertical');
+    if (dir.direction === 'top' || dir.direction === 'bottom') {
+      const verticalId = `vertical-${dir.indices.join('-')}`;
+      const vertical = component.variations.find(v => v.connectionType === verticalId);
       if (vertical) return vertical.id;
     }
     return null;
   }
   
-  // Multiple directions - find corner or through connection
-  const combinedType = getCornerType(directions);
-  if (combinedType) {
-    const match = component.variations.find(v => v.connectionType === combinedType);
+  // Multiple directions - check for horizontal/vertical through or corners
+  const leftDir = directions.find(d => d.direction === 'left');
+  const rightDir = directions.find(d => d.direction === 'right');
+  const topDir = directions.find(d => d.direction === 'top');
+  const bottomDir = directions.find(d => d.direction === 'bottom');
+  
+  // Check for horizontal through (left + right with same indices)
+  if (leftDir && rightDir) {
+    // Merge indices from both sides
+    const allIndices = [...new Set([...leftDir.indices, ...rightDir.indices])].sort((a, b) => a - b);
+    const horizontalId = `horizontal-${allIndices.join('-')}`;
+    const horizontal = component.variations.find(v => v.connectionType === horizontalId);
+    if (horizontal) return horizontal.id;
+  }
+  
+  // Check for vertical through (top + bottom with same indices)
+  if (topDir && bottomDir) {
+    const allIndices = [...new Set([...topDir.indices, ...bottomDir.indices])].sort((a, b) => a - b);
+    const verticalId = `vertical-${allIndices.join('-')}`;
+    const vertical = component.variations.find(v => v.connectionType === verticalId);
+    if (vertical) return vertical.id;
+  }
+  
+  // Check for corner connections
+  const cornerType = getCornerType(directions);
+  if (cornerType) {
+    const match = component.variations.find(v => v.connectionType === cornerType);
     if (match) return match.id;
   }
   
@@ -227,18 +313,34 @@ export function Canvas({
     return true;
   }, [gridCols, gridRows, isPositionOccupied]);
 
+  // Helper to check if a direction info already exists
+  const hasDirectionInfo = (dirs: ConnectedDirectionInfo[], direction: ConnectionDirection, indices: number[]): boolean => {
+    return dirs.some(d => 
+      d.direction === direction && 
+      d.indices.length === indices.length && 
+      d.indices.every((idx, i) => idx === indices[i])
+    );
+  };
+
   // Connect two tiles by setting their variations (with corner detection)
   const connectTiles = useCallback((fromTile: PlacedTile, toTile: PlacedTile) => {
-    const directions = getConnectionDirection(fromTile, toTile);
-    if (!directions) return; // Not adjacent
+    const connectionInfo = getConnectionDirection(fromTile, toTile);
+    if (!connectionInfo) return; // Not adjacent
+    
+    const { fromDirection, toDirection, fromIndices, toIndices } = connectionInfo;
     
     onTilesChange(tiles.map(t => {
       if (t.id === fromTile.id) {
-        // Add new direction to existing connected directions
+        // Add new direction info to existing connected directions
         const existingDirs = t.connectedDirections || [];
-        const newDirs = existingDirs.includes(directions.fromDirection) 
-          ? existingDirs 
-          : [...existingDirs, directions.fromDirection];
+        const newDirInfo: ConnectedDirectionInfo = { direction: fromDirection, indices: fromIndices };
+        
+        // Check if this exact direction+indices already exists
+        if (hasDirectionInfo(existingDirs, fromDirection, fromIndices)) {
+          return t; // Already connected in this way
+        }
+        
+        const newDirs = [...existingDirs, newDirInfo];
         const variation = findVariationForDirections(t.component, newDirs);
         return { 
           ...t, 
@@ -247,11 +349,16 @@ export function Canvas({
         };
       }
       if (t.id === toTile.id) {
-        // Add new direction to existing connected directions
+        // Add new direction info to existing connected directions
         const existingDirs = t.connectedDirections || [];
-        const newDirs = existingDirs.includes(directions.toDirection) 
-          ? existingDirs 
-          : [...existingDirs, directions.toDirection];
+        const newDirInfo: ConnectedDirectionInfo = { direction: toDirection, indices: toIndices };
+        
+        // Check if this exact direction+indices already exists
+        if (hasDirectionInfo(existingDirs, toDirection, toIndices)) {
+          return t; // Already connected in this way
+        }
+        
+        const newDirs = [...existingDirs, newDirInfo];
         const variation = findVariationForDirections(t.component, newDirs);
         return { 
           ...t, 
