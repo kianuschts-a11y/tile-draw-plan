@@ -50,6 +50,15 @@ export function Canvas({
   const [selectionBoxStart, setSelectionBoxStart] = useState({ x: 0, y: 0 });
   const [selectionBoxEnd, setSelectionBoxEnd] = useState({ x: 0, y: 0 });
   
+  // Drop preview state
+  const [dropPreview, setDropPreview] = useState<{
+    gridX: number;
+    gridY: number;
+    width: number;
+    height: number;
+    canPlace: boolean;
+  } | null>(null);
+  
   // Connect tool state - now tracks specific cell positions
   const [connectStartInfo, setConnectStartInfo] = useState<{
     tileId: string;
@@ -173,7 +182,7 @@ export function Canvas({
     );
   }, [connections]);
 
-  // Create a connection between two adjacent cells
+  // Create a connection between two adjacent cells (replaces existing if any)
   const createConnection = useCallback((
     fromTile: PlacedTile, fromCellX: number, fromCellY: number,
     toTile: PlacedTile, toCellX: number, toCellY: number
@@ -190,10 +199,14 @@ export function Canvas({
     
     if (!adjacency) return; // Not adjacent
     
-    // Check if connection already exists
-    if (connectionExists(fromTile.id, fromCellX, fromCellY, toTile.id, toCellX, toCellY)) {
-      return;
-    }
+    // Remove existing connection between these cells (to allow color change)
+    const filteredConnections = connections.filter(c => {
+      const matchesForward = c.fromTileId === fromTile.id && c.fromCellX === fromCellX && c.fromCellY === fromCellY &&
+                             c.toTileId === toTile.id && c.toCellX === toCellX && c.toCellY === toCellY;
+      const matchesReverse = c.fromTileId === toTile.id && c.fromCellX === toCellX && c.fromCellY === toCellY &&
+                             c.toTileId === fromTile.id && c.toCellX === fromCellX && c.toCellY === fromCellY;
+      return !matchesForward && !matchesReverse;
+    });
     
     const newConnection: CellConnection = {
       id: generateConnectionId(),
@@ -208,8 +221,8 @@ export function Canvas({
       color: connectionColor // Store the selected color
     };
     
-    onConnectionsChange([...connections, newConnection]);
-  }, [connections, connectionExists, onConnectionsChange, connectionColor]);
+    onConnectionsChange([...filteredConnections, newConnection]);
+  }, [connections, onConnectionsChange, connectionColor]);
 
   // Remove a connection at a specific cell
   const removeConnectionAtCell = useCallback((tileId: string, cellX: number, cellY: number, side: 'left' | 'right' | 'top' | 'bottom') => {
@@ -466,14 +479,46 @@ export function Canvas({
     }
   }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize]);
 
-  // Drag and drop handling
+  // Track drag position for preview
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
+    
+    // Try to get component data for preview
+    const componentData = e.dataTransfer.types.includes('application/json');
+    if (componentData) {
+      const { gridX, gridY } = getGridPosition(e);
+      // We don't have access to the actual component data during dragOver (security restriction)
+      // So we'll update preview based on position only - assume 1x1 minimum
+      // The actual size check happens on drop
+      setDropPreview(prev => {
+        const width = prev?.width || 1;
+        const height = prev?.height || 1;
+        const canPlace = canPlaceComponent({ id: '', name: '', shapes: [], width, height }, gridX, gridY);
+        return { gridX, gridY, width, height, canPlace };
+      });
+    }
+  }, [getGridPosition, canPlaceComponent]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    // Initialize preview with default 1x1 size
+    const { gridX, gridY } = getGridPosition(e);
+    setDropPreview({ gridX, gridY, width: 1, height: 1, canPlace: true });
+  }, [getGridPosition]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear if we're leaving the SVG completely
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (rect && (e.clientX < rect.left || e.clientX > rect.right || 
+                 e.clientY < rect.top || e.clientY > rect.bottom)) {
+      setDropPreview(null);
+    }
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    setDropPreview(null);
     const componentData = e.dataTransfer.getData('application/json');
     if (!componentData) return;
 
@@ -617,6 +662,8 @@ export function Canvas({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       <defs>
@@ -667,6 +714,21 @@ export function Canvas({
           height={gridRows * tileSize}
           fill="url(#tile-grid)"
         />
+
+        {/* Drop preview indicator */}
+        {dropPreview && (
+          <rect
+            x={dropPreview.gridX * tileSize}
+            y={dropPreview.gridY * tileSize}
+            width={dropPreview.width * tileSize}
+            height={dropPreview.height * tileSize}
+            fill={dropPreview.canPlace ? "hsl(var(--primary) / 0.3)" : "hsl(0 84% 60% / 0.3)"}
+            stroke={dropPreview.canPlace ? "hsl(var(--primary))" : "hsl(0 84% 60%)"}
+            strokeWidth={2}
+            strokeDasharray="4 4"
+            rx={4}
+          />
+        )}
 
         {/* Placed tiles */}
         {tiles.map(tile => {
