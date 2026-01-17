@@ -418,12 +418,13 @@ export function VariationEditorDialog({
   const previewHeight = previewBaseSize * tileHeight;
 
   // Render component shapes with separate scaleX and scaleY
-  const renderShape = (shape: Shape, scaleX: number, scaleY: number, opacity: number = 1) => {
+  const renderShape = (shape: Shape, scaleX: number, scaleY: number, forceVisible: boolean = true) => {
     const x = shape.x * scaleX;
     const y = shape.y * scaleY;
     const width = shape.width * scaleX;
     const height = shape.height * scaleY;
-    const strokeWidth = (shape.strokeWidth || 2);
+    // Ensure minimum stroke width for visibility in preview
+    const strokeWidth = Math.max(2, (shape.strokeWidth || 2));
     
     // Calculate rotation transform if shape has rotation
     const rotation = shape.rotation || 0;
@@ -431,7 +432,8 @@ export function VariationEditorDialog({
     const centerY = y + height / 2;
     const rotationTransform = rotation !== 0 ? `rotate(${rotation}, ${centerX}, ${centerY})` : undefined;
     
-    const baseStroke = shape.stroke || "hsl(220, 25%, 20%)";
+    // Force a dark, visible stroke color for preview
+    const baseStroke = forceVisible ? "#1a1a2e" : (shape.stroke || "#1a1a2e");
     const baseFill = shape.fillColor || shape.fill || "none";
 
     let element: React.ReactNode = null;
@@ -447,7 +449,6 @@ export function VariationEditorDialog({
             fill={baseFill}
             stroke={baseStroke}
             strokeWidth={strokeWidth}
-            opacity={opacity}
           />
         );
         break;
@@ -462,7 +463,6 @@ export function VariationEditorDialog({
             fill={baseFill}
             stroke={baseStroke}
             strokeWidth={strokeWidth}
-            opacity={opacity}
           />
         );
         break;
@@ -475,7 +475,6 @@ export function VariationEditorDialog({
             y2={y + height}
             stroke={baseStroke}
             strokeWidth={strokeWidth}
-            opacity={opacity}
           />
         );
         break;
@@ -491,7 +490,7 @@ export function VariationEditorDialog({
         const ay2 = y2 - arrowSize * Math.sin(angle + arrowAngle);
         element = (
           <>
-            <line x1={x} y1={y} x2={x2} y2={y2} stroke={baseStroke} strokeWidth={strokeWidth} opacity={opacity} />
+            <line x1={x} y1={y} x2={x2} y2={y2} stroke={baseStroke} strokeWidth={strokeWidth} />
             <polyline 
               points={`${ax1},${ay1} ${x2},${y2} ${ax2},${ay2}`} 
               fill="none" 
@@ -499,7 +498,6 @@ export function VariationEditorDialog({
               strokeWidth={strokeWidth} 
               strokeLinecap="round" 
               strokeLinejoin="round" 
-              opacity={opacity}
             />
           </>
         );
@@ -513,7 +511,6 @@ export function VariationEditorDialog({
             fill={baseFill}
             stroke={baseStroke}
             strokeWidth={strokeWidth}
-            opacity={opacity}
           />
         );
         break;
@@ -526,7 +523,6 @@ export function VariationEditorDialog({
             fill={baseFill}
             stroke={baseStroke}
             strokeWidth={strokeWidth}
-            opacity={opacity}
           />
         );
         break;
@@ -541,7 +537,6 @@ export function VariationEditorDialog({
             strokeWidth={strokeWidth} 
             strokeLinecap="round" 
             strokeLinejoin="round"
-            opacity={opacity}
           />
         );
         break;
@@ -563,7 +558,6 @@ export function VariationEditorDialog({
             fill="none" 
             stroke={baseStroke} 
             strokeWidth={strokeWidth}
-            opacity={opacity}
           />
         );
         break;
@@ -577,7 +571,6 @@ export function VariationEditorDialog({
             fontSize={fontSize} 
             fontFamily={shape.fontFamily || 'sans-serif'} 
             fill={baseStroke}
-            opacity={opacity}
           >
             {shape.text}
           </text>
