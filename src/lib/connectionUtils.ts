@@ -395,11 +395,19 @@ export function generateSingleConnectionLine(
     const startY = side === 'top' ? cellTopNorm : cellBottomNorm;
     const endY = side === 'top' ? cellBottomNorm : cellTopNorm;
     
+    console.log('Top/Bottom connection search:', {
+      cellX, cellY, side, tileWidth, tileHeight,
+      xNorm, startY, endY,
+      cellTopNorm, cellBottomNorm,
+      blockingShapesCount: blockingShapes.length
+    });
+    
     // Find the FIRST intersection from the cell edge towards the cell center
     let closestIntersectionY: number | null = null;
     
     for (const shape of blockingShapes) {
       const intersections = findShapeIntersections(xNorm, startY, xNorm, endY, shape);
+      console.log('Intersections with shape:', shape.type, shape.x, shape.y, shape.width, shape.height, intersections);
       
       for (const intersection of intersections) {
         // Only consider intersections within or near this cell
@@ -421,10 +429,7 @@ export function generateSingleConnectionLine(
       }
     }
     
-    // If no intersection found within cell, draw line to cell center
-    if (closestIntersectionY === null) {
-      closestIntersectionY = (cellTopNorm + cellBottomNorm) / 2;
-    }
+    console.log('Closest intersection Y:', closestIntersectionY);
     
     const lineStartY = side === 'top' ? cellTopNorm : closestIntersectionY;
     const lineEndY = side === 'top' ? closestIntersectionY : cellBottomNorm;
