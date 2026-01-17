@@ -46,14 +46,25 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
     strokeWidth: Math.max(0.5, sw)  // Mindestens 0.5 für Sichtbarkeit
   };
 
+  // Calculate rotation transform if shape has rotation
+  const rotation = shape.rotation || 0;
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  const rotationTransform = rotation !== 0 ? `rotate(${rotation}, ${centerX}, ${centerY})` : undefined;
+
+  let element: React.ReactNode = null;
+
   switch (shape.type) {
     case 'rectangle':
-      return <rect x={x} y={y} width={width} height={height} {...style} />;
+      element = <rect x={x} y={y} width={width} height={height} {...style} />;
+      break;
     case 'circle':
     case 'ellipse':
-      return <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} {...style} />;
+      element = <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} {...style} />;
+      break;
     case 'line':
-      return <line x1={x} y1={y} x2={x + width} y2={y + height} {...style} strokeLinecap="round" />;
+      element = <line x1={x} y1={y} x2={x + width} y2={y + height} {...style} strokeLinecap="round" />;
+      break;
     case 'arrow': {
       const x2 = x + width;
       const y2 = y + height;
@@ -64,20 +75,24 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
       const ay1 = y2 - arrowSize * Math.sin(angle - arrowAngle);
       const ax2 = x2 - arrowSize * Math.cos(angle + arrowAngle);
       const ay2 = y2 - arrowSize * Math.sin(angle + arrowAngle);
-      return (
-        <g>
+      element = (
+        <>
           <line x1={x} y1={y} x2={x2} y2={y2} {...style} strokeLinecap="round" />
           <polyline points={`${ax1},${ay1} ${x2},${y2} ${ax2},${ay2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
-        </g>
+        </>
       );
+      break;
     }
     case 'triangle':
-      return <polygon points={`${x + width / 2},${y} ${x},${y + height} ${x + width},${y + height}`} {...style} />;
+      element = <polygon points={`${x + width / 2},${y} ${x},${y + height} ${x + width},${y + height}`} {...style} />;
+      break;
     case 'diamond':
-      return <polygon points={`${x + width / 2},${y} ${x + width},${y + height / 2} ${x + width / 2},${y + height} ${x},${y + height / 2}`} {...style} />;
+      element = <polygon points={`${x + width / 2},${y} ${x + width},${y + height / 2} ${x + width / 2},${y + height} ${x},${y + height / 2}`} {...style} />;
+      break;
     case 'polyline':
       if (!shape.points || shape.points.length < 2) return null;
-      return <polyline points={shape.points.map(p => `${p.x * scaleX},${p.y * scaleY}`).join(' ')} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />;
+      element = <polyline points={shape.points.map(p => `${p.x * scaleX},${p.y * scaleY}`).join(' ')} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />;
+      break;
     case 'arc': {
       const rx = width / 2;
       const ry = height / 2;
@@ -90,14 +105,23 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
       const arcX2 = cx + rx * Math.cos(endRad);
       const arcY2 = cy + ry * Math.sin(endRad);
       const largeArc = (shape.endAngle || 180) - (shape.startAngle || 0) > 180 ? 1 : 0;
-      return <path d={`M ${arcX1} ${arcY1} A ${rx} ${ry} 0 ${largeArc} 1 ${arcX2} ${arcY2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} />;
+      element = <path d={`M ${arcX1} ${arcY1} A ${rx} ${ry} 0 ${largeArc} 1 ${arcX2} ${arcY2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} />;
+      break;
     }
-    case 'text':
+    case 'text': {
       const fontSize = shape.fontSize ? shape.fontSize * refScale : 4;
-      return <text x={x} y={y + fontSize} fontSize={Math.max(4, fontSize)} fontFamily={shape.fontFamily || 'sans-serif'} fill={style.stroke}>{shape.text}</text>;
+      element = <text x={x} y={y + fontSize} fontSize={Math.max(4, fontSize)} fontFamily={shape.fontFamily || 'sans-serif'} fill={style.stroke}>{shape.text}</text>;
+      break;
+    }
     default:
       return null;
   }
+
+  // Wrap in group with rotation transform if needed
+  if (rotationTransform) {
+    return <g transform={rotationTransform}>{element}</g>;
+  }
+  return element;
 }
 
 export function ComponentLibrary({ 
