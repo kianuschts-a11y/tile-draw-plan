@@ -1274,6 +1274,47 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                   </pattern>
                 </defs>
                 <rect width={canvasWidth} height={canvasHeight} fill="url(#editor-grid-major)" />
+                
+                {/* Tile cell boundaries - exact grid lines for each cell */}
+                {(() => {
+                  const cellWidth = canvasWidth / tileSizeConfig.cols;
+                  const cellHeight = canvasHeight / tileSizeConfig.rows;
+                  const lines: JSX.Element[] = [];
+                  
+                  // Vertical cell boundaries
+                  for (let col = 0; col <= tileSizeConfig.cols; col++) {
+                    const x = col * cellWidth;
+                    lines.push(
+                      <line
+                        key={`v-${col}`}
+                        x1={x}
+                        y1={0}
+                        x2={x}
+                        y2={canvasHeight}
+                        stroke="#374151"
+                        strokeWidth={1}
+                      />
+                    );
+                  }
+                  
+                  // Horizontal cell boundaries
+                  for (let row = 0; row <= tileSizeConfig.rows; row++) {
+                    const y = row * cellHeight;
+                    lines.push(
+                      <line
+                        key={`h-${row}`}
+                        x1={0}
+                        y1={y}
+                        x2={canvasWidth}
+                        y2={y}
+                        stroke="#374151"
+                        strokeWidth={1}
+                      />
+                    );
+                  }
+                  
+                  return lines;
+                })()}
 
 
                 {/* Connection point markers */}

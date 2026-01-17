@@ -395,19 +395,13 @@ export function generateSingleConnectionLine(
     const startY = side === 'top' ? cellTopNorm : cellBottomNorm;
     const endY = side === 'top' ? cellBottomNorm : cellTopNorm;
     
-    console.log('Top/Bottom connection search:', {
-      cellX, cellY, side, tileWidth, tileHeight,
-      xNorm, startY, endY,
-      cellTopNorm, cellBottomNorm,
-      blockingShapesCount: blockingShapes.length
-    });
     
     // Find the FIRST intersection from the cell edge towards the cell center
     let closestIntersectionY: number | null = null;
     
     for (const shape of blockingShapes) {
       const intersections = findShapeIntersections(xNorm, startY, xNorm, endY, shape);
-      console.log('Intersections with shape:', shape.type, shape.x, shape.y, shape.width, shape.height, intersections);
+      
       
       for (const intersection of intersections) {
         // Only consider intersections within or near this cell
@@ -429,7 +423,7 @@ export function generateSingleConnectionLine(
       }
     }
     
-    console.log('Closest intersection Y:', closestIntersectionY);
+    
     
     // If no intersection found within cell, draw line to cell center
     if (closestIntersectionY === null) {
@@ -439,21 +433,21 @@ export function generateSingleConnectionLine(
     const lineStartY = side === 'top' ? cellTopNorm : closestIntersectionY;
     const lineEndY = side === 'top' ? closestIntersectionY : cellBottomNorm;
     
-    console.log('Line Y range:', { lineStartY, lineEndY, diff: lineEndY - lineStartY });
+    
     
     if (Math.abs(lineEndY - lineStartY) < 0.001) return shapes;
     
     // Handle text breaks
     const textBreaks = findTextIntersectionsVertical(componentShapes, xNorm);
     
-    console.log('Text breaks:', textBreaks);
+    
     
     // Filter text breaks to only those within our line range
     const relevantTextBreaks = textBreaks.filter(tb => 
       tb.maxY > lineStartY && tb.minY < lineEndY
     );
     
-    console.log('Relevant text breaks:', relevantTextBreaks);
+    
     
     if (relevantTextBreaks.length === 0) {
       const newShape = {
@@ -465,7 +459,7 @@ export function generateSingleConnectionLine(
         height: lineEndY - lineStartY,
         strokeWidth
       };
-      console.log('Created connection shape:', newShape);
+      
       shapes.push(newShape);
     } else {
       let currentY = lineStartY;
