@@ -196,10 +196,17 @@ export function Canvas({
     const toWidth = toTile.component.width || 1;
     const toHeight = toTile.component.height || 1;
     
+    console.log('Creating connection:', {
+      from: { tileId: fromTile.id, gridX: fromTile.gridX, gridY: fromTile.gridY, cellX: fromCellX, cellY: fromCellY, width: fromWidth, height: fromHeight },
+      to: { tileId: toTile.id, gridX: toTile.gridX, gridY: toTile.gridY, cellX: toCellX, cellY: toCellY, width: toWidth, height: toHeight }
+    });
+    
     const adjacency = areCellsAdjacent(
       fromTile.gridX, fromTile.gridY, fromWidth, fromHeight, fromCellX, fromCellY,
       toTile.gridX, toTile.gridY, toWidth, toHeight, toCellX, toCellY
     );
+    
+    console.log('Adjacency result:', adjacency);
     
     if (!adjacency) return; // Not adjacent
     
@@ -224,6 +231,8 @@ export function Canvas({
       toSide: adjacency.toSide,
       color: connectionColor // Store the selected color
     };
+    
+    console.log('New connection created:', newConnection);
     
     onConnectionsChange([...filteredConnections, newConnection]);
   }, [connections, onConnectionsChange, connectionColor]);
