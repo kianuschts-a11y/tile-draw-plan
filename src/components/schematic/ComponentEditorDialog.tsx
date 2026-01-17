@@ -1274,6 +1274,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                   </pattern>
                 </defs>
                 <rect width={canvasWidth} height={canvasHeight} fill="url(#editor-grid-major)" />
+                {/* Right and bottom edge lines to complete the grid */}
+                <line x1={canvasWidth} y1={0} x2={canvasWidth} y2={canvasHeight} stroke="#9ca3af" strokeWidth="1" />
+                <line x1={0} y1={canvasHeight} x2={canvasWidth} y2={canvasHeight} stroke="#9ca3af" strokeWidth="1" />
                 
                 {/* Tile cell boundaries - exact grid lines for each cell */}
                 {(() => {
