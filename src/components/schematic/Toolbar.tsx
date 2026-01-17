@@ -5,12 +5,13 @@ import {
   ZoomIn,
   ZoomOut,
   Link2,
-  Unlink2
+  Unlink2,
+  Move
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
 
-export type MainToolType = 'select' | 'connect' | 'disconnect';
+export type MainToolType = 'select' | 'pan' | 'connect' | 'disconnect';
 
 interface ToolbarProps {
   activeTool: MainToolType;
@@ -39,6 +40,13 @@ export function Toolbar({
         shortcut="V"
         isActive={activeTool === 'select'}
         onClick={() => onToolChange('select')}
+      />
+      <ToolButton
+        icon={Move}
+        label="Bewegen"
+        shortcut="H"
+        isActive={activeTool === 'pan'}
+        onClick={() => onToolChange('pan')}
       />
       <ToolButton
         icon={Link2}
