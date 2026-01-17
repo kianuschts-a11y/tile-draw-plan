@@ -226,6 +226,13 @@ export function Canvas({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
 
+    // Pan tool - start panning
+    if (activeTool === 'pan') {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - canvasState.panX, y: e.clientY - canvasState.panY });
+      return;
+    }
+
     const { x, y } = getCanvasPosition(e);
     const { gridX, gridY } = getGridFromCanvas(x, y);
     
@@ -254,7 +261,7 @@ export function Canvas({
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
@@ -503,6 +510,7 @@ export function Canvas({
   }, [selectedTileIds, tiles, connections, onTilesChange, onSelectionChange, onConnectionsChange]);
 
   const getCursor = () => {
+    if (activeTool === 'pan') return isPanning ? 'grabbing' : 'grab';
     if (activeTool === 'connect') return 'crosshair';
     if (activeTool === 'disconnect') return 'not-allowed';
     if (isDragging) return 'grabbing';
