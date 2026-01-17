@@ -51,48 +51,108 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
           />
         );
       
-      case 'line':
+      case 'line': {
+        const lx1 = shape.x;
+        const ly1 = shape.y;
+        const lx2 = shape.x + shape.width;
+        const ly2 = shape.y + shape.height;
+        
+        // Check if this is a curved line
+        if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+          const midX = (lx1 + lx2) / 2;
+          const midY = (ly1 + ly2) / 2;
+          const cx = midX + shape.curveOffset.x;
+          const cy = midY + shape.curveOffset.y;
+          return (
+            <path
+              d={`M ${lx1} ${ly1} Q ${cx} ${cy} ${lx2} ${ly2}`}
+              className={shape.stroke ? undefined : baseClass}
+              stroke={shape.stroke}
+              strokeWidth={shape.strokeWidth || 2}
+              fill="none"
+            />
+          );
+        }
+        
         return (
           <line
-            x1={shape.x}
-            y1={shape.y}
-            x2={shape.x + shape.width}
-            y2={shape.y + shape.height}
+            x1={lx1}
+            y1={ly1}
+            x2={lx2}
+            y2={ly2}
             className={shape.stroke ? undefined : baseClass}
             stroke={shape.stroke}
             strokeWidth={shape.strokeWidth || 2}
           />
         );
+      }
       
       case 'arrow': {
-        const x1 = shape.x;
-        const y1 = shape.y;
-        const x2 = shape.x + shape.width;
-        const y2 = shape.y + shape.height;
+        const ax1 = shape.x;
+        const ay1 = shape.y;
+        const ax2 = shape.x + shape.width;
+        const ay2 = shape.y + shape.height;
         const arrowSize = shape.arrowSize || Math.max(8, (shape.strokeWidth || 2) * 4);
         
-        // Calculate arrow head
-        const angle = Math.atan2(y2 - y1, x2 - x1);
-        const arrowAngle = Math.PI / 6; // 30 degrees
+        // Calculate arrow head angle - for curved lines, use tangent at end point
+        let endAngle: number;
+        if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+          const midX = (ax1 + ax2) / 2;
+          const midY = (ay1 + ay2) / 2;
+          const cx = midX + shape.curveOffset.x;
+          const cy = midY + shape.curveOffset.y;
+          // Tangent at end of quadratic bezier: derivative at t=1 is 2*(P2-P1) = 2*((x2,y2)-(cx,cy))
+          endAngle = Math.atan2(ay2 - cy, ax2 - cx);
+        } else {
+          endAngle = Math.atan2(ay2 - ay1, ax2 - ax1);
+        }
         
-        const ax1 = x2 - arrowSize * Math.cos(angle - arrowAngle);
-        const ay1 = y2 - arrowSize * Math.sin(angle - arrowAngle);
-        const ax2 = x2 - arrowSize * Math.cos(angle + arrowAngle);
-        const ay2 = y2 - arrowSize * Math.sin(angle + arrowAngle);
+        const arrowAngle = Math.PI / 6; // 30 degrees
+        const ahx1 = ax2 - arrowSize * Math.cos(endAngle - arrowAngle);
+        const ahy1 = ay2 - arrowSize * Math.sin(endAngle - arrowAngle);
+        const ahx2 = ax2 - arrowSize * Math.cos(endAngle + arrowAngle);
+        const ahy2 = ay2 - arrowSize * Math.sin(endAngle + arrowAngle);
+        
+        // Check if this is a curved arrow
+        if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+          const midX = (ax1 + ax2) / 2;
+          const midY = (ay1 + ay2) / 2;
+          const cx = midX + shape.curveOffset.x;
+          const cy = midY + shape.curveOffset.y;
+          return (
+            <g>
+              <path
+                d={`M ${ax1} ${ay1} Q ${cx} ${cy} ${ax2} ${ay2}`}
+                className={baseClass}
+                strokeWidth={shape.strokeWidth || 2}
+                strokeLinecap="round"
+                fill="none"
+              />
+              <polyline
+                points={`${ahx1},${ahy1} ${ax2},${ay2} ${ahx2},${ahy2}`}
+                className={baseClass}
+                fill="none"
+                strokeWidth={shape.strokeWidth || 2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+          );
+        }
         
         return (
           <g>
             <line
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
+              x1={ax1}
+              y1={ay1}
+              x2={ax2}
+              y2={ay2}
               className={baseClass}
               strokeWidth={shape.strokeWidth || 2}
               strokeLinecap="round"
             />
             <polyline
-              points={`${ax1},${ay1} ${x2},${y2} ${ax2},${ay2}`}
+              points={`${ahx1},${ahy1} ${ax2},${ay2} ${ahx2},${ahy2}`}
               className={baseClass}
               fill="none"
               strokeWidth={shape.strokeWidth || 2}
