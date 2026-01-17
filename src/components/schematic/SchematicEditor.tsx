@@ -38,6 +38,7 @@ export function SchematicEditor() {
   const [selectedTileIds, setSelectedTileIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<MainToolType>('select');
   const [connectionColor, setConnectionColor] = useState<string>('#000000'); // Default black
+  const [draggingComponent, setDraggingComponent] = useState<Component | null>(null);
   const [components, setComponents] = useState<Component[]>(loadComponentsFromStorage);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
@@ -87,6 +88,11 @@ export function SchematicEditor() {
   const handleDragStart = useCallback((e: React.DragEvent, component: Component) => {
     e.dataTransfer.setData('application/json', JSON.stringify(component));
     e.dataTransfer.effectAllowed = 'copy';
+    setDraggingComponent(component);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingComponent(null);
   }, []);
 
   const handleDropComponent = useCallback((component: Component, gridX: number, gridY: number) => {
@@ -210,11 +216,13 @@ export function SchematicEditor() {
             canvasState={canvasState}
             connections={connections}
             connectionColor={connectionColor}
+            draggingComponent={draggingComponent}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
             onDropComponent={handleDropComponent}
             onConnectionsChange={setConnections}
+            onDragEnd={handleDragEnd}
           />
         </div>
 

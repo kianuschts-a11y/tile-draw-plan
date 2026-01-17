@@ -18,11 +18,13 @@ interface CanvasProps {
   canvasState: CanvasState;
   connections: CellConnection[];
   connectionColor: string;
+  draggingComponent: Component | null;
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
   onDropComponent: (component: Component, gridX: number, gridY: number) => void;
   onConnectionsChange: (connections: CellConnection[]) => void;
+  onDragEnd: () => void;
 }
 
 export function Canvas({
@@ -32,11 +34,13 @@ export function Canvas({
   canvasState,
   connections,
   connectionColor,
+  draggingComponent,
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
   onDropComponent,
-  onConnectionsChange
+  onConnectionsChange,
+  onDragEnd
 }: CanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -479,33 +483,30 @@ export function Canvas({
     }
   }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize]);
 
-  // Track drag position for preview
+  // Track drag position for preview using draggingComponent from parent
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     
-    // Try to get component data for preview
-    const componentData = e.dataTransfer.types.includes('application/json');
-    if (componentData) {
+    if (draggingComponent) {
       const { gridX, gridY } = getGridPosition(e);
-      // We don't have access to the actual component data during dragOver (security restriction)
-      // So we'll update preview based on position only - assume 1x1 minimum
-      // The actual size check happens on drop
-      setDropPreview(prev => {
-        const width = prev?.width || 1;
-        const height = prev?.height || 1;
-        const canPlace = canPlaceComponent({ id: '', name: '', shapes: [], width, height }, gridX, gridY);
-        return { gridX, gridY, width, height, canPlace };
-      });
+      const width = draggingComponent.width || 1;
+      const height = draggingComponent.height || 1;
+      const canPlace = canPlaceComponent(draggingComponent, gridX, gridY);
+      setDropPreview({ gridX, gridY, width, height, canPlace });
     }
-  }, [getGridPosition, canPlaceComponent]);
+  }, [getGridPosition, canPlaceComponent, draggingComponent]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    // Initialize preview with default 1x1 size
-    const { gridX, gridY } = getGridPosition(e);
-    setDropPreview({ gridX, gridY, width: 1, height: 1, canPlace: true });
-  }, [getGridPosition]);
+    if (draggingComponent) {
+      const { gridX, gridY } = getGridPosition(e);
+      const width = draggingComponent.width || 1;
+      const height = draggingComponent.height || 1;
+      const canPlace = canPlaceComponent(draggingComponent, gridX, gridY);
+      setDropPreview({ gridX, gridY, width, height, canPlace });
+    }
+  }, [getGridPosition, draggingComponent, canPlaceComponent]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     // Only clear if we're leaving the SVG completely
@@ -519,6 +520,7 @@ export function Canvas({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDropPreview(null);
+    onDragEnd();
     const componentData = e.dataTransfer.getData('application/json');
     if (!componentData) return;
 
@@ -532,7 +534,7 @@ export function Canvas({
     } catch (err) {
       console.error('Failed to parse dropped component:', err);
     }
-  }, [getGridPosition, canPlaceComponent, onDropComponent]);
+  }, [getGridPosition, canPlaceComponent, onDropComponent, onDragEnd]);
 
   // Keyboard shortcuts
   useEffect(() => {
