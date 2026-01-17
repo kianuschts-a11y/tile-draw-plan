@@ -141,6 +141,10 @@ function findVariationForDirections(
 ): string | null {
   if (!component.variations || directions.length === 0) return null;
   
+  const tileWidth = component.width || 1;
+  const tileHeight = component.height || 1;
+  const is1x1 = tileWidth === 1 && tileHeight === 1;
+  
   // If only one direction, find exact match for direction + indices
   if (directions.length === 1) {
     const dir = directions[0];
@@ -148,16 +152,34 @@ function findVariationForDirections(
     const exactMatch = component.variations.find(v => v.connectionType === expectedId);
     if (exactMatch) return exactMatch.id;
     
+    // For 1x1 tiles, also try simple direction names (legacy support)
+    if (is1x1) {
+      const simpleMatch = component.variations.find(v => v.connectionType === dir.direction);
+      if (simpleMatch) return simpleMatch.id;
+    }
+    
     // Fallback: try horizontal/vertical with same indices
     if (dir.direction === 'left' || dir.direction === 'right') {
       const horizontalId = `horizontal-${dir.indices.join('-')}`;
       const horizontal = component.variations.find(v => v.connectionType === horizontalId);
       if (horizontal) return horizontal.id;
+      
+      // For 1x1, also try simple 'horizontal'
+      if (is1x1) {
+        const simpleHorizontal = component.variations.find(v => v.connectionType === 'horizontal');
+        if (simpleHorizontal) return simpleHorizontal.id;
+      }
     }
     if (dir.direction === 'top' || dir.direction === 'bottom') {
       const verticalId = `vertical-${dir.indices.join('-')}`;
       const vertical = component.variations.find(v => v.connectionType === verticalId);
       if (vertical) return vertical.id;
+      
+      // For 1x1, also try simple 'vertical'
+      if (is1x1) {
+        const simpleVertical = component.variations.find(v => v.connectionType === 'vertical');
+        if (simpleVertical) return simpleVertical.id;
+      }
     }
     return null;
   }
@@ -168,21 +190,33 @@ function findVariationForDirections(
   const topDir = directions.find(d => d.direction === 'top');
   const bottomDir = directions.find(d => d.direction === 'bottom');
   
-  // Check for horizontal through (left + right with same indices)
+  // Check for horizontal through (left + right)
   if (leftDir && rightDir) {
     // Merge indices from both sides
     const allIndices = [...new Set([...leftDir.indices, ...rightDir.indices])].sort((a, b) => a - b);
     const horizontalId = `horizontal-${allIndices.join('-')}`;
     const horizontal = component.variations.find(v => v.connectionType === horizontalId);
     if (horizontal) return horizontal.id;
+    
+    // For 1x1, also try simple 'horizontal'
+    if (is1x1) {
+      const simpleHorizontal = component.variations.find(v => v.connectionType === 'horizontal');
+      if (simpleHorizontal) return simpleHorizontal.id;
+    }
   }
   
-  // Check for vertical through (top + bottom with same indices)
+  // Check for vertical through (top + bottom)
   if (topDir && bottomDir) {
     const allIndices = [...new Set([...topDir.indices, ...bottomDir.indices])].sort((a, b) => a - b);
     const verticalId = `vertical-${allIndices.join('-')}`;
     const vertical = component.variations.find(v => v.connectionType === verticalId);
     if (vertical) return vertical.id;
+    
+    // For 1x1, also try simple 'vertical'
+    if (is1x1) {
+      const simpleVertical = component.variations.find(v => v.connectionType === 'vertical');
+      if (simpleVertical) return simpleVertical.id;
+    }
   }
   
   // Check for corner connections
