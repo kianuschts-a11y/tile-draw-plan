@@ -171,7 +171,8 @@ function generateCornerTypes(): ExtendedConnectionType[] {
   ];
 }
 
-// Calculate the bounding box of component shapes
+// Calculate the visual bounding box of component shapes
+// This considers the actual visual extent of shapes like triangles and diamonds
 function getComponentBounds(shapes: Shape[]): { minX: number; maxX: number; minY: number; maxY: number } {
   if (shapes.length === 0) {
     return { minX: 0.1, maxX: 0.9, minY: 0.1, maxY: 0.9 };
@@ -180,11 +181,23 @@ function getComponentBounds(shapes: Shape[]): { minX: number; maxX: number; minY
   let minX = 1, maxX = 0, minY = 1, maxY = 0;
   
   for (const shape of shapes) {
-    // Get shape bounds based on type
-    const shapeMinX = shape.x;
-    const shapeMaxX = shape.x + shape.width;
-    const shapeMinY = shape.y;
-    const shapeMaxY = shape.y + shape.height;
+    // Get shape bounds based on type - considering actual visual extent
+    let shapeMinX = shape.x;
+    let shapeMaxX = shape.x + shape.width;
+    let shapeMinY = shape.y;
+    let shapeMaxY = shape.y + shape.height;
+    
+    // For triangles and diamonds, the left/right edges are at the center for top/bottom sides
+    if (shape.type === 'triangle') {
+      // Triangle points: top-center, bottom-left, bottom-right
+      // Left edge at y=center is at x + width/2 (the center line)
+      // But we want the actual leftmost point which is at y=bottom
+      // For connection purposes, use the actual bounds
+    } else if (shape.type === 'diamond') {
+      // Diamond: top, right, bottom, left points
+      // The visual left edge is at x + width/2 at y=center
+      // For horizontal connections at center, the line should connect to the actual diamond edge
+    }
     
     minX = Math.min(minX, shapeMinX);
     maxX = Math.max(maxX, shapeMaxX);
@@ -193,6 +206,120 @@ function getComponentBounds(shapes: Shape[]): { minX: number; maxX: number; minY
   }
   
   return { minX, maxX, minY, maxY };
+}
+
+// Calculate intersection point for horizontal line at given Y with shape edge
+function getHorizontalIntersection(shapes: Shape[], y: number, side: 'left' | 'right'): number {
+  let intersectionX = side === 'left' ? 1 : 0;
+  
+  for (const shape of shapes) {
+    const shapeMinY = shape.y;
+    const shapeMaxY = shape.y + shape.height;
+    
+    // Check if y is within shape's vertical range
+    if (y < shapeMinY || y > shapeMaxY) continue;
+    
+    const relativeY = (y - shape.y) / shape.height; // 0 to 1 within shape
+    
+    if (shape.type === 'triangle') {
+      // Triangle: top-center, bottom-left, bottom-right
+      // At relativeY=0 (top), x is at center
+      // At relativeY=1 (bottom), x ranges from shape.x to shape.x + shape.width
+      const halfWidthAtY = (shape.width / 2) * relativeY;
+      const leftEdge = shape.x + shape.width / 2 - halfWidthAtY;
+      const rightEdge = shape.x + shape.width / 2 + halfWidthAtY;
+      
+      if (side === 'left') {
+        intersectionX = Math.min(intersectionX, leftEdge);
+      } else {
+        intersectionX = Math.max(intersectionX, rightEdge);
+      }
+    } else if (shape.type === 'diamond') {
+      // Diamond: top, right, bottom, left vertices
+      // At relativeY=0.5 (center), width is at maximum
+      // At relativeY=0 or 1, width is 0 (point)
+      const halfWidthAtY = shape.width / 2 * (1 - Math.abs(relativeY * 2 - 1));
+      const leftEdge = shape.x + shape.width / 2 - halfWidthAtY;
+      const rightEdge = shape.x + shape.width / 2 + halfWidthAtY;
+      
+      if (side === 'left') {
+        intersectionX = Math.min(intersectionX, leftEdge);
+      } else {
+        intersectionX = Math.max(intersectionX, rightEdge);
+      }
+    } else {
+      // Rectangle, circle, etc - use bounding box
+      if (side === 'left') {
+        intersectionX = Math.min(intersectionX, shape.x);
+      } else {
+        intersectionX = Math.max(intersectionX, shape.x + shape.width);
+      }
+    }
+  }
+  
+  // Fallback to bounds if no intersection found
+  if ((side === 'left' && intersectionX === 1) || (side === 'right' && intersectionX === 0)) {
+    const bounds = getComponentBounds(shapes);
+    return side === 'left' ? bounds.minX : bounds.maxX;
+  }
+  
+  return intersectionX;
+}
+
+// Calculate intersection point for vertical line at given X with shape edge
+function getVerticalIntersection(shapes: Shape[], x: number, side: 'top' | 'bottom'): number {
+  let intersectionY = side === 'top' ? 1 : 0;
+  
+  for (const shape of shapes) {
+    const shapeMinX = shape.x;
+    const shapeMaxX = shape.x + shape.width;
+    
+    // Check if x is within shape's horizontal range
+    if (x < shapeMinX || x > shapeMaxX) continue;
+    
+    const relativeX = (x - shape.x) / shape.width; // 0 to 1 within shape
+    
+    if (shape.type === 'triangle') {
+      // Triangle: top-center, bottom-left, bottom-right
+      // The top edge is only at the center (relativeX = 0.5)
+      const distFromCenter = Math.abs(relativeX - 0.5) * 2; // 0 at center, 1 at edges
+      const topEdge = shape.y + shape.height * distFromCenter;
+      const bottomEdge = shape.y + shape.height;
+      
+      if (side === 'top') {
+        intersectionY = Math.min(intersectionY, topEdge);
+      } else {
+        intersectionY = Math.max(intersectionY, bottomEdge);
+      }
+    } else if (shape.type === 'diamond') {
+      // Diamond shape
+      const distFromCenter = Math.abs(relativeX - 0.5) * 2;
+      const halfHeightAtX = shape.height / 2 * (1 - distFromCenter);
+      const topEdge = shape.y + shape.height / 2 - halfHeightAtX;
+      const bottomEdge = shape.y + shape.height / 2 + halfHeightAtX;
+      
+      if (side === 'top') {
+        intersectionY = Math.min(intersectionY, topEdge);
+      } else {
+        intersectionY = Math.max(intersectionY, bottomEdge);
+      }
+    } else {
+      // Rectangle, etc
+      if (side === 'top') {
+        intersectionY = Math.min(intersectionY, shape.y);
+      } else {
+        intersectionY = Math.max(intersectionY, shape.y + shape.height);
+      }
+    }
+  }
+  
+  // Fallback
+  if ((side === 'top' && intersectionY === 1) || (side === 'bottom' && intersectionY === 0)) {
+    const bounds = getComponentBounds(shapes);
+    return side === 'top' ? bounds.minY : bounds.maxY;
+  }
+  
+  return intersectionY;
 }
 
 // Generate connection shapes based on extended type
@@ -214,32 +341,49 @@ function generateConnectionShapesFromType(
   const isCorner = connectionType.id.startsWith('corner-');
   
   if (isCorner) {
-    // Handle corner types
+    // Handle corner types - use intersection functions for accurate connections
+    const yTop = cellHeight / 2;
+    const yBottom = 1 - cellHeight / 2;
+    const xLeft = cellWidth / 2;
+    const xRight = 1 - cellWidth / 2;
+    
     switch (connectionType.id) {
-      case 'corner-tl':
+      case 'corner-tl': {
+        const leftIntersect = getHorizontalIntersection(componentShapes, yTop, 'left');
+        const topIntersect = getVerticalIntersection(componentShapes, xLeft, 'top');
         shapes.push(
-          { id: generateId(), type: 'line', x: 0, y: cellHeight / 2, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
-          { id: generateId(), type: 'line', x: cellWidth / 2, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
+          { id: generateId(), type: 'line', x: 0, y: yTop, width: leftIntersect, height: 0, strokeWidth: 2, stroke },
+          { id: generateId(), type: 'line', x: xLeft, y: 0, width: 0, height: topIntersect, strokeWidth: 2, stroke }
         );
         break;
-      case 'corner-tr':
+      }
+      case 'corner-tr': {
+        const rightIntersect = getHorizontalIntersection(componentShapes, yTop, 'right');
+        const topIntersect = getVerticalIntersection(componentShapes, xRight, 'top');
         shapes.push(
-          { id: generateId(), type: 'line', x: bounds.maxX, y: cellHeight / 2, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
-          { id: generateId(), type: 'line', x: 1 - cellWidth / 2, y: 0, width: 0, height: bounds.minY, strokeWidth: 2, stroke }
+          { id: generateId(), type: 'line', x: rightIntersect, y: yTop, width: 1 - rightIntersect, height: 0, strokeWidth: 2, stroke },
+          { id: generateId(), type: 'line', x: xRight, y: 0, width: 0, height: topIntersect, strokeWidth: 2, stroke }
         );
         break;
-      case 'corner-bl':
+      }
+      case 'corner-bl': {
+        const leftIntersect = getHorizontalIntersection(componentShapes, yBottom, 'left');
+        const bottomIntersect = getVerticalIntersection(componentShapes, xLeft, 'bottom');
         shapes.push(
-          { id: generateId(), type: 'line', x: 0, y: 1 - cellHeight / 2, width: bounds.minX, height: 0, strokeWidth: 2, stroke },
-          { id: generateId(), type: 'line', x: cellWidth / 2, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
+          { id: generateId(), type: 'line', x: 0, y: yBottom, width: leftIntersect, height: 0, strokeWidth: 2, stroke },
+          { id: generateId(), type: 'line', x: xLeft, y: bottomIntersect, width: 0, height: 1 - bottomIntersect, strokeWidth: 2, stroke }
         );
         break;
-      case 'corner-br':
+      }
+      case 'corner-br': {
+        const rightIntersect = getHorizontalIntersection(componentShapes, yBottom, 'right');
+        const bottomIntersect = getVerticalIntersection(componentShapes, xRight, 'bottom');
         shapes.push(
-          { id: generateId(), type: 'line', x: bounds.maxX, y: 1 - cellHeight / 2, width: 1 - bounds.maxX, height: 0, strokeWidth: 2, stroke },
-          { id: generateId(), type: 'line', x: 1 - cellWidth / 2, y: bounds.maxY, width: 0, height: 1 - bounds.maxY, strokeWidth: 2, stroke }
+          { id: generateId(), type: 'line', x: rightIntersect, y: yBottom, width: 1 - rightIntersect, height: 0, strokeWidth: 2, stroke },
+          { id: generateId(), type: 'line', x: xRight, y: bottomIntersect, width: 0, height: 1 - bottomIntersect, strokeWidth: 2, stroke }
         );
         break;
+      }
     }
     return shapes;
   }
@@ -248,13 +392,16 @@ function generateConnectionShapesFromType(
     // Horizontal through connection for specified rows
     connectionType.indices.forEach(rowIndex => {
       const yCenter = cellHeight * rowIndex + cellHeight / 2;
+      const leftIntersect = getHorizontalIntersection(componentShapes, yCenter, 'left');
+      const rightIntersect = getHorizontalIntersection(componentShapes, yCenter, 'right');
+      
       // Left
       shapes.push({
         id: generateId(),
         type: 'line',
         x: 0,
         y: yCenter,
-        width: bounds.minX,
+        width: leftIntersect,
         height: 0,
         strokeWidth: 2,
         stroke
@@ -263,9 +410,9 @@ function generateConnectionShapesFromType(
       shapes.push({
         id: generateId(),
         type: 'line',
-        x: bounds.maxX,
+        x: rightIntersect,
         y: yCenter,
-        width: 1 - bounds.maxX,
+        width: 1 - rightIntersect,
         height: 0,
         strokeWidth: 2,
         stroke
@@ -278,6 +425,9 @@ function generateConnectionShapesFromType(
     // Vertical through connection for specified columns
     connectionType.indices.forEach(colIndex => {
       const xCenter = cellWidth * colIndex + cellWidth / 2;
+      const topIntersect = getVerticalIntersection(componentShapes, xCenter, 'top');
+      const bottomIntersect = getVerticalIntersection(componentShapes, xCenter, 'bottom');
+      
       // Top
       shapes.push({
         id: generateId(),
@@ -285,7 +435,7 @@ function generateConnectionShapesFromType(
         x: xCenter,
         y: 0,
         width: 0,
-        height: bounds.minY,
+        height: topIntersect,
         strokeWidth: 2,
         stroke
       });
@@ -294,9 +444,9 @@ function generateConnectionShapesFromType(
         id: generateId(),
         type: 'line',
         x: xCenter,
-        y: bounds.maxY,
+        y: bottomIntersect,
         width: 0,
-        height: 1 - bounds.maxY,
+        height: 1 - bottomIntersect,
         strokeWidth: 2,
         stroke
       });
@@ -308,12 +458,13 @@ function generateConnectionShapesFromType(
   if (connectionType.side === 'left') {
     connectionType.indices.forEach(rowIndex => {
       const yCenter = cellHeight * rowIndex + cellHeight / 2;
+      const leftIntersect = getHorizontalIntersection(componentShapes, yCenter, 'left');
       shapes.push({
         id: generateId(),
         type: 'line',
         x: 0,
         y: yCenter,
-        width: bounds.minX,
+        width: leftIntersect,
         height: 0,
         strokeWidth: 2,
         stroke
@@ -322,12 +473,13 @@ function generateConnectionShapesFromType(
   } else if (connectionType.side === 'right') {
     connectionType.indices.forEach(rowIndex => {
       const yCenter = cellHeight * rowIndex + cellHeight / 2;
+      const rightIntersect = getHorizontalIntersection(componentShapes, yCenter, 'right');
       shapes.push({
         id: generateId(),
         type: 'line',
-        x: bounds.maxX,
+        x: rightIntersect,
         y: yCenter,
-        width: 1 - bounds.maxX,
+        width: 1 - rightIntersect,
         height: 0,
         strokeWidth: 2,
         stroke
@@ -336,13 +488,14 @@ function generateConnectionShapesFromType(
   } else if (connectionType.side === 'top') {
     connectionType.indices.forEach(colIndex => {
       const xCenter = cellWidth * colIndex + cellWidth / 2;
+      const topIntersect = getVerticalIntersection(componentShapes, xCenter, 'top');
       shapes.push({
         id: generateId(),
         type: 'line',
         x: xCenter,
         y: 0,
         width: 0,
-        height: bounds.minY,
+        height: topIntersect,
         strokeWidth: 2,
         stroke
       });
@@ -350,13 +503,14 @@ function generateConnectionShapesFromType(
   } else if (connectionType.side === 'bottom') {
     connectionType.indices.forEach(colIndex => {
       const xCenter = cellWidth * colIndex + cellWidth / 2;
+      const bottomIntersect = getVerticalIntersection(componentShapes, xCenter, 'bottom');
       shapes.push({
         id: generateId(),
         type: 'line',
         x: xCenter,
-        y: bounds.maxY,
+        y: bottomIntersect,
         width: 0,
-        height: 1 - bounds.maxY,
+        height: 1 - bottomIntersect,
         strokeWidth: 2,
         stroke
       });
