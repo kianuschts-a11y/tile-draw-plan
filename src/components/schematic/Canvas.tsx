@@ -363,6 +363,16 @@ export function Canvas({
     
     const { fromDirection, toDirection, fromIndices, toIndices } = connectionInfo;
     
+    // Debug log to verify indices
+    console.log('Connecting tiles:', {
+      from: fromTile.component.name,
+      to: toTile.component.name,
+      fromDirection,
+      toDirection,
+      fromIndices,
+      toIndices
+    });
+    
     onTilesChange(tiles.map(t => {
       if (t.id === fromTile.id) {
         // Add new direction info to existing connected directions
@@ -376,10 +386,15 @@ export function Canvas({
         
         const newDirs = [...existingDirs, newDirInfo];
         const variation = findVariationForDirections(t.component, newDirs);
+        console.log('From tile variation search:', { 
+          expectedId: `${fromDirection}-${fromIndices.join('-')}`,
+          foundVariation: variation,
+          availableVariations: t.component.variations?.map(v => v.connectionType)
+        });
         return { 
           ...t, 
           connectedDirections: newDirs,
-          activeVariationId: variation || t.activeVariationId 
+          activeVariationId: variation || undefined // Clear if no match found
         };
       }
       if (t.id === toTile.id) {
@@ -394,10 +409,15 @@ export function Canvas({
         
         const newDirs = [...existingDirs, newDirInfo];
         const variation = findVariationForDirections(t.component, newDirs);
+        console.log('To tile variation search:', { 
+          expectedId: `${toDirection}-${toIndices.join('-')}`,
+          foundVariation: variation,
+          availableVariations: t.component.variations?.map(v => v.connectionType)
+        });
         return { 
           ...t, 
           connectedDirections: newDirs,
-          activeVariationId: variation || t.activeVariationId 
+          activeVariationId: variation || undefined // Clear if no match found
         };
       }
       return t;
