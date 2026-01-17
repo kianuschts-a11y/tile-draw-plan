@@ -137,6 +137,18 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
         );
       }
       
+      case 'polygon':
+        if (!shape.points || shape.points.length < 3) return null;
+        return (
+          <polygon
+            points={shape.points.map(p => `${p.x},${p.y}`).join(' ')}
+            className={baseClass}
+            style={{ fill }}
+            strokeWidth={shape.strokeWidth || 2}
+            transform={transform}
+          />
+        );
+      
       case 'polyline':
         if (!shape.points || shape.points.length < 2) return null;
         return (

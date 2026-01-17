@@ -1,4 +1,4 @@
-export type ShapeType = 'rectangle' | 'circle' | 'line' | 'arrow' | 'triangle' | 'diamond' | 'ellipse' | 'polyline' | 'arc' | 'text';
+export type ShapeType = 'rectangle' | 'circle' | 'line' | 'arrow' | 'triangle' | 'diamond' | 'ellipse' | 'polyline' | 'arc' | 'text' | 'polygon';
 
 export type ToolType = 'select' | 'pan' | ShapeType;
 
