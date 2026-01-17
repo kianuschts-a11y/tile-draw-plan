@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -418,67 +418,181 @@ export function VariationEditorDialog({
   const previewHeight = previewBaseSize * tileHeight;
 
   // Render component shapes with separate scaleX and scaleY
-  const renderShape = (shape: Shape, scaleX: number, scaleY: number) => {
+  const renderShape = (shape: Shape, scaleX: number, scaleY: number, opacity: number = 1) => {
     const x = shape.x * scaleX;
     const y = shape.y * scaleY;
     const width = shape.width * scaleX;
     const height = shape.height * scaleY;
     const strokeWidth = (shape.strokeWidth || 2);
+    
+    // Calculate rotation transform if shape has rotation
+    const rotation = shape.rotation || 0;
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const rotationTransform = rotation !== 0 ? `rotate(${rotation}, ${centerX}, ${centerY})` : undefined;
+    
+    const baseStroke = shape.stroke || "hsl(220, 25%, 20%)";
+    const baseFill = shape.fillColor || shape.fill || "none";
+
+    let element: React.ReactNode = null;
 
     switch (shape.type) {
       case 'rectangle':
-        return (
+        element = (
           <rect
-            key={shape.id}
             x={x}
             y={y}
             width={width}
             height={height}
-            fill={shape.fill || "none"}
-            stroke={shape.stroke || "hsl(var(--foreground))"}
+            fill={baseFill}
+            stroke={baseStroke}
             strokeWidth={strokeWidth}
+            opacity={opacity}
           />
         );
+        break;
       case 'circle':
       case 'ellipse':
-        return (
+        element = (
           <ellipse
-            key={shape.id}
             cx={x + width / 2}
             cy={y + height / 2}
             rx={width / 2}
             ry={height / 2}
-            fill={shape.fill || "none"}
-            stroke={shape.stroke || "hsl(var(--foreground))"}
+            fill={baseFill}
+            stroke={baseStroke}
             strokeWidth={strokeWidth}
+            opacity={opacity}
           />
         );
+        break;
       case 'line':
-        return (
+        element = (
           <line
-            key={shape.id}
             x1={x}
             y1={y}
             x2={x + width}
             y2={y + height}
-            stroke={shape.stroke || "hsl(var(--foreground))"}
+            stroke={baseStroke}
             strokeWidth={strokeWidth}
+            opacity={opacity}
           />
         );
-      case 'triangle':
+        break;
+      case 'arrow': {
+        const x2 = x + width;
+        const y2 = y + height;
+        const arrowSize = shape.arrowSize || Math.max(4, strokeWidth * 2);
+        const angle = Math.atan2(height, width);
+        const arrowAngle = Math.PI / 6;
+        const ax1 = x2 - arrowSize * Math.cos(angle - arrowAngle);
+        const ay1 = y2 - arrowSize * Math.sin(angle - arrowAngle);
+        const ax2 = x2 - arrowSize * Math.cos(angle + arrowAngle);
+        const ay2 = y2 - arrowSize * Math.sin(angle + arrowAngle);
+        element = (
+          <>
+            <line x1={x} y1={y} x2={x2} y2={y2} stroke={baseStroke} strokeWidth={strokeWidth} opacity={opacity} />
+            <polyline 
+              points={`${ax1},${ay1} ${x2},${y2} ${ax2},${ay2}`} 
+              fill="none" 
+              stroke={baseStroke} 
+              strokeWidth={strokeWidth} 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              opacity={opacity}
+            />
+          </>
+        );
+        break;
+      }
+      case 'triangle': {
         const triPoints = `${x + width / 2},${y} ${x + width},${y + height} ${x},${y + height}`;
-        return (
+        element = (
           <polygon
-            key={shape.id}
             points={triPoints}
-            fill={shape.fill || "none"}
-            stroke={shape.stroke || "hsl(var(--foreground))"}
+            fill={baseFill}
+            stroke={baseStroke}
             strokeWidth={strokeWidth}
+            opacity={opacity}
           />
         );
+        break;
+      }
+      case 'diamond': {
+        const diamondPoints = `${x + width / 2},${y} ${x + width},${y + height / 2} ${x + width / 2},${y + height} ${x},${y + height / 2}`;
+        element = (
+          <polygon
+            points={diamondPoints}
+            fill={baseFill}
+            stroke={baseStroke}
+            strokeWidth={strokeWidth}
+            opacity={opacity}
+          />
+        );
+        break;
+      }
+      case 'polyline':
+        if (!shape.points || shape.points.length < 2) return null;
+        element = (
+          <polyline 
+            points={shape.points.map(p => `${p.x * scaleX},${p.y * scaleY}`).join(' ')} 
+            fill="none" 
+            stroke={baseStroke} 
+            strokeWidth={strokeWidth} 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            opacity={opacity}
+          />
+        );
+        break;
+      case 'arc': {
+        const rx = width / 2;
+        const ry = height / 2;
+        const cx = x + rx;
+        const cy = y + ry;
+        const startRad = ((shape.startAngle || 0) * Math.PI) / 180;
+        const endRad = ((shape.endAngle || 180) * Math.PI) / 180;
+        const arcX1 = cx + rx * Math.cos(startRad);
+        const arcY1 = cy + ry * Math.sin(startRad);
+        const arcX2 = cx + rx * Math.cos(endRad);
+        const arcY2 = cy + ry * Math.sin(endRad);
+        const largeArc = (shape.endAngle || 180) - (shape.startAngle || 0) > 180 ? 1 : 0;
+        element = (
+          <path 
+            d={`M ${arcX1} ${arcY1} A ${rx} ${ry} 0 ${largeArc} 1 ${arcX2} ${arcY2}`} 
+            fill="none" 
+            stroke={baseStroke} 
+            strokeWidth={strokeWidth}
+            opacity={opacity}
+          />
+        );
+        break;
+      }
+      case 'text': {
+        const fontSize = shape.fontSize || 12;
+        element = (
+          <text 
+            x={x} 
+            y={y + fontSize} 
+            fontSize={fontSize} 
+            fontFamily={shape.fontFamily || 'sans-serif'} 
+            fill={baseStroke}
+            opacity={opacity}
+          >
+            {shape.text}
+          </text>
+        );
+        break;
+      }
       default:
         return null;
     }
+    
+    // Wrap in group with rotation transform if needed
+    if (rotationTransform) {
+      return <g key={shape.id} transform={rotationTransform}>{element}</g>;
+    }
+    return <React.Fragment key={shape.id}>{element}</React.Fragment>;
   };
 
   return (
