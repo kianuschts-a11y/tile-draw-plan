@@ -40,7 +40,7 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
   const sw = shape.strokeWidth ? shape.strokeWidth * refScale : 1.5;
 
   const style = {
-    fill: shape.fillColor || 'none',
+    fill: shape.fillColor || shape.fill || 'none',
     stroke: 'hsl(220, 25%, 20%)',
     strokeWidth: Math.max(0.5, sw)  // Mindestens 0.5 für Sichtbarkeit
   };
@@ -61,25 +61,67 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
     case 'ellipse':
       element = <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} {...style} />;
       break;
-    case 'line':
-      element = <line x1={x} y1={y} x2={x + width} y2={y + height} {...style} strokeLinecap="round" />;
+    case 'line': {
+      // Check if this is a curved line
+      if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+        const lx1 = x;
+        const ly1 = y;
+        const lx2 = x + width;
+        const ly2 = y + height;
+        const midX = (lx1 + lx2) / 2;
+        const midY = (ly1 + ly2) / 2;
+        const cx = midX + shape.curveOffset.x * scaleX;
+        const cy = midY + shape.curveOffset.y * scaleY;
+        element = <path d={`M ${lx1} ${ly1} Q ${cx} ${cy} ${lx2} ${ly2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" />;
+      } else {
+        element = <line x1={x} y1={y} x2={x + width} y2={y + height} {...style} strokeLinecap="round" />;
+      }
       break;
+    }
     case 'arrow': {
-      const x2 = x + width;
-      const y2 = y + height;
+      const ax1 = x;
+      const ay1 = y;
+      const ax2 = x + width;
+      const ay2 = y + height;
       const arrowSize = shape.arrowSize ? shape.arrowSize * refScale : Math.max(3, sw * 2);
-      const angle = Math.atan2(height, width);
+      
+      // Calculate arrow head angle - for curved lines, use tangent at end point
+      let endAngle: number;
+      if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+        const midX = (ax1 + ax2) / 2;
+        const midY = (ay1 + ay2) / 2;
+        const cx = midX + shape.curveOffset.x * scaleX;
+        const cy = midY + shape.curveOffset.y * scaleY;
+        endAngle = Math.atan2(ay2 - cy, ax2 - cx);
+      } else {
+        endAngle = Math.atan2(height, width);
+      }
+      
       const arrowAngle = Math.PI / 6;
-      const ax1 = x2 - arrowSize * Math.cos(angle - arrowAngle);
-      const ay1 = y2 - arrowSize * Math.sin(angle - arrowAngle);
-      const ax2 = x2 - arrowSize * Math.cos(angle + arrowAngle);
-      const ay2 = y2 - arrowSize * Math.sin(angle + arrowAngle);
-      element = (
-        <>
-          <line x1={x} y1={y} x2={x2} y2={y2} {...style} strokeLinecap="round" />
-          <polyline points={`${ax1},${ay1} ${x2},${y2} ${ax2},${ay2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
-        </>
-      );
+      const ahx1 = ax2 - arrowSize * Math.cos(endAngle - arrowAngle);
+      const ahy1 = ay2 - arrowSize * Math.sin(endAngle - arrowAngle);
+      const ahx2 = ax2 - arrowSize * Math.cos(endAngle + arrowAngle);
+      const ahy2 = ay2 - arrowSize * Math.sin(endAngle + arrowAngle);
+      
+      if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+        const midX = (ax1 + ax2) / 2;
+        const midY = (ay1 + ay2) / 2;
+        const cx = midX + shape.curveOffset.x * scaleX;
+        const cy = midY + shape.curveOffset.y * scaleY;
+        element = (
+          <>
+            <path d={`M ${ax1} ${ay1} Q ${cx} ${cy} ${ax2} ${ay2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" />
+            <polyline points={`${ahx1},${ahy1} ${ax2},${ay2} ${ahx2},${ahy2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        );
+      } else {
+        element = (
+          <>
+            <line x1={ax1} y1={ay1} x2={ax2} y2={ay2} {...style} strokeLinecap="round" />
+            <polyline points={`${ahx1},${ahy1} ${ax2},${ay2} ${ahx2},${ahy2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        );
+      }
       break;
     }
     case 'triangle':
@@ -112,6 +154,10 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
       element = <text x={x} y={y + fontSize} fontSize={Math.max(4, fontSize)} fontFamily={shape.fontFamily || 'sans-serif'} fill={style.stroke}>{shape.text}</text>;
       break;
     }
+    case 'polygon':
+      if (!shape.points || shape.points.length < 3) return null;
+      element = <polygon points={shape.points.map(p => `${p.x * scaleX},${p.y * scaleY}`).join(' ')} {...style} />;
+      break;
     default:
       return null;
   }
