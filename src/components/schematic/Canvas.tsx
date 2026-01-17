@@ -582,6 +582,16 @@ export function Canvas({
     const connectionShapeGroups: { shapes: Shape[], color: string }[] = [];
     
     for (const conn of tileConnections) {
+      console.log('Rendering FROM connection:', {
+        tileId: tile.id,
+        tileName: tile.component.name,
+        cellX: conn.fromCellX,
+        cellY: conn.fromCellY,
+        side: conn.fromSide,
+        tileWidth: tile.component.width || 1,
+        tileHeight: tile.component.height || 1,
+        shapesCount: tile.component.shapes.length
+      });
       const lineShapes = generateSingleConnectionLine(
         tile.component.shapes,
         conn.fromCellX,
@@ -590,12 +600,24 @@ export function Canvas({
         tile.component.width || 1,
         tile.component.height || 1
       );
+      console.log('Generated shapes for FROM:', lineShapes.length, lineShapes);
       connectionShapeGroups.push({ shapes: lineShapes, color: conn.color || '#000000' });
     }
     
     // Also render "to" side connections
     const toConnections = connections.filter(c => c.toTileId === tile.id);
     for (const conn of toConnections) {
+      console.log('Rendering TO connection:', {
+        tileId: tile.id,
+        tileName: tile.component.name,
+        cellX: conn.toCellX,
+        cellY: conn.toCellY,
+        side: conn.toSide,
+        tileWidth: tile.component.width || 1,
+        tileHeight: tile.component.height || 1,
+        shapesCount: tile.component.shapes.length,
+        shapes: tile.component.shapes
+      });
       const lineShapes = generateSingleConnectionLine(
         tile.component.shapes,
         conn.toCellX,
@@ -604,6 +626,7 @@ export function Canvas({
         tile.component.width || 1,
         tile.component.height || 1
       );
+      console.log('Generated shapes for TO:', lineShapes.length, lineShapes);
       connectionShapeGroups.push({ shapes: lineShapes, color: conn.color || '#000000' });
     }
     
