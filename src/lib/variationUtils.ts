@@ -28,10 +28,16 @@ export function getComponentBounds(shapes: Shape[]): { minX: number; maxX: numbe
 }
 
 // Calculate intersection point for horizontal line at given Y with shape edge
+// Excludes text, lines, arrows, and polylines from intersection calculation
 export function getHorizontalIntersection(shapes: Shape[], y: number, side: 'left' | 'right'): number {
   let intersectionX = side === 'left' ? 1 : 0;
   
-  for (const shape of shapes) {
+  // Filter out shapes that shouldn't affect connection boundaries
+  const boundaryShapes = shapes.filter(s => 
+    s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+  );
+  
+  for (const shape of boundaryShapes) {
     const shapeMinY = shape.y;
     const shapeMaxY = shape.y + shape.height;
     
@@ -59,7 +65,29 @@ export function getHorizontalIntersection(shapes: Shape[], y: number, side: 'lef
       } else {
         intersectionX = Math.max(intersectionX, rightEdge);
       }
+    } else if (shape.type === 'circle' || shape.type === 'ellipse') {
+      // For circles/ellipses, calculate actual edge at given y
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      const rx = shape.width / 2;
+      const ry = shape.height / 2;
+      
+      // Check if y intersects the ellipse
+      const dy = y - cy;
+      if (Math.abs(dy) <= ry) {
+        // x = cx ± rx * sqrt(1 - (dy/ry)²)
+        const factor = Math.sqrt(1 - (dy * dy) / (ry * ry));
+        const leftEdge = cx - rx * factor;
+        const rightEdge = cx + rx * factor;
+        
+        if (side === 'left') {
+          intersectionX = Math.min(intersectionX, leftEdge);
+        } else {
+          intersectionX = Math.max(intersectionX, rightEdge);
+        }
+      }
     } else {
+      // Rectangle and other shapes - use bounding box
       if (side === 'left') {
         intersectionX = Math.min(intersectionX, shape.x);
       } else {
@@ -69,7 +97,10 @@ export function getHorizontalIntersection(shapes: Shape[], y: number, side: 'lef
   }
   
   if ((side === 'left' && intersectionX === 1) || (side === 'right' && intersectionX === 0)) {
-    const bounds = getComponentBounds(shapes);
+    const filteredShapes = shapes.filter(s => 
+      s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+    );
+    const bounds = getComponentBounds(filteredShapes.length > 0 ? filteredShapes : shapes);
     return side === 'left' ? bounds.minX : bounds.maxX;
   }
   
@@ -77,10 +108,16 @@ export function getHorizontalIntersection(shapes: Shape[], y: number, side: 'lef
 }
 
 // Calculate intersection point for vertical line at given X with shape edge
+// Excludes text, lines, arrows, and polylines from intersection calculation
 export function getVerticalIntersection(shapes: Shape[], x: number, side: 'top' | 'bottom'): number {
   let intersectionY = side === 'top' ? 1 : 0;
   
-  for (const shape of shapes) {
+  // Filter out shapes that shouldn't affect connection boundaries
+  const boundaryShapes = shapes.filter(s => 
+    s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+  );
+  
+  for (const shape of boundaryShapes) {
     const shapeMinX = shape.x;
     const shapeMaxX = shape.x + shape.width;
     
@@ -109,7 +146,29 @@ export function getVerticalIntersection(shapes: Shape[], x: number, side: 'top' 
       } else {
         intersectionY = Math.max(intersectionY, bottomEdge);
       }
+    } else if (shape.type === 'circle' || shape.type === 'ellipse') {
+      // For circles/ellipses, calculate actual edge at given x
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      const rx = shape.width / 2;
+      const ry = shape.height / 2;
+      
+      // Check if x intersects the ellipse
+      const dx = x - cx;
+      if (Math.abs(dx) <= rx) {
+        // y = cy ± ry * sqrt(1 - (dx/rx)²)
+        const factor = Math.sqrt(1 - (dx * dx) / (rx * rx));
+        const topEdge = cy - ry * factor;
+        const bottomEdge = cy + ry * factor;
+        
+        if (side === 'top') {
+          intersectionY = Math.min(intersectionY, topEdge);
+        } else {
+          intersectionY = Math.max(intersectionY, bottomEdge);
+        }
+      }
     } else {
+      // Rectangle and other shapes
       if (side === 'top') {
         intersectionY = Math.min(intersectionY, shape.y);
       } else {
@@ -119,7 +178,10 @@ export function getVerticalIntersection(shapes: Shape[], x: number, side: 'top' 
   }
   
   if ((side === 'top' && intersectionY === 1) || (side === 'bottom' && intersectionY === 0)) {
-    const bounds = getComponentBounds(shapes);
+    const filteredShapes = shapes.filter(s => 
+      s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+    );
+    const bounds = getComponentBounds(filteredShapes.length > 0 ? filteredShapes : shapes);
     return side === 'top' ? bounds.minY : bounds.maxY;
   }
   
