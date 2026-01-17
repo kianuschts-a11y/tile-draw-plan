@@ -268,6 +268,29 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     return Math.sqrt(dx * dx + dy * dy);
   };
 
+  // Berechnet den Abstand eines Punktes zu einer quadratischen Bezier-Kurve (Approximation)
+  const distanceToBezier = (px: number, py: number, x1: number, y1: number, cx: number, cy: number, x2: number, y2: number): number => {
+    // Approximiere die Kurve mit mehreren Liniensegmenten
+    const segments = 10;
+    let minDistance = Infinity;
+    
+    for (let i = 0; i < segments; i++) {
+      const t1 = i / segments;
+      const t2 = (i + 1) / segments;
+      
+      // Quadratische Bezier-Formel: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+      const bx1 = (1 - t1) * (1 - t1) * x1 + 2 * (1 - t1) * t1 * cx + t1 * t1 * x2;
+      const by1 = (1 - t1) * (1 - t1) * y1 + 2 * (1 - t1) * t1 * cy + t1 * t1 * y2;
+      const bx2 = (1 - t2) * (1 - t2) * x1 + 2 * (1 - t2) * t2 * cx + t2 * t2 * x2;
+      const by2 = (1 - t2) * (1 - t2) * y1 + 2 * (1 - t2) * t2 * cy + t2 * t2 * y2;
+      
+      const dist = distanceToLine(px, py, bx1, by1, bx2, by2);
+      if (dist < minDistance) minDistance = dist;
+    }
+    
+    return minDistance;
+  };
+
   // Findet Form unter dem Mauszeiger mit erweitertem Klickbereich für Linien
   const findShapeAtPosition = (pos: Point): Shape | null => {
     // Rückwärts iterieren für z-order (oberste zuerst)
@@ -279,8 +302,19 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
         const y1 = shape.y;
         const x2 = shape.x + shape.width;
         const y2 = shape.y + shape.height;
-        const distance = distanceToLine(pos.x, pos.y, x1, y1, x2, y2);
-        if (distance <= lineHitArea) return shape;
+        
+        // Prüfe ob es eine gebogene Linie ist
+        if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
+          const cx = midX + shape.curveOffset.x;
+          const cy = midY + shape.curveOffset.y;
+          const distance = distanceToBezier(pos.x, pos.y, x1, y1, cx, cy, x2, y2);
+          if (distance <= lineHitArea) return shape;
+        } else {
+          const distance = distanceToLine(pos.x, pos.y, x1, y1, x2, y2);
+          if (distance <= lineHitArea) return shape;
+        }
       } else if (shape.type === 'polyline' && shape.points) {
         for (let j = 0; j < shape.points.length - 1; j++) {
           const p1 = shape.points[j];
