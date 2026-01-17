@@ -347,13 +347,31 @@ export function Canvas({
     return true;
   }, [gridCols, gridRows, isPositionOccupied]);
 
-  // Helper to check if a direction info already exists
+  // Helper to check if a direction info already exists (same direction, possibly different indices)
   const hasDirectionInfo = (dirs: ConnectedDirectionInfo[], direction: ConnectionDirection, indices: number[]): boolean => {
     return dirs.some(d => 
       d.direction === direction && 
       d.indices.length === indices.length && 
       d.indices.every((idx, i) => idx === indices[i])
     );
+  };
+
+  // Helper to merge or add direction info - merges indices if same direction exists
+  const mergeDirectionInfo = (existingDirs: ConnectedDirectionInfo[], newDir: ConnectedDirectionInfo): ConnectedDirectionInfo[] => {
+    const existingForDirection = existingDirs.find(d => d.direction === newDir.direction);
+    
+    if (existingForDirection) {
+      // Merge indices for same direction
+      const mergedIndices = [...new Set([...existingForDirection.indices, ...newDir.indices])].sort((a, b) => a - b);
+      return existingDirs.map(d => 
+        d.direction === newDir.direction 
+          ? { ...d, indices: mergedIndices }
+          : d
+      );
+    } else {
+      // Add new direction
+      return [...existingDirs, newDir];
+    }
   };
 
   // Connect two tiles by setting their variations (with corner detection)
@@ -375,7 +393,7 @@ export function Canvas({
     
     onTilesChange(tiles.map(t => {
       if (t.id === fromTile.id) {
-        // Add new direction info to existing connected directions
+        // Merge new direction info with existing connected directions
         const existingDirs = t.connectedDirections || [];
         const newDirInfo: ConnectedDirectionInfo = { direction: fromDirection, indices: fromIndices };
         
@@ -384,9 +402,11 @@ export function Canvas({
           return t; // Already connected in this way
         }
         
-        const newDirs = [...existingDirs, newDirInfo];
+        // Merge with existing directions (combines indices for same direction)
+        const newDirs = mergeDirectionInfo(existingDirs, newDirInfo);
         const variation = findVariationForDirections(t.component, newDirs);
         console.log('From tile variation search:', { 
+          newDirs,
           expectedId: `${fromDirection}-${fromIndices.join('-')}`,
           foundVariation: variation,
           availableVariations: t.component.variations?.map(v => v.connectionType)
@@ -398,7 +418,7 @@ export function Canvas({
         };
       }
       if (t.id === toTile.id) {
-        // Add new direction info to existing connected directions
+        // Merge new direction info with existing connected directions
         const existingDirs = t.connectedDirections || [];
         const newDirInfo: ConnectedDirectionInfo = { direction: toDirection, indices: toIndices };
         
@@ -407,9 +427,11 @@ export function Canvas({
           return t; // Already connected in this way
         }
         
-        const newDirs = [...existingDirs, newDirInfo];
+        // Merge with existing directions (combines indices for same direction)
+        const newDirs = mergeDirectionInfo(existingDirs, newDirInfo);
         const variation = findVariationForDirections(t.component, newDirs);
         console.log('To tile variation search:', { 
+          newDirs,
           expectedId: `${toDirection}-${toIndices.join('-')}`,
           foundVariation: variation,
           availableVariations: t.component.variations?.map(v => v.connectionType)
