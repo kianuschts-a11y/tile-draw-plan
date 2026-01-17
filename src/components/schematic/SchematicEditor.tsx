@@ -7,6 +7,7 @@ import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
 import { VariationEditorDialog } from "./VariationEditorDialog";
+import { updateComponentVariations } from "@/lib/variationUtils";
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -148,9 +149,27 @@ export function SchematicEditor() {
 
   const handleUpdateComponentShapes = useCallback((id: string, name: string, shapes: Shape[], tileSize: TileSize) => {
     const config = TILE_SIZES[tileSize];
-    setComponents(prev => prev.map(c => 
-      c.id === id ? { ...c, name, shapes, width: config.cols, height: config.rows, tileSize } : c
-    ));
+    setComponents(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      
+      // Update variations to use new shapes
+      const updatedVariations = updateComponentVariations(
+        c.variations,
+        shapes,
+        config.cols,
+        config.rows
+      );
+      
+      return { 
+        ...c, 
+        name, 
+        shapes, 
+        width: config.cols, 
+        height: config.rows, 
+        tileSize,
+        variations: updatedVariations
+      };
+    }));
   }, []);
 
   const handleUpdateComponent = useCallback((updatedComponent: Component) => {
