@@ -675,9 +675,8 @@ export function Canvas({
           height={tileSize}
           patternUnits="userSpaceOnUse"
         >
-          <rect 
-            width={tileSize} 
-            height={tileSize} 
+          <path 
+            d={`M ${tileSize} 0 L 0 0 0 ${tileSize}`}
             fill="none" 
             stroke="hsl(var(--canvas-grid))" 
             strokeWidth="1"
@@ -715,6 +714,23 @@ export function Canvas({
           width={gridCols * tileSize}
           height={gridRows * tileSize}
           fill="url(#tile-grid)"
+        />
+        {/* Right and bottom edge lines to complete the grid */}
+        <line 
+          x1={gridCols * tileSize} 
+          y1={0} 
+          x2={gridCols * tileSize} 
+          y2={gridRows * tileSize} 
+          stroke="hsl(var(--canvas-grid))" 
+          strokeWidth="1" 
+        />
+        <line 
+          x1={0} 
+          y1={gridRows * tileSize} 
+          x2={gridCols * tileSize} 
+          y2={gridRows * tileSize} 
+          stroke="hsl(var(--canvas-grid))" 
+          strokeWidth="1" 
         />
 
         {/* Drop preview indicator */}
