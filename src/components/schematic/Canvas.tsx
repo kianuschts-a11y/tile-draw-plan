@@ -544,6 +544,7 @@ export function Canvas({
     const compHeight = (tile.component.height || 1) * tileSize;
     const refScale = Math.min(compWidth, compHeight);
     
+    const defaultStrokeWidth = 1.5;
     return shapes.map((shape, idx) => {
       const scaledShape: Shape = {
         ...shape,
@@ -551,7 +552,7 @@ export function Canvas({
         y: shape.y * compHeight,
         width: shape.width * compWidth,
         height: shape.height * compHeight,
-        strokeWidth: shape.strokeWidth ? shape.strokeWidth * refScale : undefined
+        strokeWidth: (shape.strokeWidth || (defaultStrokeWidth / refScale)) * refScale
       };
       return <ShapeRenderer key={`conn-${idx}`} shape={scaledShape} />;
     });
@@ -564,6 +565,11 @@ export function Canvas({
     const compHeight = (component.height || 1) * tileSize;
     const refScale = Math.min(compWidth, compHeight);
     
+    // Calculate default stroke width to match library preview scaling
+    // Library uses: sw = shape.strokeWidth ? shape.strokeWidth * refScale : 1.5
+    // We need to do the same for consistency
+    const defaultStrokeWidth = 1.5; // Matches library default
+    
     return component.shapes.map((shape, idx) => {
       const scaledShape: Shape = {
         ...shape,
@@ -571,7 +577,8 @@ export function Canvas({
         y: shape.y * compHeight,
         width: shape.width * compWidth,
         height: shape.height * compHeight,
-        strokeWidth: shape.strokeWidth ? shape.strokeWidth * refScale : undefined,
+        // Always scale strokeWidth - use original value or default, then scale
+        strokeWidth: (shape.strokeWidth || (defaultStrokeWidth / refScale)) * refScale,
         fontSize: shape.fontSize ? shape.fontSize * refScale : undefined,
         arrowSize: shape.arrowSize ? shape.arrowSize * refScale : undefined
       };
