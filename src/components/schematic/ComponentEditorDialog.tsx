@@ -1253,8 +1253,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
           <div className="flex-1 flex justify-center items-start">
             <div className="relative">
               <svg
-                width={canvasWidth}
-                height={canvasHeight}
+                width={canvasWidth + 1}
+                height={canvasHeight + 1}
+                viewBox={`0 0 ${canvasWidth + 1} ${canvasHeight + 1}`}
                 className="border-2 border-dashed border-primary/30 rounded-lg bg-white"
                 style={{ cursor: getCursor() }}
                 onMouseDown={handleMouseDown}
