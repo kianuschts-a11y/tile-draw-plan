@@ -542,25 +542,19 @@ export function Canvas({
     
     const compWidth = (tile.component.width || 1) * tileSize;
     const compHeight = (tile.component.height || 1) * tileSize;
-    const refScale = Math.min(compWidth, compHeight);
     
-    // Match library scaling for connection lines
-    const libraryPreviewSize = 50;
-    const scaleRatio = refScale / libraryPreviewSize;
-    const defaultStrokeWidth = 1.5 * scaleRatio;
+    // Connection lines should have UNIFORM stroke width based on tileSize, 
+    // not component size. This ensures lines from 1x1 and 2x2 components match.
+    const connectionStrokeWidth = tileSize / 50 * 1.5; // Proportional to base tile size
     
     return shapes.map((shape, idx) => {
-      const sw = shape.strokeWidth 
-        ? shape.strokeWidth * refScale 
-        : defaultStrokeWidth;
-      
       const scaledShape: Shape = {
         ...shape,
         x: shape.x * compWidth,
         y: shape.y * compHeight,
         width: shape.width * compWidth,
         height: shape.height * compHeight,
-        strokeWidth: Math.max(0.5, sw)
+        strokeWidth: Math.max(0.5, connectionStrokeWidth)
       };
       return <ShapeRenderer key={`conn-${idx}`} shape={scaledShape} />;
     });
