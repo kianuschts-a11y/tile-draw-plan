@@ -37,6 +37,7 @@ export function SchematicEditor() {
   const [connections, setConnections] = useState<CellConnection[]>([]);
   const [selectedTileIds, setSelectedTileIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<MainToolType>('select');
+  const [connectionColor, setConnectionColor] = useState<string>('#000000'); // Default black
   const [components, setComponents] = useState<Component[]>(loadComponentsFromStorage);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
@@ -197,6 +198,8 @@ export function SchematicEditor() {
           onResetView={handleResetView}
           onDelete={handleDelete}
           hasSelection={selectedTileIds.size > 0}
+          connectionColor={connectionColor}
+          onConnectionColorChange={setConnectionColor}
         />
 
         <div className="flex-1 overflow-hidden">
@@ -206,6 +209,7 @@ export function SchematicEditor() {
             activeTool={activeTool}
             canvasState={canvasState}
             connections={connections}
+            connectionColor={connectionColor}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}

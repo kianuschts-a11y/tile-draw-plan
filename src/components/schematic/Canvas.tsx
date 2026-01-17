@@ -17,6 +17,7 @@ interface CanvasProps {
   activeTool: MainToolType;
   canvasState: CanvasState;
   connections: CellConnection[];
+  connectionColor: string;
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
@@ -30,6 +31,7 @@ export function Canvas({
   activeTool,
   canvasState,
   connections,
+  connectionColor,
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
@@ -202,11 +204,12 @@ export function Canvas({
       toTileId: toTile.id,
       toCellX,
       toCellY,
-      toSide: adjacency.toSide
+      toSide: adjacency.toSide,
+      color: connectionColor // Store the selected color
     };
     
     onConnectionsChange([...connections, newConnection]);
-  }, [connections, connectionExists, onConnectionsChange]);
+  }, [connections, connectionExists, onConnectionsChange, connectionColor]);
 
   // Remove a connection at a specific cell
   const removeConnectionAtCell = useCallback((tileId: string, cellX: number, cellY: number, side: 'left' | 'right' | 'top' | 'bottom') => {
@@ -520,7 +523,7 @@ export function Canvas({
   // Render connection lines for a tile
   const renderConnectionLines = (tile: PlacedTile) => {
     const tileConnections = connections.filter(c => c.fromTileId === tile.id);
-    const shapes: Shape[] = [];
+    const connectionShapeGroups: { shapes: Shape[], color: string }[] = [];
     
     for (const conn of tileConnections) {
       const lineShapes = generateSingleConnectionLine(
@@ -531,7 +534,7 @@ export function Canvas({
         tile.component.width || 1,
         tile.component.height || 1
       );
-      shapes.push(...lineShapes);
+      connectionShapeGroups.push({ shapes: lineShapes, color: conn.color || '#000000' });
     }
     
     // Also render "to" side connections
@@ -545,7 +548,7 @@ export function Canvas({
         tile.component.width || 1,
         tile.component.height || 1
       );
-      shapes.push(...lineShapes);
+      connectionShapeGroups.push({ shapes: lineShapes, color: conn.color || '#000000' });
     }
     
     const compWidth = (tile.component.width || 1) * tileSize;
@@ -555,17 +558,20 @@ export function Canvas({
     // not component size. This ensures lines from 1x1 and 2x2 components match.
     const connectionStrokeWidth = tileSize / 50 * 1.5; // Proportional to base tile size
     
-    return shapes.map((shape, idx) => {
-      const scaledShape: Shape = {
-        ...shape,
-        x: shape.x * compWidth,
-        y: shape.y * compHeight,
-        width: shape.width * compWidth,
-        height: shape.height * compHeight,
-        strokeWidth: Math.max(0.5, connectionStrokeWidth)
-      };
-      return <ShapeRenderer key={`conn-${idx}`} shape={scaledShape} />;
-    });
+    return connectionShapeGroups.flatMap((group, groupIdx) => 
+      group.shapes.map((shape, idx) => {
+        const scaledShape: Shape = {
+          ...shape,
+          x: shape.x * compWidth,
+          y: shape.y * compHeight,
+          width: shape.width * compWidth,
+          height: shape.height * compHeight,
+          strokeWidth: Math.max(0.5, connectionStrokeWidth),
+          stroke: group.color // Use the connection's color
+        };
+        return <ShapeRenderer key={`conn-${groupIdx}-${idx}`} shape={scaledShape} />;
+      })
+    );
   };
 
   // Render a component's shapes scaled to tile size

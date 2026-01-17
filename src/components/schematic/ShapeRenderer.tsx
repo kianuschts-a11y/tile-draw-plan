@@ -57,7 +57,8 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             y1={shape.y}
             x2={shape.x + shape.width}
             y2={shape.y + shape.height}
-            className={baseClass}
+            className={shape.stroke ? undefined : baseClass}
+            stroke={shape.stroke}
             strokeWidth={shape.strokeWidth || 2}
           />
         );
