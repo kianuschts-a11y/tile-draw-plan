@@ -544,15 +544,23 @@ export function Canvas({
     const compHeight = (tile.component.height || 1) * tileSize;
     const refScale = Math.min(compWidth, compHeight);
     
-    const defaultStrokeWidth = 1.5;
+    // Match library scaling for connection lines
+    const libraryPreviewSize = 50;
+    const scaleRatio = refScale / libraryPreviewSize;
+    const defaultStrokeWidth = 1.5 * scaleRatio;
+    
     return shapes.map((shape, idx) => {
+      const sw = shape.strokeWidth 
+        ? shape.strokeWidth * refScale 
+        : defaultStrokeWidth;
+      
       const scaledShape: Shape = {
         ...shape,
         x: shape.x * compWidth,
         y: shape.y * compHeight,
         width: shape.width * compWidth,
         height: shape.height * compHeight,
-        strokeWidth: (shape.strokeWidth || (defaultStrokeWidth / refScale)) * refScale
+        strokeWidth: Math.max(0.5, sw)
       };
       return <ShapeRenderer key={`conn-${idx}`} shape={scaledShape} />;
     });
@@ -565,20 +573,25 @@ export function Canvas({
     const compHeight = (component.height || 1) * tileSize;
     const refScale = Math.min(compWidth, compHeight);
     
-    // Calculate default stroke width to match library preview scaling
-    // Library uses: sw = shape.strokeWidth ? shape.strokeWidth * refScale : 1.5
-    // We need to do the same for consistency
-    const defaultStrokeWidth = 1.5; // Matches library default
+    // Library preview size is 50x50 and uses 1.5 as default strokeWidth
+    // We need to match that proportionally
+    const libraryPreviewSize = 50;
+    const scaleRatio = refScale / libraryPreviewSize;
+    const defaultStrokeWidth = 1.5 * scaleRatio;
     
     return component.shapes.map((shape, idx) => {
+      // Scale strokeWidth the same way as the library does
+      const sw = shape.strokeWidth 
+        ? shape.strokeWidth * refScale 
+        : defaultStrokeWidth;
+      
       const scaledShape: Shape = {
         ...shape,
         x: shape.x * compWidth,
         y: shape.y * compHeight,
         width: shape.width * compWidth,
         height: shape.height * compHeight,
-        // Always scale strokeWidth - use original value or default, then scale
-        strokeWidth: (shape.strokeWidth || (defaultStrokeWidth / refScale)) * refScale,
+        strokeWidth: Math.max(0.5, sw), // Match library's minimum
         fontSize: shape.fontSize ? shape.fontSize * refScale : undefined,
         arrowSize: shape.arrowSize ? shape.arrowSize * refScale : undefined
       };
