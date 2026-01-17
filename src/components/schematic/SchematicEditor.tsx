@@ -220,7 +220,6 @@ export function SchematicEditor() {
           onDeleteComponent={handleDeleteComponent}
           onClearAll={handleClearAllComponents}
           onDragStart={handleDragStart}
-          onEditVariations={() => {}}
           onEditComponent={handleEditComponent}
           onUpdateComponent={handleUpdateComponent}
         />

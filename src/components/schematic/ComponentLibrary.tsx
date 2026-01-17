@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Component, Shape } from "@/types/schematic";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Settings2, Pencil } from "lucide-react";
+import { Plus, Trash2, Pencil } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -26,7 +26,6 @@ interface ComponentLibraryProps {
   onDeleteComponent: (id: string) => void;
   onClearAll: () => void;
   onDragStart: (e: React.DragEvent, component: Component) => void;
-  onEditVariations: (component: Component) => void;
   onEditComponent: (component: Component) => void;
   onUpdateComponent: (component: Component) => void;
 }
@@ -130,7 +129,6 @@ export function ComponentLibrary({
   onDeleteComponent,
   onClearAll,
   onDragStart,
-  onEditVariations,
   onEditComponent,
   onUpdateComponent
 }: ComponentLibraryProps) {
@@ -175,7 +173,7 @@ export function ComponentLibrary({
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Rechtsklick für Varianten
+          Rechtsklick zum Bearbeiten
         </p>
       </div>
       
@@ -236,11 +234,7 @@ export function ComponentLibrary({
                 <ContextMenuContent>
                   <ContextMenuItem onClick={() => onEditComponent(component)}>
                     <Pencil className="w-4 h-4 mr-2" />
-                    Bild bearbeiten
-                  </ContextMenuItem>
-                  <ContextMenuItem onClick={() => onEditVariations(component)}>
-                    <Settings2 className="w-4 h-4 mr-2" />
-                    Varianten bearbeiten
+                    Bearbeiten
                   </ContextMenuItem>
                   <ContextMenuItem 
                     onClick={() => handleDeleteClick(component)}
