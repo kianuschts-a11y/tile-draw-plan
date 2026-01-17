@@ -27,6 +27,53 @@ export function getComponentBounds(shapes: Shape[]): { minX: number; maxX: numbe
   return { minX, maxX, minY, maxY };
 }
 
+// Find text shapes that intersect with a horizontal line at given y
+function findTextIntersectionsHorizontal(shapes: Shape[], y: number): { minX: number; maxX: number }[] {
+  const textShapes = shapes.filter(s => s.type === 'text');
+  const intersections: { minX: number; maxX: number }[] = [];
+  
+  for (const text of textShapes) {
+    // Estimate text bounds - text is centered at (x, y) with some height based on fontSize
+    const fontSize = text.fontSize || 14;
+    const estimatedHeight = fontSize / 100; // Approximate height in normalized coords
+    const estimatedWidth = (text.text?.length || 5) * fontSize * 0.6 / 100; // Approximate width
+    
+    const textMinY = text.y - estimatedHeight / 2;
+    const textMaxY = text.y + estimatedHeight / 2;
+    
+    if (y >= textMinY && y <= textMaxY) {
+      const textMinX = text.x - estimatedWidth / 2;
+      const textMaxX = text.x + estimatedWidth / 2;
+      intersections.push({ minX: textMinX, maxX: textMaxX });
+    }
+  }
+  
+  return intersections.sort((a, b) => a.minX - b.minX);
+}
+
+// Find text shapes that intersect with a vertical line at given x
+function findTextIntersectionsVertical(shapes: Shape[], x: number): { minY: number; maxY: number }[] {
+  const textShapes = shapes.filter(s => s.type === 'text');
+  const intersections: { minY: number; maxY: number }[] = [];
+  
+  for (const text of textShapes) {
+    const fontSize = text.fontSize || 14;
+    const estimatedHeight = fontSize / 100;
+    const estimatedWidth = (text.text?.length || 5) * fontSize * 0.6 / 100;
+    
+    const textMinX = text.x - estimatedWidth / 2;
+    const textMaxX = text.x + estimatedWidth / 2;
+    
+    if (x >= textMinX && x <= textMaxX) {
+      const textMinY = text.y - estimatedHeight / 2;
+      const textMaxY = text.y + estimatedHeight / 2;
+      intersections.push({ minY: textMinY, maxY: textMaxY });
+    }
+  }
+  
+  return intersections.sort((a, b) => a.minY - b.minY);
+}
+
 // Calculate intersection point for horizontal line at given Y with shape edge
 // Excludes text, lines, arrows, and polylines from intersection calculation
 export function getHorizontalIntersection(shapes: Shape[], y: number, side: 'left' | 'right'): number {
@@ -234,6 +281,146 @@ function parseConnectionType(connectionType: ConnectionDirection, tileWidth: num
   return null;
 }
 
+// Create horizontal line segments, breaking at text positions
+function createHorizontalLineWithTextBreaks(
+  componentShapes: Shape[],
+  y: number,
+  startX: number,
+  endX: number,
+  stroke: string
+): Shape[] {
+  const shapes: Shape[] = [];
+  const textIntersections = findTextIntersectionsHorizontal(componentShapes, y);
+  
+  if (textIntersections.length === 0) {
+    // No text intersection, create single line
+    shapes.push({
+      id: generateId(),
+      type: 'line',
+      x: startX,
+      y: y,
+      width: endX - startX,
+      height: 0,
+      strokeWidth: 2,
+      stroke
+    });
+    return shapes;
+  }
+  
+  // Create line segments that break at text
+  let currentX = startX;
+  
+  for (const textBounds of textIntersections) {
+    // Only consider text that's in our line range
+    if (textBounds.maxX < startX || textBounds.minX > endX) continue;
+    
+    const gapStart = Math.max(startX, textBounds.minX);
+    const gapEnd = Math.min(endX, textBounds.maxX);
+    
+    // Line segment before text
+    if (currentX < gapStart) {
+      shapes.push({
+        id: generateId(),
+        type: 'line',
+        x: currentX,
+        y: y,
+        width: gapStart - currentX,
+        height: 0,
+        strokeWidth: 2,
+        stroke
+      });
+    }
+    
+    currentX = gapEnd;
+  }
+  
+  // Final segment after last text
+  if (currentX < endX) {
+    shapes.push({
+      id: generateId(),
+      type: 'line',
+      x: currentX,
+      y: y,
+      width: endX - currentX,
+      height: 0,
+      strokeWidth: 2,
+      stroke
+    });
+  }
+  
+  return shapes;
+}
+
+// Create vertical line segments, breaking at text positions
+function createVerticalLineWithTextBreaks(
+  componentShapes: Shape[],
+  x: number,
+  startY: number,
+  endY: number,
+  stroke: string
+): Shape[] {
+  const shapes: Shape[] = [];
+  const textIntersections = findTextIntersectionsVertical(componentShapes, x);
+  
+  if (textIntersections.length === 0) {
+    // No text intersection, create single line
+    shapes.push({
+      id: generateId(),
+      type: 'line',
+      x: x,
+      y: startY,
+      width: 0,
+      height: endY - startY,
+      strokeWidth: 2,
+      stroke
+    });
+    return shapes;
+  }
+  
+  // Create line segments that break at text
+  let currentY = startY;
+  
+  for (const textBounds of textIntersections) {
+    // Only consider text that's in our line range
+    if (textBounds.maxY < startY || textBounds.minY > endY) continue;
+    
+    const gapStart = Math.max(startY, textBounds.minY);
+    const gapEnd = Math.min(endY, textBounds.maxY);
+    
+    // Line segment before text
+    if (currentY < gapStart) {
+      shapes.push({
+        id: generateId(),
+        type: 'line',
+        x: x,
+        y: currentY,
+        width: 0,
+        height: gapStart - currentY,
+        strokeWidth: 2,
+        stroke
+      });
+    }
+    
+    currentY = gapEnd;
+  }
+  
+  // Final segment after last text
+  if (currentY < endY) {
+    shapes.push({
+      id: generateId(),
+      type: 'line',
+      x: x,
+      y: currentY,
+      width: 0,
+      height: endY - currentY,
+      strokeWidth: 2,
+      stroke
+    });
+  }
+  
+  return shapes;
+}
+
 // Regenerate connection shapes for a variation based on new component shapes
 export function regenerateVariationShapes(
   variation: ComponentVariation,
@@ -257,48 +444,59 @@ export function regenerateVariationShapes(
   const isCorner = typeStr.startsWith('corner-');
   
   if (isCorner) {
-    const yTop = cellHeight / 2;
-    const yBottom = 1 - cellHeight / 2;
-    const xLeft = cellWidth / 2;
-    const xRight = 1 - cellWidth / 2;
+    const corner = typeStr.replace('corner-', '');
     
-    switch (typeStr) {
-      case 'corner-tl': {
-        const leftIntersect = getHorizontalIntersection(componentShapes, yTop, 'left');
-        const topIntersect = getVerticalIntersection(componentShapes, xLeft, 'top');
-        shapes.push(
-          { id: generateId(), type: 'line', x: 0, y: yTop, width: leftIntersect, height: 0, strokeWidth: 2, stroke },
-          { id: generateId(), type: 'line', x: xLeft, y: 0, width: 0, height: topIntersect, strokeWidth: 2, stroke }
-        );
+    // Determine the row/col indices for consistent calculation
+    let rowIndex: number;
+    let colIndex: number;
+    
+    switch (corner) {
+      case 'tl':
+        rowIndex = 0;
+        colIndex = 0;
         break;
-      }
-      case 'corner-tr': {
-        const rightIntersect = getHorizontalIntersection(componentShapes, yTop, 'right');
-        const topIntersect = getVerticalIntersection(componentShapes, xRight, 'top');
-        shapes.push(
-          { id: generateId(), type: 'line', x: rightIntersect, y: yTop, width: 1 - rightIntersect, height: 0, strokeWidth: 2, stroke },
-          { id: generateId(), type: 'line', x: xRight, y: 0, width: 0, height: topIntersect, strokeWidth: 2, stroke }
-        );
+      case 'tr':
+        rowIndex = 0;
+        colIndex = tileWidth - 1;
         break;
-      }
-      case 'corner-bl': {
-        const leftIntersect = getHorizontalIntersection(componentShapes, yBottom, 'left');
-        const bottomIntersect = getVerticalIntersection(componentShapes, xLeft, 'bottom');
-        shapes.push(
-          { id: generateId(), type: 'line', x: 0, y: yBottom, width: leftIntersect, height: 0, strokeWidth: 2, stroke },
-          { id: generateId(), type: 'line', x: xLeft, y: bottomIntersect, width: 0, height: 1 - bottomIntersect, strokeWidth: 2, stroke }
-        );
+      case 'bl':
+        rowIndex = tileHeight - 1;
+        colIndex = 0;
         break;
-      }
-      case 'corner-br': {
-        const rightIntersect = getHorizontalIntersection(componentShapes, yBottom, 'right');
-        const bottomIntersect = getVerticalIntersection(componentShapes, xRight, 'bottom');
-        shapes.push(
-          { id: generateId(), type: 'line', x: rightIntersect, y: yBottom, width: 1 - rightIntersect, height: 0, strokeWidth: 2, stroke },
-          { id: generateId(), type: 'line', x: xRight, y: bottomIntersect, width: 0, height: 1 - bottomIntersect, strokeWidth: 2, stroke }
-        );
+      case 'br':
+        rowIndex = tileHeight - 1;
+        colIndex = tileWidth - 1;
         break;
-      }
+      default:
+        return shapes;
+    }
+    
+    const yCenter = cellHeight * rowIndex + cellHeight / 2;
+    const xCenter = cellWidth * colIndex + cellWidth / 2;
+    
+    // Use same intersection calculation as horizontal/vertical for consistency
+    const leftIntersect = getHorizontalIntersection(componentShapes, yCenter, 'left');
+    const rightIntersect = getHorizontalIntersection(componentShapes, yCenter, 'right');
+    const topIntersect = getVerticalIntersection(componentShapes, xCenter, 'top');
+    const bottomIntersect = getVerticalIntersection(componentShapes, xCenter, 'bottom');
+    
+    switch (corner) {
+      case 'tl':
+        shapes.push(...createHorizontalLineWithTextBreaks(componentShapes, yCenter, 0, leftIntersect, stroke));
+        shapes.push(...createVerticalLineWithTextBreaks(componentShapes, xCenter, 0, topIntersect, stroke));
+        break;
+      case 'tr':
+        shapes.push(...createHorizontalLineWithTextBreaks(componentShapes, yCenter, rightIntersect, 1, stroke));
+        shapes.push(...createVerticalLineWithTextBreaks(componentShapes, xCenter, 0, topIntersect, stroke));
+        break;
+      case 'bl':
+        shapes.push(...createHorizontalLineWithTextBreaks(componentShapes, yCenter, 0, leftIntersect, stroke));
+        shapes.push(...createVerticalLineWithTextBreaks(componentShapes, xCenter, bottomIntersect, 1, stroke));
+        break;
+      case 'br':
+        shapes.push(...createHorizontalLineWithTextBreaks(componentShapes, yCenter, rightIntersect, 1, stroke));
+        shapes.push(...createVerticalLineWithTextBreaks(componentShapes, xCenter, bottomIntersect, 1, stroke));
+        break;
     }
     return shapes;
   }
@@ -309,26 +507,10 @@ export function regenerateVariationShapes(
       const leftIntersect = getHorizontalIntersection(componentShapes, yCenter, 'left');
       const rightIntersect = getHorizontalIntersection(componentShapes, yCenter, 'right');
       
-      shapes.push({
-        id: generateId(),
-        type: 'line',
-        x: 0,
-        y: yCenter,
-        width: leftIntersect,
-        height: 0,
-        strokeWidth: 2,
-        stroke
-      });
-      shapes.push({
-        id: generateId(),
-        type: 'line',
-        x: rightIntersect,
-        y: yCenter,
-        width: 1 - rightIntersect,
-        height: 0,
-        strokeWidth: 2,
-        stroke
-      });
+      // Left line with text breaks
+      shapes.push(...createHorizontalLineWithTextBreaks(componentShapes, yCenter, 0, leftIntersect, stroke));
+      // Right line with text breaks
+      shapes.push(...createHorizontalLineWithTextBreaks(componentShapes, yCenter, rightIntersect, 1, stroke));
     });
     return shapes;
   }
@@ -339,26 +521,10 @@ export function regenerateVariationShapes(
       const topIntersect = getVerticalIntersection(componentShapes, xCenter, 'top');
       const bottomIntersect = getVerticalIntersection(componentShapes, xCenter, 'bottom');
       
-      shapes.push({
-        id: generateId(),
-        type: 'line',
-        x: xCenter,
-        y: 0,
-        width: 0,
-        height: topIntersect,
-        strokeWidth: 2,
-        stroke
-      });
-      shapes.push({
-        id: generateId(),
-        type: 'line',
-        x: xCenter,
-        y: bottomIntersect,
-        width: 0,
-        height: 1 - bottomIntersect,
-        strokeWidth: 2,
-        stroke
-      });
+      // Top line with text breaks
+      shapes.push(...createVerticalLineWithTextBreaks(componentShapes, xCenter, 0, topIntersect, stroke));
+      // Bottom line with text breaks
+      shapes.push(...createVerticalLineWithTextBreaks(componentShapes, xCenter, bottomIntersect, 1, stroke));
     });
     return shapes;
   }
@@ -368,61 +534,25 @@ export function regenerateVariationShapes(
     typeInfo.indices.forEach(rowIndex => {
       const yCenter = cellHeight * rowIndex + cellHeight / 2;
       const leftIntersect = getHorizontalIntersection(componentShapes, yCenter, 'left');
-      shapes.push({
-        id: generateId(),
-        type: 'line',
-        x: 0,
-        y: yCenter,
-        width: leftIntersect,
-        height: 0,
-        strokeWidth: 2,
-        stroke
-      });
+      shapes.push(...createHorizontalLineWithTextBreaks(componentShapes, yCenter, 0, leftIntersect, stroke));
     });
   } else if (typeInfo.side === 'right') {
     typeInfo.indices.forEach(rowIndex => {
       const yCenter = cellHeight * rowIndex + cellHeight / 2;
       const rightIntersect = getHorizontalIntersection(componentShapes, yCenter, 'right');
-      shapes.push({
-        id: generateId(),
-        type: 'line',
-        x: rightIntersect,
-        y: yCenter,
-        width: 1 - rightIntersect,
-        height: 0,
-        strokeWidth: 2,
-        stroke
-      });
+      shapes.push(...createHorizontalLineWithTextBreaks(componentShapes, yCenter, rightIntersect, 1, stroke));
     });
   } else if (typeInfo.side === 'top') {
     typeInfo.indices.forEach(colIndex => {
       const xCenter = cellWidth * colIndex + cellWidth / 2;
       const topIntersect = getVerticalIntersection(componentShapes, xCenter, 'top');
-      shapes.push({
-        id: generateId(),
-        type: 'line',
-        x: xCenter,
-        y: 0,
-        width: 0,
-        height: topIntersect,
-        strokeWidth: 2,
-        stroke
-      });
+      shapes.push(...createVerticalLineWithTextBreaks(componentShapes, xCenter, 0, topIntersect, stroke));
     });
   } else if (typeInfo.side === 'bottom') {
     typeInfo.indices.forEach(colIndex => {
       const xCenter = cellWidth * colIndex + cellWidth / 2;
       const bottomIntersect = getVerticalIntersection(componentShapes, xCenter, 'bottom');
-      shapes.push({
-        id: generateId(),
-        type: 'line',
-        x: xCenter,
-        y: bottomIntersect,
-        width: 0,
-        height: 1 - bottomIntersect,
-        strokeWidth: 2,
-        stroke
-      });
+      shapes.push(...createVerticalLineWithTextBreaks(componentShapes, xCenter, bottomIntersect, 1, stroke));
     });
   }
   
