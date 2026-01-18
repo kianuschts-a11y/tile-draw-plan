@@ -87,9 +87,47 @@ function getShapeEdges(shape: Shape): Array<{ x1: number; y1: number; x2: number
       ];
       
     case 'line':
-    case 'polyline':
       // A line is itself an edge
       return [{ x1: x, y1: y, x2: x + width, y2: y + height }];
+      
+    case 'polyline':
+      // Use the actual polyline points if available
+      if (shape.points && shape.points.length >= 2) {
+        const edges: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+        for (let i = 0; i < shape.points.length - 1; i++) {
+          edges.push({
+            x1: shape.points[i].x,
+            y1: shape.points[i].y,
+            x2: shape.points[i + 1].x,
+            y2: shape.points[i + 1].y
+          });
+        }
+        return edges;
+      }
+      return [{ x1: x, y1: y, x2: x + width, y2: y + height }];
+      
+    case 'polygon':
+      // Use the actual polygon points to create edges
+      if (shape.points && shape.points.length >= 3) {
+        const edges: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+        for (let i = 0; i < shape.points.length; i++) {
+          const next = (i + 1) % shape.points.length;
+          edges.push({
+            x1: shape.points[i].x,
+            y1: shape.points[i].y,
+            x2: shape.points[next].x,
+            y2: shape.points[next].y
+          });
+        }
+        return edges;
+      }
+      // Fallback to bounding box if no points
+      return [
+        { x1: x, y1: y, x2: x + width, y2: y },
+        { x1: x + width, y1: y, x2: x + width, y2: y + height },
+        { x1: x + width, y1: y + height, x2: x, y2: y + height },
+        { x1: x, y1: y + height, x2: x, y2: y }
+      ];
       
     default:
       // For other shapes (circle, ellipse, etc.), approximate with bounding box
@@ -311,24 +349,30 @@ export function generateSingleConnectionLine(
     const startX = side === 'left' ? cellLeftNorm : cellRightNorm;
     const endX = side === 'left' ? cellRightNorm : cellLeftNorm;
     
-    // Find the FIRST intersection from the cell edge towards the cell center
+    // For left/right connections, we search across the ENTIRE width of the component
+    // to find any shape that intersects our horizontal line at yNorm
+    const searchStartX = side === 'left' ? 0 : 1;
+    const searchEndX = side === 'left' ? 1 : 0;
+    
+    // Find the FIRST intersection from the cell edge towards the center
     let closestIntersectionX: number | null = null;
     
     for (const shape of blockingShapes) {
-      const intersections = findShapeIntersections(startX, yNorm, endX, yNorm, shape);
+      // Search the entire horizontal span to find shapes
+      const intersections = findShapeIntersections(searchStartX, yNorm, searchEndX, yNorm, shape);
       
       for (const intersection of intersections) {
-        // Only consider intersections within or near this cell
+        // Only consider intersections within this cell's boundaries
         if (side === 'left') {
           // Coming from left, find the smallest X that's >= startX and within cell
-          if (intersection.x >= startX && intersection.x <= cellRightNorm) {
+          if (intersection.x >= cellLeftNorm && intersection.x <= cellRightNorm) {
             if (closestIntersectionX === null || intersection.x < closestIntersectionX) {
               closestIntersectionX = intersection.x;
             }
           }
         } else {
-          // Coming from right, find the largest X that's <= startX and within cell
-          if (intersection.x <= startX && intersection.x >= cellLeftNorm) {
+          // Coming from right, find the largest X that's <= startX and within cell  
+          if (intersection.x >= cellLeftNorm && intersection.x <= cellRightNorm) {
             if (closestIntersectionX === null || intersection.x > closestIntersectionX) {
               closestIntersectionX = intersection.x;
             }
@@ -336,7 +380,6 @@ export function generateSingleConnectionLine(
         }
       }
     }
-    
     // If no intersection found within cell, draw line to the opposite edge of the cell
     // This allows the connection line to span the entire cell when no shapes block it
     if (closestIntersectionX === null) {
@@ -396,26 +439,30 @@ export function generateSingleConnectionLine(
     const startY = side === 'top' ? cellTopNorm : cellBottomNorm;
     const endY = side === 'top' ? cellBottomNorm : cellTopNorm;
     
+    // For top/bottom connections, we search across the ENTIRE height of the component
+    // to find any shape that intersects our vertical line at xNorm
+    const searchStartY = side === 'top' ? 0 : 1;
+    const searchEndY = side === 'top' ? 1 : 0;
     
-    // Find the FIRST intersection from the cell edge towards the cell center
+    // Find the FIRST intersection from the cell edge towards the center
     let closestIntersectionY: number | null = null;
     
     for (const shape of blockingShapes) {
-      const intersections = findShapeIntersections(xNorm, startY, xNorm, endY, shape);
-      
+      // Search the entire vertical span to find shapes
+      const intersections = findShapeIntersections(xNorm, searchStartY, xNorm, searchEndY, shape);
       
       for (const intersection of intersections) {
-        // Only consider intersections within or near this cell
+        // Only consider intersections within this cell's boundaries
         if (side === 'top') {
-          // Coming from top, find the smallest Y that's >= startY and within cell
-          if (intersection.y >= startY && intersection.y <= cellBottomNorm) {
+          // Coming from top, find the smallest Y that's >= cellTopNorm and within cell
+          if (intersection.y >= cellTopNorm && intersection.y <= cellBottomNorm) {
             if (closestIntersectionY === null || intersection.y < closestIntersectionY) {
               closestIntersectionY = intersection.y;
             }
           }
         } else {
-          // Coming from bottom, find the largest Y that's <= startY and within cell
-          if (intersection.y <= startY && intersection.y >= cellTopNorm) {
+          // Coming from bottom, find the largest Y that's <= cellBottomNorm and within cell
+          if (intersection.y >= cellTopNorm && intersection.y <= cellBottomNorm) {
             if (closestIntersectionY === null || intersection.y > closestIntersectionY) {
               closestIntersectionY = intersection.y;
             }
