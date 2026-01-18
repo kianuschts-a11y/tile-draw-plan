@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Component, Shape, ComponentGroup } from "@/types/schematic";
+import { PlacedTile } from "./Canvas";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Pencil, Upload, FolderPlus, Folder, Info } from "lucide-react";
@@ -46,6 +47,8 @@ interface ComponentLibraryProps {
   onEditGroup: (group: ComponentGroup) => void;
   activeTab: 'components' | 'groups';
   onTabChange: (tab: 'components' | 'groups') => void;
+  projectQuantities?: Map<string, number>;
+  placedTiles?: PlacedTile[];
 }
 
 function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
@@ -196,7 +199,9 @@ export function ComponentLibrary({
   onDeleteGroup,
   onEditGroup,
   activeTab,
-  onTabChange
+  onTabChange,
+  projectQuantities,
+  placedTiles
 }: ComponentLibraryProps) {
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -206,6 +211,53 @@ export function ComponentLibrary({
   const [deleteGroupConfirmOpen, setDeleteGroupConfirmOpen] = useState(false);
   const [infoGroup, setInfoGroup] = useState<ComponentGroup | null>(null);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+
+  // Calculate how many of each component are already placed on canvas
+  const placedComponentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (placedTiles) {
+      for (const tile of placedTiles) {
+        const id = tile.component.id;
+        counts.set(id, (counts.get(id) || 0) + 1);
+      }
+    }
+    return counts;
+  }, [placedTiles]);
+
+  // Calculate remaining quantities (project quantity - placed count)
+  const remainingQuantities = useMemo(() => {
+    const remaining = new Map<string, number>();
+    if (projectQuantities) {
+      for (const [id, needed] of projectQuantities.entries()) {
+        const placed = placedComponentCounts.get(id) || 0;
+        const diff = needed - placed;
+        if (diff > 0) {
+          remaining.set(id, diff);
+        }
+      }
+    }
+    return remaining;
+  }, [projectQuantities, placedComponentCounts]);
+
+  // Sort components: those with remaining quantities first
+  const sortedComponents = useMemo(() => {
+    return [...components].sort((a, b) => {
+      const aRemaining = remainingQuantities.get(a.id) || 0;
+      const bRemaining = remainingQuantities.get(b.id) || 0;
+      
+      // Components with remaining quantities come first
+      if (aRemaining > 0 && bRemaining === 0) return -1;
+      if (aRemaining === 0 && bRemaining > 0) return 1;
+      
+      // Among those with remaining, sort by remaining count (descending)
+      if (aRemaining > 0 && bRemaining > 0) {
+        return bRemaining - aRemaining;
+      }
+      
+      // Keep original order for others
+      return 0;
+    });
+  }, [components, remainingQuantities]);
 
   const handleDeleteClick = (component: Component) => {
     setComponentToDelete(component);
@@ -250,25 +302,49 @@ export function ComponentLibrary({
     } else if (aspectRatio < 1) {
       previewWidth = previewSize * aspectRatio;
     }
+
+    // Get remaining count for this component
+    const remainingCount = remainingQuantities.get(component.id) || 0;
+    const hasRemaining = remainingCount > 0;
+    const projectTotal = projectQuantities?.get(component.id) || 0;
+    const placedCount = placedComponentCounts.get(component.id) || 0;
     
     return (
       <ContextMenu key={component.id}>
         <ContextMenuTrigger>
           <div
-            className="library-item flex flex-col items-center gap-2 relative group cursor-pointer p-1"
+            className={`library-item flex flex-col items-center gap-2 relative group cursor-pointer p-1 rounded-lg transition-all ${
+              hasRemaining 
+                ? 'ring-2 ring-blue-500 bg-blue-50' 
+                : ''
+            }`}
             draggable
             onDragStart={(e) => onDragStart(e, component)}
           >
-            <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed rounded bg-white relative border-muted-foreground/30">
+            <div className={`w-[50px] h-[50px] flex items-center justify-center border border-dashed rounded bg-white relative ${
+              hasRemaining ? 'border-blue-500' : 'border-muted-foreground/30'
+            }`}>
               <svg width={previewWidth} height={previewHeight}>
                 {component.shapes.map((shape, idx) => (
                   <g key={idx}>{renderShape(shape, previewWidth, previewHeight)}</g>
                 ))}
               </svg>
+              {/* Badge showing remaining count */}
+              {hasRemaining && (
+                <div className="absolute -top-2 -left-2 min-w-5 h-5 px-1 bg-blue-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+                  {remainingCount}
+                </div>
+              )}
             </div>
             <span className="text-xs text-muted-foreground text-center truncate w-full">
               {component.name}
             </span>
+            {/* Show placed/total if project has quantities for this component */}
+            {projectTotal > 0 && (
+              <span className={`text-[10px] ${hasRemaining ? 'text-blue-600 font-medium' : 'text-green-600'}`}>
+                {placedCount}/{projectTotal}
+              </span>
+            )}
             {!component.id.startsWith('default-') && (
               <button
                 className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
@@ -470,7 +546,7 @@ export function ComponentLibrary({
       <ScrollArea className="flex-1 p-3">
         {activeTab === 'components' ? (
           <div className="grid grid-cols-2 gap-2">
-            {components.map(component => renderComponentItem(component))}
+            {sortedComponents.map(component => renderComponentItem(component))}
           </div>
         ) : (
           <div className="flex flex-col gap-3">

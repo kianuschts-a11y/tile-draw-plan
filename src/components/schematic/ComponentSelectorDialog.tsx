@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Component, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData } from "@/types/schematic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ interface ComponentSelectorDialogProps {
   groups: ComponentGroup[];
   onInsertGroup: (group: ComponentGroup, count: number) => void;
   onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>) => void;
+  projectQuantities: Map<string, number>;
+  onProjectQuantitiesChange: (quantities: Map<string, number>) => void;
 }
 
 interface GroupSuggestion {
@@ -41,10 +43,21 @@ export function ComponentSelectorDialog({
   components,
   groups,
   onInsertGroup,
-  onInsertMultipleGroups
+  onInsertMultipleGroups,
+  projectQuantities,
+  onProjectQuantitiesChange
 }: ComponentSelectorDialogProps) {
+  // Use the passed projectQuantities as initial state, but allow local editing
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
 
+  // Sync local state with projectQuantities when dialog opens
+  useEffect(() => {
+    if (open) {
+      setQuantities(new Map(projectQuantities));
+    }
+  }, [open, projectQuantities]);
+
+  // Update both local and parent state
   const updateQuantity = (componentId: string, delta: number) => {
     setQuantities(prev => {
       const next = new Map(prev);
@@ -55,6 +68,8 @@ export function ComponentSelectorDialog({
       } else {
         next.set(componentId, newValue);
       }
+      // Also update parent state to persist
+      onProjectQuantitiesChange(next);
       return next;
     });
   };
@@ -67,12 +82,16 @@ export function ComponentSelectorDialog({
       } else {
         next.set(componentId, value);
       }
+      // Also update parent state to persist
+      onProjectQuantitiesChange(next);
       return next;
     });
   };
 
   const clearAll = () => {
-    setQuantities(new Map());
+    const empty = new Map<string, number>();
+    setQuantities(empty);
+    onProjectQuantitiesChange(empty);
   };
 
   // Get component requirements from a group
@@ -209,7 +228,7 @@ export function ComponentSelectorDialog({
   const handleInsertGroup = (group: ComponentGroup, count: number = 1) => {
     onInsertGroup(group, count);
     
-    // Update remaining quantities
+    // Update remaining quantities (but don't reduce project totals - just reduce what still needs inserting)
     const requirements = getGroupComponentRequirements(group);
     setQuantities(prev => {
       const next = new Map(prev);
@@ -222,6 +241,8 @@ export function ComponentSelectorDialog({
           next.set(compId, remaining);
         }
       }
+      // Note: We don't update projectQuantities here - those are the "total needed"
+      // The remaining is tracked separately by comparing placed tiles to project quantities
       return next;
     });
   };
