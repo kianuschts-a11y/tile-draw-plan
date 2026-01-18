@@ -119,6 +119,44 @@ export interface ComponentGroup {
   componentIds: string[]; // IDs of components in this group
 }
 
+// Component quantity in a project
+export interface ComponentQuantity {
+  componentId: string;
+  quantity: number;
+}
+
+// Project - a list of components with quantities
+export interface Project {
+  id: string;
+  name: string;
+  componentQuantities: ComponentQuantity[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Group match result for project comparison
+export interface GroupMatch {
+  group: ComponentGroup;
+  matchPercentage: number; // 0-100
+  matchingComponents: string[]; // Component IDs that match
+  missingComponents: string[]; // Component IDs in project but not in group
+  extraComponents: string[]; // Component IDs in group but not in project
+}
+
+// Saved plan - a finished drawing saved as template
+export interface SavedPlan {
+  id: string;
+  name: string;
+  componentQuantities: ComponentQuantity[];
+  drawingData: {
+    tiles: PlacedComponent[];
+    connections: CellConnection[];
+  };
+  matchedGroupId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface PlacedComponent {
   id: string;
   componentId: string;

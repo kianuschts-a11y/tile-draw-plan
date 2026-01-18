@@ -152,6 +152,89 @@ export type Database = {
           },
         ]
       }
+      projects: {
+        Row: {
+          company_id: string
+          component_quantities: Json
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          component_quantities?: Json
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          component_quantities?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_plans: {
+        Row: {
+          company_id: string
+          component_quantities: Json
+          created_at: string
+          drawing_data: Json
+          id: string
+          matched_group_id: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          component_quantities?: Json
+          created_at?: string
+          drawing_data?: Json
+          id?: string
+          matched_group_id?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          component_quantities?: Json
+          created_at?: string
+          drawing_data?: Json
+          id?: string
+          matched_group_id?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_plans_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_plans_matched_group_id_fkey"
+            columns: ["matched_group_id"]
+            isOneToOne: false
+            referencedRelation: "component_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

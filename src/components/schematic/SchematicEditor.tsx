@@ -1,16 +1,19 @@
-import { useState, useCallback, useEffect } from "react";
-import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup } from "@/types/schematic";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
+import { ProjectPanel } from "./ProjectPanel";
 import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
+import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans";
+import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
-import { LogOut, Menu, User, Building2 } from "lucide-react";
+import { LogOut, Menu, User, Building2, ClipboardList } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +49,9 @@ export function SchematicEditor() {
     updateGroup
   } = useComponentGroups();
 
+  const { savedPlans, savePlan, findExactMatchingPlan } = useSavedPlans();
+  const { findMatchingGroups } = useProjects();
+
   const [tiles, setTiles] = useState<PlacedTile[]>([]);
   const [connections, setConnections] = useState<CellConnection[]>([]);
   const [selectedTileIds, setSelectedTileIds] = useState<Set<string>>(new Set());
@@ -57,6 +63,7 @@ export function SchematicEditor() {
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
   const [editingGroup, setEditingGroup] = useState<ComponentGroup | null>(null);
   const [libraryTab, setLibraryTab] = useState<'components' | 'groups'>('components');
+  const [showProjectPanel, setShowProjectPanel] = useState(false);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -230,6 +237,16 @@ export function SchematicEditor() {
           <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">X</kbd><span>Lösen</span>
         </div>
         <div className="h-8 w-px bg-border mx-2" />
+        <Button
+          variant={showProjectPanel ? "default" : "outline"}
+          size="sm"
+          className="h-8 gap-1"
+          onClick={() => setShowProjectPanel(!showProjectPanel)}
+        >
+          <ClipboardList className="w-4 h-4" />
+          Projektliste
+        </Button>
+        <div className="h-8 w-px bg-border mx-2" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -306,25 +323,44 @@ export function SchematicEditor() {
           />
         </div>
 
-        <ComponentLibrary
-          components={components}
-          groups={groups}
-          selectedComponentIds={selectedComponentIds}
-          onCreateNew={() => { setEditingComponent(null); setIsEditorOpen(true); }}
-          onDeleteComponent={handleDeleteComponent}
-          onClearAll={handleClearAllComponents}
-          onDragStart={handleDragStart}
-          onEditComponent={handleEditComponent}
-          onUpdateComponent={handleUpdateComponent}
-          onImportFromLocalStorage={importFromLocalStorage}
-          hasLocalStorageComponents={hasLocalStorageComponents}
-          onCreateGroup={handleCreateGroup}
-          onDeleteGroup={handleDeleteGroup}
-          onEditGroup={handleEditGroup}
-          onComponentSelect={handleComponentSelect}
-          activeTab={libraryTab}
-          onTabChange={setLibraryTab}
-        />
+        {showProjectPanel ? (
+          <div className="toolbar-panel border-l w-64 flex flex-col">
+            <ProjectPanel
+              components={components}
+              groups={groups}
+              savedPlans={savedPlans}
+              onFindMatchingGroups={(quantities) => findMatchingGroups(quantities, groups)}
+              onFindExactMatchingPlan={findExactMatchingPlan}
+              onLoadPlan={(plan) => {
+                setTiles(plan.drawingData.tiles);
+                setConnections(plan.drawingData.connections);
+              }}
+              onSavePlan={async (name, quantities, matchedGroupId) => {
+                await savePlan(name, quantities, { tiles, connections }, matchedGroupId);
+              }}
+            />
+          </div>
+        ) : (
+          <ComponentLibrary
+            components={components}
+            groups={groups}
+            selectedComponentIds={selectedComponentIds}
+            onCreateNew={() => { setEditingComponent(null); setIsEditorOpen(true); }}
+            onDeleteComponent={handleDeleteComponent}
+            onClearAll={handleClearAllComponents}
+            onDragStart={handleDragStart}
+            onEditComponent={handleEditComponent}
+            onUpdateComponent={handleUpdateComponent}
+            onImportFromLocalStorage={importFromLocalStorage}
+            hasLocalStorageComponents={hasLocalStorageComponents}
+            onCreateGroup={handleCreateGroup}
+            onDeleteGroup={handleDeleteGroup}
+            onEditGroup={handleEditGroup}
+            onComponentSelect={handleComponentSelect}
+            activeTab={libraryTab}
+            onTabChange={setLibraryTab}
+          />
+        )}
       </div>
 
       <StatusBar canvasState={canvasState} shapeCount={tiles.length} selectedCount={selectedTileIds.size} />
