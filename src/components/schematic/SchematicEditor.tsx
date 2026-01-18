@@ -277,6 +277,15 @@ export function SchematicEditor() {
           hasSelection={selectedTileIds.size > 0}
           connectionColor={connectionColor}
           onConnectionColorChange={setConnectionColor}
+          selectedComponentCount={selectedComponentIds.size}
+          onCreateGroup={() => {
+            if (selectedComponentIds.size >= 2) {
+              const name = prompt('Gruppenname eingeben:');
+              if (name) {
+                handleCreateGroup(name, Array.from(selectedComponentIds));
+              }
+            }
+          }}
         />
 
         <div className="flex-1 overflow-hidden">

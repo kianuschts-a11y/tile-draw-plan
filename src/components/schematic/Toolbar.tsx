@@ -7,7 +7,7 @@ import {
   Link2,
   Unlink2,
   Move,
-  Palette
+  FolderPlus
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
@@ -41,6 +41,8 @@ interface ToolbarProps {
   hasSelection: boolean;
   connectionColor: string;
   onConnectionColorChange: (color: string) => void;
+  selectedComponentCount: number;
+  onCreateGroup: () => void;
 }
 
 export function Toolbar({
@@ -52,7 +54,9 @@ export function Toolbar({
   onDelete,
   hasSelection,
   connectionColor,
-  onConnectionColorChange
+  onConnectionColorChange,
+  selectedComponentCount,
+  onCreateGroup
 }: ToolbarProps) {
   return (
     <div className="toolbar-panel flex flex-col items-center py-3 px-1.5 border-r gap-1">
@@ -83,6 +87,17 @@ export function Toolbar({
         shortcut="X"
         isActive={activeTool === 'disconnect'}
         onClick={() => onToolChange('disconnect')}
+      />
+      
+      <Separator className="my-2 w-8" />
+      
+      {/* Create Group Button */}
+      <ToolButton
+        icon={FolderPlus}
+        label={`Gruppe erstellen (${selectedComponentCount} ausgewählt)`}
+        shortcut="G"
+        onClick={onCreateGroup}
+        disabled={selectedComponentCount < 2}
       />
       
       <Separator className="my-2 w-8" />
