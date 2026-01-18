@@ -63,16 +63,9 @@ export function Canvas({
     canPlace: boolean;
   } | null>(null);
   
-  // Connect tool state - now tracks specific cell positions
-  const [connectStartInfo, setConnectStartInfo] = useState<{
-    tileId: string;
-    cellX: number;
-    cellY: number;
-    absGridX: number;
-    absGridY: number;
-  } | null>(null);
+  // Connect tool state - path drawing mode
   const [isConnecting, setIsConnecting] = useState(false);
-  const [connectLine, setConnectLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [connectionPath, setConnectionPath] = useState<{ gridX: number; gridY: number }[]>([]);
 
   // Calculate paper dimensions in pixels
   const paperSize = PAPER_SIZES[canvasState.paperFormat];
@@ -257,20 +250,9 @@ export function Canvas({
     const { gridX, gridY } = getGridFromCanvas(x, y);
     
     if (activeTool === 'connect' || activeTool === 'disconnect') {
-      const tileAndCell = getTileAndCellAtPosition(gridX, gridY);
-      if (tileAndCell) {
-        setConnectStartInfo({
-          tileId: tileAndCell.tile.id,
-          cellX: tileAndCell.cellX,
-          cellY: tileAndCell.cellY,
-          absGridX: gridX,
-          absGridY: gridY
-        });
-        setIsConnecting(true);
-        const cellCenterX = (gridX + 0.5) * tileSize;
-        const cellCenterY = (gridY + 0.5) * tileSize;
-        setConnectLine({ x1: cellCenterX, y1: cellCenterY, x2: cellCenterX, y2: cellCenterY });
-      }
+      // Start path drawing - add starting cell to path
+      setConnectionPath([{ gridX, gridY }]);
+      setIsConnecting(true);
       return;
     }
 
@@ -293,10 +275,61 @@ export function Canvas({
       return;
     }
 
-    // Update connect line preview
-    if (isConnecting && connectStartInfo && (activeTool === 'connect' || activeTool === 'disconnect')) {
+    // Update connection path - add cells as mouse moves
+    if (isConnecting && (activeTool === 'connect' || activeTool === 'disconnect')) {
       const { x, y } = getCanvasPosition(e);
-      setConnectLine(prev => prev ? { ...prev, x2: x, y2: y } : null);
+      const { gridX, gridY } = getGridFromCanvas(x, y);
+      
+      // Clamp to grid bounds
+      const clampedX = Math.max(0, Math.min(gridX, gridCols - 1));
+      const clampedY = Math.max(0, Math.min(gridY, gridRows - 1));
+      
+      setConnectionPath(prev => {
+        if (prev.length === 0) return [{ gridX: clampedX, gridY: clampedY }];
+        
+        const lastCell = prev[prev.length - 1];
+        
+        // If we're on the same cell, don't add
+        if (lastCell.gridX === clampedX && lastCell.gridY === clampedY) {
+          return prev;
+        }
+        
+        // Check if this cell is already in the path (allow going back)
+        const existingIndex = prev.findIndex(c => c.gridX === clampedX && c.gridY === clampedY);
+        if (existingIndex !== -1) {
+          // Trim the path back to this point
+          return prev.slice(0, existingIndex + 1);
+        }
+        
+        // Only add if adjacent to last cell (orthogonally)
+        const dx = Math.abs(clampedX - lastCell.gridX);
+        const dy = Math.abs(clampedY - lastCell.gridY);
+        if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
+          return [...prev, { gridX: clampedX, gridY: clampedY }];
+        }
+        
+        // If not adjacent, fill in the gap with intermediate cells
+        // Use Bresenham-like approach to fill horizontal/vertical path
+        const newCells: { gridX: number; gridY: number }[] = [];
+        let cx = lastCell.gridX;
+        let cy = lastCell.gridY;
+        
+        while (cx !== clampedX || cy !== clampedY) {
+          // Prioritize horizontal movement first, then vertical
+          if (cx < clampedX) cx++;
+          else if (cx > clampedX) cx--;
+          else if (cy < clampedY) cy++;
+          else if (cy > clampedY) cy--;
+          
+          // Check if cell is already in path
+          const alreadyInPath = prev.some(c => c.gridX === cx && c.gridY === cy);
+          if (!alreadyInPath) {
+            newCells.push({ gridX: cx, gridY: cy });
+          }
+        }
+        
+        return [...prev, ...newCells];
+      });
       return;
     }
 
@@ -385,42 +418,44 @@ export function Canvas({
         }
       }
     }
-  }, [isPanning, isDragging, isSelectionBox, isConnecting, connectStartInfo, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions]);
+  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    // Handle connection completion
-    if (isConnecting && connectStartInfo && (activeTool === 'connect' || activeTool === 'disconnect')) {
-      const { x, y } = getCanvasPosition(e);
-      const { gridX, gridY } = getGridFromCanvas(x, y);
-      const endTileAndCell = getTileAndCellAtPosition(gridX, gridY);
-      
-      if (endTileAndCell && endTileAndCell.tile.id !== connectStartInfo.tileId) {
-        const startTile = tiles.find(t => t.id === connectStartInfo.tileId);
+    // Handle connection path completion
+    if (isConnecting && connectionPath.length >= 2 && (activeTool === 'connect' || activeTool === 'disconnect')) {
+      // Connect all adjacent cells in the path
+      for (let i = 0; i < connectionPath.length - 1; i++) {
+        const cell1 = connectionPath[i];
+        const cell2 = connectionPath[i + 1];
         
-        if (startTile) {
+        const tile1Info = getTileAndCellAtPosition(cell1.gridX, cell1.gridY);
+        const tile2Info = getTileAndCellAtPosition(cell2.gridX, cell2.gridY);
+        
+        // Only connect if both cells are on tiles and they're different tiles
+        if (tile1Info && tile2Info && tile1Info.tile.id !== tile2Info.tile.id) {
           if (activeTool === 'connect') {
             createConnection(
-              startTile, connectStartInfo.cellX, connectStartInfo.cellY,
-              endTileAndCell.tile, endTileAndCell.cellX, endTileAndCell.cellY
+              tile1Info.tile, tile1Info.cellX, tile1Info.cellY,
+              tile2Info.tile, tile2Info.cellX, tile2Info.cellY
             );
           } else if (activeTool === 'disconnect') {
-            const fromWidth = startTile.component.width || 1;
-            const fromHeight = startTile.component.height || 1;
-            const toWidth = endTileAndCell.tile.component.width || 1;
-            const toHeight = endTileAndCell.tile.component.height || 1;
+            const fromWidth = tile1Info.tile.component.width || 1;
+            const fromHeight = tile1Info.tile.component.height || 1;
+            const toWidth = tile2Info.tile.component.width || 1;
+            const toHeight = tile2Info.tile.component.height || 1;
             
             const adjacency = areCellsAdjacent(
-              startTile.gridX, startTile.gridY, fromWidth, fromHeight,
-              connectStartInfo.cellX, connectStartInfo.cellY,
-              endTileAndCell.tile.gridX, endTileAndCell.tile.gridY, toWidth, toHeight,
-              endTileAndCell.cellX, endTileAndCell.cellY
+              tile1Info.tile.gridX, tile1Info.tile.gridY, fromWidth, fromHeight,
+              tile1Info.cellX, tile1Info.cellY,
+              tile2Info.tile.gridX, tile2Info.tile.gridY, toWidth, toHeight,
+              tile2Info.cellX, tile2Info.cellY
             );
             
             if (adjacency) {
               removeConnectionAtCell(
-                connectStartInfo.tileId, 
-                connectStartInfo.cellX, 
-                connectStartInfo.cellY, 
+                tile1Info.tile.id,
+                tile1Info.cellX,
+                tile1Info.cellY,
                 adjacency.fromSide
               );
             }
@@ -433,9 +468,8 @@ export function Canvas({
     setIsDragging(false);
     setIsSelectionBox(false);
     setIsConnecting(false);
-    setConnectStartInfo(null);
-    setConnectLine(null);
-  }, [isConnecting, connectStartInfo, activeTool, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tiles, createConnection, removeConnectionAtCell]);
+    setConnectionPath([]);
+  }, [isConnecting, connectionPath, activeTool, getTileAndCellAtPosition, createConnection, removeConnectionAtCell]);
 
   const handleTileMouseDown = useCallback((e: React.MouseEvent, tile: PlacedTile) => {
     e.stopPropagation();
@@ -446,17 +480,9 @@ export function Canvas({
     const cellY = gridY - tile.gridY;
     
     if (activeTool === 'connect' || activeTool === 'disconnect') {
-      setConnectStartInfo({
-        tileId: tile.id,
-        cellX,
-        cellY,
-        absGridX: gridX,
-        absGridY: gridY
-      });
+      // Start path drawing from this cell
+      setConnectionPath([{ gridX, gridY }]);
       setIsConnecting(true);
-      const cellCenterX = (gridX + 0.5) * tileSize;
-      const cellCenterY = (gridY + 0.5) * tileSize;
-      setConnectLine({ x1: cellCenterX, y1: cellCenterY, x2: cellCenterX, y2: cellCenterY });
       return;
     }
     
@@ -765,8 +791,14 @@ export function Canvas({
           const compWidth = (tile.component.width || 1) * tileSize;
           const compHeight = (tile.component.height || 1) * tileSize;
           const isSelected = selectedTileIds.has(tile.id);
-          const isConnectStart = (activeTool === 'connect' || activeTool === 'disconnect') && 
-            connectStartInfo?.tileId === tile.id;
+          
+          // Check if any cell of this tile is in the connection path
+          const isTileInPath = isConnecting && connectionPath.some(cell => {
+            const tileWidth = tile.component.width || 1;
+            const tileHeight = tile.component.height || 1;
+            return cell.gridX >= tile.gridX && cell.gridX < tile.gridX + tileWidth &&
+                   cell.gridY >= tile.gridY && cell.gridY < tile.gridY + tileHeight;
+          });
           
           return (
             <g
@@ -780,14 +812,12 @@ export function Canvas({
                 width={compWidth}
                 height={compHeight}
                 fill={
-                  isConnectStart 
-                    ? "hsl(var(--primary) / 0.2)" 
-                    : isSelected 
-                      ? "hsl(var(--primary) / 0.1)" 
-                      : "hsl(var(--muted) / 0.3)"
+                  isSelected 
+                    ? "hsl(var(--primary) / 0.1)" 
+                    : "hsl(var(--muted) / 0.3)"
                 }
                 stroke={
-                  isConnectStart || isSelected 
+                  isTileInPath || isSelected 
                     ? "hsl(var(--primary))" 
                     : "transparent"
                 }
@@ -801,17 +831,39 @@ export function Canvas({
           );
         })}
 
-        {/* Connection line preview */}
-        {connectLine && isConnecting && (
-          <line
-            x1={connectLine.x1}
-            y1={connectLine.y1}
-            x2={connectLine.x2}
-            y2={connectLine.y2}
-            stroke={activeTool === 'disconnect' ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
-            strokeWidth={2}
-            strokeDasharray="4 2"
-          />
+        {/* Connection path preview - glowing cells */}
+        {isConnecting && connectionPath.length > 0 && (
+          <g>
+            {connectionPath.map((cell, idx) => {
+              const isOnTile = getTileAndCellAtPosition(cell.gridX, cell.gridY) !== null;
+              return (
+                <rect
+                  key={`path-${idx}`}
+                  x={cell.gridX * tileSize}
+                  y={cell.gridY * tileSize}
+                  width={tileSize}
+                  height={tileSize}
+                  fill={
+                    activeTool === 'disconnect'
+                      ? "hsl(var(--destructive) / 0.3)"
+                      : isOnTile
+                        ? "hsl(var(--primary) / 0.4)"
+                        : "hsl(var(--primary) / 0.15)"
+                  }
+                  stroke={
+                    activeTool === 'disconnect'
+                      ? "hsl(var(--destructive))"
+                      : "hsl(var(--primary))"
+                  }
+                  strokeWidth={2}
+                  rx={2}
+                  style={{
+                    filter: isOnTile ? 'drop-shadow(0 0 4px hsl(var(--primary) / 0.5))' : undefined
+                  }}
+                />
+              );
+            })}
+          </g>
         )}
 
         {/* Selection box */}
