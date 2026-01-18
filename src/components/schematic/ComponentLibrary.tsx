@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Component, Shape, ComponentGroup } from "@/types/schematic";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Pencil, Upload, FolderPlus, Folder } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, FolderPlus, Folder, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,6 +10,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
+  ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import {
   AlertDialog,
@@ -28,6 +29,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { GroupInfoDialog } from "./GroupInfoDialog";
 
 interface ComponentLibraryProps {
   components: Component[];
@@ -202,6 +204,8 @@ export function ComponentLibrary({
   const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<ComponentGroup | null>(null);
   const [deleteGroupConfirmOpen, setDeleteGroupConfirmOpen] = useState(false);
+  const [infoGroup, setInfoGroup] = useState<ComponentGroup | null>(null);
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false);
 
   const handleDeleteClick = (component: Component) => {
     setComponentToDelete(component);
@@ -407,6 +411,11 @@ export function ComponentLibrary({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContextMenuItem onClick={() => { setInfoGroup(group); setInfoDialogOpen(true); }}>
+            <Info className="w-4 h-4 mr-2" />
+            Informationen
+          </ContextMenuItem>
+          <ContextMenuSeparator />
           <ContextMenuItem onClick={() => onEditGroup(group)}>
             <Pencil className="w-4 h-4 mr-2" />
             Bearbeiten
@@ -551,6 +560,14 @@ export function ComponentLibrary({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Group Info Dialog */}
+      <GroupInfoDialog
+        group={infoGroup}
+        components={components}
+        open={infoDialogOpen}
+        onOpenChange={setInfoDialogOpen}
+      />
     </div>
   );
 }
