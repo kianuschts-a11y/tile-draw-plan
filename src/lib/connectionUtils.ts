@@ -472,30 +472,43 @@ export function generateSingleConnectionLine(
       }
     }
     
-    // Draw the line
-    const lineStart = side === 'left' ? cellLeft : (stopX !== null ? stopX : cellLeft);
-    const lineEnd = side === 'left' ? (stopX !== null ? stopX : cellRight) : cellRight;
+    // UNIVERSAL RULE: Line goes from cell edge towards center, stops at first shape
+    // For 'left': line goes from cellLeft to stopX (or cellRight if no intersection)
+    // For 'right': line goes from cellRight to stopX (or cellLeft if no intersection)
+    let lineMinX: number;
+    let lineMaxX: number;
     
-    if (Math.abs(lineEnd - lineStart) > 0.001) {
+    if (side === 'left') {
+      lineMinX = cellLeft;
+      lineMaxX = stopX !== null ? stopX : cellRight;
+    } else {
+      // side === 'right'
+      lineMinX = stopX !== null ? stopX : cellLeft;
+      lineMaxX = cellRight;
+    }
+    
+    if (lineMaxX - lineMinX > 0.001) {
       // Handle text breaks
       const textBreaks = findTextIntersectionsHorizontal(componentShapes, y);
+      const relevantTextBreaks = textBreaks.filter(tb => 
+        tb.maxX > lineMinX && tb.minX < lineMaxX
+      );
       
-      if (textBreaks.length === 0) {
+      if (relevantTextBreaks.length === 0) {
         shapes.push({
           id: `conn-${side}-${cellX}-${cellY}`,
           type: 'line',
-          x: Math.min(lineStart, lineEnd),
+          x: lineMinX,
           y: y,
-          width: Math.abs(lineEnd - lineStart),
+          width: lineMaxX - lineMinX,
           height: 0,
           strokeWidth
         });
       } else {
         // Draw segments around text
-        let currentX = Math.min(lineStart, lineEnd);
-        const maxX = Math.max(lineStart, lineEnd);
-        for (const textBreak of textBreaks) {
-          if (textBreak.minX > currentX && textBreak.minX < maxX) {
+        let currentX = lineMinX;
+        for (const textBreak of relevantTextBreaks) {
+          if (textBreak.minX > currentX && textBreak.minX < lineMaxX) {
             shapes.push({
               id: `conn-${side}-${cellX}-${cellY}-seg-${currentX}`,
               type: 'line',
@@ -508,13 +521,13 @@ export function generateSingleConnectionLine(
           }
           currentX = Math.max(currentX, textBreak.maxX);
         }
-        if (currentX < maxX) {
+        if (currentX < lineMaxX) {
           shapes.push({
             id: `conn-${side}-${cellX}-${cellY}-seg-end`,
             type: 'line',
             x: currentX,
             y: y,
-            width: maxX - currentX,
+            width: lineMaxX - currentX,
             height: 0,
             strokeWidth
           });
@@ -592,15 +605,29 @@ export function generateSingleConnectionLine(
       }
     }
     
-    // Draw the line
-    const lineStart = side === 'top' ? cellTop : (stopY !== null ? stopY : cellTop);
-    const lineEnd = side === 'top' ? (stopY !== null ? stopY : cellBottom) : cellBottom;
+    // UNIVERSAL RULE: Line goes from cell edge towards center, stops at first shape
+    // For 'top': line goes from cellTop to stopY (or cellBottom if no intersection)
+    // For 'bottom': line goes from cellBottom to stopY (or cellTop if no intersection)
+    let lineStart: number;
+    let lineEnd: number;
     
-    if (Math.abs(lineEnd - lineStart) > 0.001) {
+    if (side === 'top') {
+      lineStart = cellTop;
+      lineEnd = stopY !== null ? stopY : cellBottom;
+    } else {
+      // side === 'bottom'
+      lineStart = cellBottom;
+      lineEnd = stopY !== null ? stopY : cellTop;
+    }
+    
+    const lineMinY = Math.min(lineStart, lineEnd);
+    const lineMaxY = Math.max(lineStart, lineEnd);
+    
+    if (lineMaxY - lineMinY > 0.001) {
       // Handle text breaks
       const textBreaks = findTextIntersectionsVertical(componentShapes, x);
       const relevantTextBreaks = textBreaks.filter(tb => 
-        tb.maxY > Math.min(lineStart, lineEnd) && tb.minY < Math.max(lineStart, lineEnd)
+        tb.maxY > lineMinY && tb.minY < lineMaxY
       );
       
       if (relevantTextBreaks.length === 0) {
@@ -608,17 +635,16 @@ export function generateSingleConnectionLine(
           id: `conn-${side}-${cellX}-${cellY}`,
           type: 'line',
           x: x,
-          y: Math.min(lineStart, lineEnd),
+          y: lineMinY,
           width: 0,
-          height: Math.abs(lineEnd - lineStart),
+          height: lineMaxY - lineMinY,
           strokeWidth
         });
       } else {
         // Draw segments around text
-        let currentY = Math.min(lineStart, lineEnd);
-        const maxY = Math.max(lineStart, lineEnd);
+        let currentY = lineMinY;
         for (const textBreak of relevantTextBreaks) {
-          if (textBreak.minY > currentY && textBreak.minY < maxY) {
+          if (textBreak.minY > currentY && textBreak.minY < lineMaxY) {
             shapes.push({
               id: `conn-${side}-${cellX}-${cellY}-seg-${currentY}`,
               type: 'line',
@@ -631,14 +657,14 @@ export function generateSingleConnectionLine(
           }
           currentY = Math.max(currentY, textBreak.maxY);
         }
-        if (currentY < maxY) {
+        if (currentY < lineMaxY) {
           shapes.push({
             id: `conn-${side}-${cellX}-${cellY}-seg-end`,
             type: 'line',
             x: x,
             y: currentY,
             width: 0,
-            height: maxY - currentY,
+            height: lineMaxY - currentY,
             strokeWidth
           });
         }
