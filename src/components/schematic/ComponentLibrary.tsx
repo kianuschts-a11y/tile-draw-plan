@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Component, Shape } from "@/types/schematic";
+import { Component, Shape, ComponentGroup } from "@/types/schematic";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Pencil, Upload } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, FolderPlus, Folder } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,9 +21,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface ComponentLibraryProps {
   components: Component[];
+  groups: ComponentGroup[];
+  selectedComponentIds: Set<string>;
   onCreateNew: () => void;
   onDeleteComponent: (id: string) => void;
   onClearAll: () => void;
@@ -30,6 +41,12 @@ interface ComponentLibraryProps {
   onUpdateComponent: (component: Component) => void;
   onImportFromLocalStorage?: () => void;
   hasLocalStorageComponents?: boolean;
+  onCreateGroup: (name: string, componentIds: string[]) => void;
+  onDeleteGroup: (id: string) => void;
+  onEditGroup: (group: ComponentGroup) => void;
+  onComponentSelect: (id: string, multiSelect: boolean) => void;
+  activeTab: 'components' | 'groups';
+  onTabChange: (tab: 'components' | 'groups') => void;
 }
 
 function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
@@ -37,17 +54,15 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
   const y = shape.y * scaleY;
   const width = shape.width * scaleX;
   const height = shape.height * scaleY;
-  // Skaliere strokeWidth proportional zur Referenzgröße
   const refScale = Math.min(scaleX, scaleY);
   const sw = shape.strokeWidth ? shape.strokeWidth * refScale : 1.5;
 
   const style = {
     fill: shape.fillColor || shape.fill || 'none',
     stroke: 'hsl(220, 25%, 20%)',
-    strokeWidth: Math.max(0.5, sw)  // Mindestens 0.5 für Sichtbarkeit
+    strokeWidth: Math.max(0.5, sw)
   };
 
-  // Calculate rotation transform if shape has rotation
   const rotation = shape.rotation || 0;
   const centerX = x + width / 2;
   const centerY = y + height / 2;
@@ -64,7 +79,6 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
       element = <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} {...style} />;
       break;
     case 'line': {
-      // Check if this is a curved line
       if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
         const lx1 = x;
         const ly1 = y;
@@ -87,7 +101,6 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
       const ay2 = y + height;
       const arrowSize = shape.arrowSize ? shape.arrowSize * refScale : Math.max(3, sw * 2);
       
-      // Calculate arrow head angle - for curved lines, use tangent at end point
       let endAngle: number;
       if (shape.curveOffset && (shape.curveOffset.x !== 0 || shape.curveOffset.y !== 0)) {
         const midX = (ax1 + ax2) / 2;
@@ -164,7 +177,6 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
       return null;
   }
 
-  // Wrap in group with rotation transform if needed
   if (rotationTransform) {
     return <g transform={rotationTransform}>{element}</g>;
   }
@@ -173,6 +185,8 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
 
 export function ComponentLibrary({ 
   components, 
+  groups,
+  selectedComponentIds,
   onCreateNew, 
   onDeleteComponent,
   onClearAll,
@@ -180,12 +194,22 @@ export function ComponentLibrary({
   onEditComponent,
   onUpdateComponent,
   onImportFromLocalStorage,
-  hasLocalStorageComponents
+  hasLocalStorageComponents,
+  onCreateGroup,
+  onDeleteGroup,
+  onEditGroup,
+  onComponentSelect,
+  activeTab,
+  onTabChange
 }: ComponentLibraryProps) {
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
   const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [groupToDelete, setGroupToDelete] = useState<ComponentGroup | null>(null);
+  const [deleteGroupConfirmOpen, setDeleteGroupConfirmOpen] = useState(false);
 
   const handleDeleteClick = (component: Component) => {
     setComponentToDelete(component);
@@ -205,101 +229,212 @@ export function ComponentLibrary({
     setClearAllConfirmOpen(false);
   };
 
+  const handleCreateGroup = () => {
+    if (newGroupName.trim() && selectedComponentIds.size > 0) {
+      onCreateGroup(newGroupName.trim(), Array.from(selectedComponentIds));
+      setNewGroupName("");
+      setGroupDialogOpen(false);
+    }
+  };
+
+  const handleDeleteGroupClick = (group: ComponentGroup) => {
+    setGroupToDelete(group);
+    setDeleteGroupConfirmOpen(true);
+  };
+
+  const confirmDeleteGroup = () => {
+    if (groupToDelete) {
+      onDeleteGroup(groupToDelete.id);
+    }
+    setDeleteGroupConfirmOpen(false);
+    setGroupToDelete(null);
+  };
+
+  const renderComponentItem = (component: Component, isSelected: boolean) => {
+    const compWidth = component.width || 1;
+    const compHeight = component.height || 1;
+    const aspectRatio = compWidth / compHeight;
+    
+    let previewWidth = previewSize;
+    let previewHeight = previewSize;
+    if (aspectRatio > 1) {
+      previewHeight = previewSize / aspectRatio;
+    } else if (aspectRatio < 1) {
+      previewWidth = previewSize * aspectRatio;
+    }
+    
+    return (
+      <ContextMenu key={component.id}>
+        <ContextMenuTrigger>
+          <div
+            className={`library-item flex flex-col items-center gap-2 relative group cursor-pointer ${
+              isSelected ? 'ring-2 ring-primary rounded-lg' : ''
+            }`}
+            draggable
+            onDragStart={(e) => onDragStart(e, component)}
+            onClick={(e) => onComponentSelect(component.id, e.shiftKey || e.ctrlKey)}
+          >
+            <div className={`w-[50px] h-[50px] flex items-center justify-center border border-dashed rounded bg-white relative ${
+              isSelected ? 'border-primary' : 'border-muted-foreground/30'
+            }`}>
+              <svg width={previewWidth} height={previewHeight}>
+                {component.shapes.map((shape, idx) => (
+                  <g key={idx}>{renderShape(shape, previewWidth, previewHeight)}</g>
+                ))}
+              </svg>
+              {component.variations && component.variations.length > 0 && (
+                <div className="absolute -top-1 -left-1 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
+                  {component.variations.length}
+                </div>
+              )}
+            </div>
+            <span className="text-xs text-muted-foreground text-center truncate w-full">
+              {component.name}
+            </span>
+            {!component.id.startsWith('default-') && (
+              <button
+                className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteClick(component);
+                }}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => onEditComponent(component)}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Bearbeiten
+          </ContextMenuItem>
+          <ContextMenuItem 
+            onClick={() => handleDeleteClick(component)}
+            className="text-destructive"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Löschen
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  };
+
+  const renderGroupItem = (group: ComponentGroup) => {
+    const groupComponents = components.filter(c => group.componentIds.includes(c.id));
+    
+    return (
+      <ContextMenu key={group.id}>
+        <ContextMenuTrigger>
+          <div
+            className="library-item flex flex-col items-center gap-2 relative group cursor-pointer"
+            draggable
+            onDragStart={(e) => {
+              // Drag all components in the group
+              e.dataTransfer.setData('application/json', JSON.stringify({ 
+                isGroup: true, 
+                groupId: group.id,
+                components: groupComponents 
+              }));
+              e.dataTransfer.effectAllowed = 'copy';
+            }}
+          >
+            <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-muted-foreground/30 rounded bg-muted/50 relative">
+              <Folder className="w-6 h-6 text-muted-foreground" />
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
+                {group.componentIds.length}
+              </div>
+            </div>
+            <span className="text-xs text-muted-foreground text-center truncate w-full">
+              {group.name}
+            </span>
+            <button
+              className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteGroupClick(group);
+              }}
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => onEditGroup(group)}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Bearbeiten
+          </ContextMenuItem>
+          <ContextMenuItem 
+            onClick={() => handleDeleteGroupClick(group)}
+            className="text-destructive"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Löschen
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  };
+
   return (
     <div className="toolbar-panel border-l w-64 flex flex-col">
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="font-semibold text-sm">Komponenten</h2>
-          <div className="flex gap-1">
-            {components.length > 0 && (
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => setClearAllConfirmOpen(true)}>
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            )}
-            <Button size="sm" variant="outline" className="h-7 gap-1" onClick={onCreateNew}>
-              <Plus className="w-3 h-3" />
-              Neu
-            </Button>
-          </div>
+      <div className="p-3 border-b">
+        <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as 'components' | 'groups')}>
+          <TabsList className="w-full">
+            <TabsTrigger value="components" className="flex-1 text-xs">Komponenten</TabsTrigger>
+            <TabsTrigger value="groups" className="flex-1 text-xs">Gruppen</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <div className="p-3 border-b">
+        <div className="flex items-center justify-between">
+          {activeTab === 'components' ? (
+            <>
+              <div className="flex gap-1">
+                {components.length > 0 && (
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => setClearAllConfirmOpen(true)}>
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" className="h-7 gap-1" onClick={onCreateNew}>
+                  <Plus className="w-3 h-3" />
+                  Neu
+                </Button>
+              </div>
+              {selectedComponentIds.size > 1 && (
+                <Button size="sm" variant="secondary" className="h-7 gap-1" onClick={() => setGroupDialogOpen(true)}>
+                  <FolderPlus className="w-3 h-3" />
+                  Gruppieren
+                </Button>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {groups.length} Gruppe{groups.length !== 1 ? 'n' : ''}
+            </p>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Rechtsklick zum Bearbeiten
-        </p>
+        {activeTab === 'components' && selectedComponentIds.size > 0 && (
+          <p className="text-xs text-muted-foreground mt-2">
+            {selectedComponentIds.size} ausgewählt (Shift+Klick für Mehrfachauswahl)
+          </p>
+        )}
       </div>
       
       <ScrollArea className="flex-1 p-3">
-        <div className="grid grid-cols-2 gap-2">
-          {components.map(component => {
-            // Berechne Aspect Ratio basierend auf Komponenten-Dimensionen
-            const compWidth = component.width || 1;
-            const compHeight = component.height || 1;
-            const aspectRatio = compWidth / compHeight;
-            
-            // Passe Vorschau-Größe an Aspect Ratio an
-            let previewWidth = previewSize;
-            let previewHeight = previewSize;
-            if (aspectRatio > 1) {
-              previewHeight = previewSize / aspectRatio;
-            } else if (aspectRatio < 1) {
-              previewWidth = previewSize * aspectRatio;
-            }
-            
-            return (
-              <ContextMenu key={component.id}>
-                <ContextMenuTrigger>
-                  <div
-                    className="library-item flex flex-col items-center gap-2 relative group"
-                    draggable
-                    onDragStart={(e) => onDragStart(e, component)}
-                  >
-                    <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-muted-foreground/30 rounded bg-white relative">
-                      <svg width={previewWidth} height={previewHeight}>
-                        {component.shapes.map((shape, idx) => (
-                          <g key={idx}>{renderShape(shape, previewWidth, previewHeight)}</g>
-                        ))}
-                      </svg>
-                      {/* Variation indicator */}
-                      {component.variations && component.variations.length > 0 && (
-                        <div className="absolute -top-1 -left-1 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
-                          {component.variations.length}
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground text-center truncate w-full">
-                      {component.name}
-                    </span>
-                    {!component.id.startsWith('default-') && (
-                      <button
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteClick(component);
-                        }}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem onClick={() => onEditComponent(component)}>
-                    <Pencil className="w-4 h-4 mr-2" />
-                    Bearbeiten
-                  </ContextMenuItem>
-                  <ContextMenuItem 
-                    onClick={() => handleDeleteClick(component)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Löschen
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-            );
-          })}
-        </div>
+        {activeTab === 'components' ? (
+          <div className="grid grid-cols-2 gap-2">
+            {components.map(component => renderComponentItem(component, selectedComponentIds.has(component.id)))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {groups.map(group => renderGroupItem(group))}
+          </div>
+        )}
 
-        {components.length === 0 && (
+        {activeTab === 'components' && components.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             <p className="text-sm">Keine Komponenten</p>
             <p className="text-xs mt-1">Erstellen Sie eine neue Komponente</p>
@@ -316,9 +451,44 @@ export function ComponentLibrary({
             )}
           </div>
         )}
+
+        {activeTab === 'groups' && groups.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            <p className="text-sm">Keine Gruppen</p>
+            <p className="text-xs mt-1">Wählen Sie Komponenten aus und klicken Sie auf "Gruppieren"</p>
+          </div>
+        )}
       </ScrollArea>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Create Group Dialog */}
+      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Neue Gruppe erstellen</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Gruppenname"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateGroup()}
+            />
+            <p className="text-sm text-muted-foreground mt-2">
+              {selectedComponentIds.size} Komponenten werden gruppiert
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGroupDialogOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleCreateGroup} disabled={!newGroupName.trim()}>
+              Erstellen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Component Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -331,6 +501,25 @@ export function ComponentLibrary({
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Group Confirmation Dialog */}
+      <AlertDialog open={deleteGroupConfirmOpen} onOpenChange={setDeleteGroupConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Gruppe löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie die Gruppe "{groupToDelete?.name}" wirklich löschen? 
+              Die Komponenten bleiben erhalten.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteGroup} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Löschen
             </AlertDialogAction>
           </AlertDialogFooter>

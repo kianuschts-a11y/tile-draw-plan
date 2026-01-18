@@ -35,6 +35,41 @@ export type Database = {
         }
         Relationships: []
       }
+      component_groups: {
+        Row: {
+          company_id: string
+          component_ids: string[]
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          component_ids?: string[]
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          component_ids?: string[]
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "component_groups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       components: {
         Row: {
           company_id: string

@@ -112,6 +112,13 @@ export interface Component {
   activeVariationId?: string; // Legacy
 }
 
+// Component Group - groups multiple components together
+export interface ComponentGroup {
+  id: string;
+  name: string;
+  componentIds: string[]; // IDs of components in this group
+}
+
 export interface PlacedComponent {
   id: string;
   componentId: string;

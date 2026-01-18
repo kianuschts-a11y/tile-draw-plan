@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
@@ -8,6 +8,7 @@ import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
+import { useComponentGroups } from "@/hooks/useComponentGroups";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu, User, Building2 } from "lucide-react";
 import {
@@ -36,15 +37,26 @@ export function SchematicEditor() {
     importFromLocalStorage,
     hasLocalStorageComponents
   } = useComponents();
+  
+  const {
+    groups,
+    loading: groupsLoading,
+    createGroup,
+    deleteGroup,
+    updateGroup
+  } = useComponentGroups();
 
   const [tiles, setTiles] = useState<PlacedTile[]>([]);
   const [connections, setConnections] = useState<CellConnection[]>([]);
   const [selectedTileIds, setSelectedTileIds] = useState<Set<string>>(new Set());
+  const [selectedComponentIds, setSelectedComponentIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<MainToolType>('select');
   const [connectionColor, setConnectionColor] = useState<string>('#000000');
   const [draggingComponent, setDraggingComponent] = useState<Component | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
+  const [editingGroup, setEditingGroup] = useState<ComponentGroup | null>(null);
+  const [libraryTab, setLibraryTab] = useState<'components' | 'groups'>('components');
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -128,6 +140,36 @@ export function SchematicEditor() {
   const handleUpdateComponent = useCallback(async (updatedComponent: Component) => {
     await updateComponentFull(updatedComponent);
   }, [updateComponentFull]);
+
+  const handleComponentSelect = useCallback((id: string, multiSelect: boolean) => {
+    setSelectedComponentIds(prev => {
+      if (multiSelect) {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      }
+      return new Set([id]);
+    });
+  }, []);
+
+  const handleCreateGroup = useCallback(async (name: string, componentIds: string[]) => {
+    await createGroup(name, componentIds);
+    setSelectedComponentIds(new Set());
+  }, [createGroup]);
+
+  const handleDeleteGroup = useCallback(async (id: string) => {
+    await deleteGroup(id);
+  }, [deleteGroup]);
+
+  const handleEditGroup = useCallback((group: ComponentGroup) => {
+    setEditingGroup(group);
+    // For now, just log - can extend to open a group editor dialog
+    console.log('Edit group:', group);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -257,6 +299,8 @@ export function SchematicEditor() {
 
         <ComponentLibrary
           components={components}
+          groups={groups}
+          selectedComponentIds={selectedComponentIds}
           onCreateNew={() => { setEditingComponent(null); setIsEditorOpen(true); }}
           onDeleteComponent={handleDeleteComponent}
           onClearAll={handleClearAllComponents}
@@ -265,6 +309,12 @@ export function SchematicEditor() {
           onUpdateComponent={handleUpdateComponent}
           onImportFromLocalStorage={importFromLocalStorage}
           hasLocalStorageComponents={hasLocalStorageComponents}
+          onCreateGroup={handleCreateGroup}
+          onDeleteGroup={handleDeleteGroup}
+          onEditGroup={handleEditGroup}
+          onComponentSelect={handleComponentSelect}
+          activeTab={libraryTab}
+          onTabChange={setLibraryTab}
         />
       </div>
 
