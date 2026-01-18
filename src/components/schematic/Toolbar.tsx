@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { 
   MousePointer2, 
   Trash2,
@@ -7,10 +8,14 @@ import {
   Link2,
   Unlink2,
   Move,
-  FolderPlus
+  FolderPlus,
+  Save,
+  X
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -41,8 +46,12 @@ interface ToolbarProps {
   hasSelection: boolean;
   connectionColor: string;
   onConnectionColorChange: (color: string) => void;
+  // Group creation
+  isGroupMode: boolean;
+  onToggleGroupMode: () => void;
   selectedComponentCount: number;
-  onCreateGroup: () => void;
+  onSaveGroup: (name: string) => void;
+  onCancelGroupMode: () => void;
 }
 
 export function Toolbar({
@@ -55,17 +64,35 @@ export function Toolbar({
   hasSelection,
   connectionColor,
   onConnectionColorChange,
+  isGroupMode,
+  onToggleGroupMode,
   selectedComponentCount,
-  onCreateGroup
+  onSaveGroup,
+  onCancelGroupMode
 }: ToolbarProps) {
+  const [groupName, setGroupName] = useState("");
+
+  const handleSaveGroup = () => {
+    if (groupName.trim() && selectedComponentCount >= 2) {
+      onSaveGroup(groupName.trim());
+      setGroupName("");
+    }
+  };
+
+  const handleCancelGroupMode = () => {
+    setGroupName("");
+    onCancelGroupMode();
+  };
+
   return (
     <div className="toolbar-panel flex flex-col items-center py-3 px-1.5 border-r gap-1">
       <ToolButton
         icon={MousePointer2}
         label="Auswählen"
         shortcut="V"
-        isActive={activeTool === 'select'}
+        isActive={activeTool === 'select' && !isGroupMode}
         onClick={() => onToolChange('select')}
+        disabled={isGroupMode}
       />
       <ToolButton
         icon={Move}
@@ -73,6 +100,7 @@ export function Toolbar({
         shortcut="H"
         isActive={activeTool === 'pan'}
         onClick={() => onToolChange('pan')}
+        disabled={isGroupMode}
       />
       <ToolButton
         icon={Link2}
@@ -80,6 +108,7 @@ export function Toolbar({
         shortcut="C"
         isActive={activeTool === 'connect'}
         onClick={() => onToolChange('connect')}
+        disabled={isGroupMode}
       />
       <ToolButton
         icon={Unlink2}
@@ -87,18 +116,77 @@ export function Toolbar({
         shortcut="X"
         isActive={activeTool === 'disconnect'}
         onClick={() => onToolChange('disconnect')}
+        disabled={isGroupMode}
       />
       
       <Separator className="my-2 w-8" />
       
-      {/* Create Group Button */}
-      <ToolButton
-        icon={FolderPlus}
-        label={`Gruppe erstellen (${selectedComponentCount} ausgewählt)`}
-        shortcut="G"
-        onClick={onCreateGroup}
-        disabled={selectedComponentCount < 2}
-      />
+      {/* Create Group Button with expanded UI when active */}
+      <div className="relative">
+        <ToolButton
+          icon={FolderPlus}
+          label={`Gruppe erstellen (${selectedComponentCount} ausgewählt)`}
+          shortcut="G"
+          isActive={isGroupMode}
+          onClick={onToggleGroupMode}
+        />
+        
+        {/* Expanded group creation panel */}
+        {isGroupMode && (
+          <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-3 min-w-[280px] z-50">
+            <div className="flex items-center gap-2 mb-3">
+              <FolderPlus className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">Gruppe erstellen</span>
+              <button 
+                onClick={handleCancelGroupMode}
+                className="ml-auto p-1 hover:bg-muted rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <p className="text-xs text-muted-foreground mb-3">
+              Klicken Sie auf Komponenten in der Bibliothek, um sie auszuwählen. 
+              Bei erneutem Klicken wird die Auswahl aufgehoben.
+            </p>
+            
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-medium text-primary">
+                {selectedComponentCount} ausgewählt
+              </span>
+            </div>
+            
+            <div className="flex gap-2">
+              <Input
+                placeholder="Gruppenname"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                className="flex-1 h-8 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveGroup();
+                  }
+                }}
+              />
+              <Button 
+                size="sm" 
+                className="h-8 gap-1"
+                onClick={handleSaveGroup}
+                disabled={!groupName.trim() || selectedComponentCount < 2}
+              >
+                <Save className="w-3 h-3" />
+                Speichern
+              </Button>
+            </div>
+            
+            {selectedComponentCount < 2 && (
+              <p className="text-xs text-destructive mt-2">
+                Mindestens 2 Komponenten erforderlich
+              </p>
+            )}
+          </div>
+        )}
+      </div>
       
       <Separator className="my-2 w-8" />
       

@@ -33,7 +33,7 @@ interface ComponentLibraryProps {
   components: Component[];
   groups: ComponentGroup[];
   selectedComponentIds: Set<string>;
-  activeTool: string;
+  isGroupMode: boolean;
   onCreateNew: () => void;
   onDeleteComponent: (id: string) => void;
   onClearAll: () => void;
@@ -45,7 +45,7 @@ interface ComponentLibraryProps {
   onCreateGroup: (name: string, componentIds: string[]) => void;
   onDeleteGroup: (id: string) => void;
   onEditGroup: (group: ComponentGroup) => void;
-  onComponentSelect: (id: string, multiSelect: boolean) => void;
+  onComponentSelect: (id: string) => void;
   activeTab: 'components' | 'groups';
   onTabChange: (tab: 'components' | 'groups') => void;
 }
@@ -188,7 +188,7 @@ export function ComponentLibrary({
   components, 
   groups,
   selectedComponentIds,
-  activeTool,
+  isGroupMode,
   onCreateNew, 
   onDeleteComponent,
   onClearAll,
@@ -204,7 +204,6 @@ export function ComponentLibrary({
   activeTab,
   onTabChange
 }: ComponentLibraryProps) {
-  const isSelectMode = activeTool === 'select';
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
@@ -272,18 +271,21 @@ export function ComponentLibrary({
           <div
             className={`library-item flex flex-col items-center gap-2 relative group cursor-pointer p-1 ${
               isSelected ? 'ring-2 ring-primary rounded-lg bg-primary/10' : ''
-            }`}
-            draggable
+            } ${isGroupMode ? 'hover:bg-primary/5' : ''}`}
+            draggable={!isGroupMode}
             onDragStart={(e) => {
+              if (isGroupMode) {
+                e.preventDefault();
+                return;
+              }
               onDragStart(e, component);
             }}
             onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              // In select mode, always toggle selection (multi-select behavior)
-              // Otherwise, use shift/ctrl for multi-select
-              const multiSelect = isSelectMode || e.shiftKey || e.ctrlKey || e.metaKey;
-              onComponentSelect(component.id, multiSelect);
+              if (isGroupMode) {
+                e.preventDefault();
+                e.stopPropagation();
+                onComponentSelect(component.id);
+              }
             }}
           >
             <div className={`w-[50px] h-[50px] flex items-center justify-center border border-dashed rounded bg-white relative ${

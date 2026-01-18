@@ -64,6 +64,7 @@ export function SchematicEditor() {
   const [editingGroup, setEditingGroup] = useState<ComponentGroup | null>(null);
   const [libraryTab, setLibraryTab] = useState<'components' | 'groups'>('components');
   const [showProjectPanel, setShowProjectPanel] = useState(false);
+  const [isGroupMode, setIsGroupMode] = useState(false);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -148,26 +149,15 @@ export function SchematicEditor() {
     await updateComponentFull(updatedComponent);
   }, [updateComponentFull]);
 
-  const handleComponentSelect = useCallback((id: string, multiSelect: boolean) => {
-    console.log('handleComponentSelect called:', id, 'multiSelect:', multiSelect);
+  const handleComponentSelect = useCallback((id: string) => {
+    // Toggle selection for the component
     setSelectedComponentIds(prev => {
       const next = new Set(prev);
-      if (multiSelect) {
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
+      if (next.has(id)) {
+        next.delete(id);
       } else {
-        // Single select: toggle if already selected, otherwise select only this one
-        if (next.has(id) && next.size === 1) {
-          next.clear();
-        } else {
-          next.clear();
-          next.add(id);
-        }
+        next.add(id);
       }
-      console.log('New selection:', Array.from(next));
       return next;
     });
   }, []);
@@ -303,14 +293,24 @@ export function SchematicEditor() {
           hasSelection={selectedTileIds.size > 0}
           connectionColor={connectionColor}
           onConnectionColorChange={setConnectionColor}
-          selectedComponentCount={selectedComponentIds.size}
-          onCreateGroup={() => {
-            if (selectedComponentIds.size >= 2) {
-              const name = prompt('Gruppenname eingeben:');
-              if (name) {
-                handleCreateGroup(name, Array.from(selectedComponentIds));
-              }
+          isGroupMode={isGroupMode}
+          onToggleGroupMode={() => {
+            setIsGroupMode(!isGroupMode);
+            if (!isGroupMode) {
+              // Entering group mode - switch to components tab and clear selection
+              setLibraryTab('components');
+              setSelectedComponentIds(new Set());
             }
+          }}
+          selectedComponentCount={selectedComponentIds.size}
+          onSaveGroup={(name) => {
+            handleCreateGroup(name, Array.from(selectedComponentIds));
+            setIsGroupMode(false);
+            setSelectedComponentIds(new Set());
+          }}
+          onCancelGroupMode={() => {
+            setIsGroupMode(false);
+            setSelectedComponentIds(new Set());
           }}
         />
 
@@ -354,7 +354,7 @@ export function SchematicEditor() {
             components={components}
             groups={groups}
             selectedComponentIds={selectedComponentIds}
-            activeTool={activeTool}
+            isGroupMode={isGroupMode}
             onCreateNew={() => { setEditingComponent(null); setIsEditorOpen(true); }}
             onDeleteComponent={handleDeleteComponent}
             onClearAll={handleClearAllComponents}
