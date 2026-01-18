@@ -296,42 +296,75 @@ export function ComponentLibrary({
   };
 
   const renderGroupItem = (group: ComponentGroup) => {
-    const groupComponents = components.filter(c => group.componentIds.includes(c.id));
     const hasLayout = group.layoutData && group.layoutData.tiles.length > 0;
     
-    // Render a mini preview of the group layout
+    // Render a mini preview of the group layout with actual component shapes
     const renderGroupPreview = () => {
       if (!hasLayout || !group.layoutData) {
-        return <Folder className="w-6 h-6 text-muted-foreground" />;
+        return (
+          <div className="w-[80px] h-[80px] flex items-center justify-center">
+            <Folder className="w-8 h-8 text-muted-foreground" />
+          </div>
+        );
       }
       
-      // Calculate bounds of the layout
+      // Calculate bounds of the layout based on component sizes
       const tiles = group.layoutData.tiles;
-      const maxX = Math.max(...tiles.map(t => t.relativeX)) + 1;
-      const maxY = Math.max(...tiles.map(t => t.relativeY)) + 1;
-      const scale = 40 / Math.max(maxX, maxY);
+      let totalWidth = 0;
+      let totalHeight = 0;
+      
+      tiles.forEach(tile => {
+        const comp = components.find(c => c.id === tile.componentId);
+        if (comp) {
+          const tileRight = tile.relativeX + (comp.width || 1);
+          const tileBottom = tile.relativeY + (comp.height || 1);
+          totalWidth = Math.max(totalWidth, tileRight);
+          totalHeight = Math.max(totalHeight, tileBottom);
+        }
+      });
+      
+      // Calculate scale to fit in preview area (max 100x100)
+      const maxPreviewSize = 100;
+      const padding = 4;
+      const availableSize = maxPreviewSize - padding * 2;
+      const scale = Math.min(availableSize / totalWidth, availableSize / totalHeight, 30);
+      
+      const svgWidth = totalWidth * scale + padding * 2;
+      const svgHeight = totalHeight * scale + padding * 2;
       
       return (
-        <svg width={50} height={50} className="overflow-visible">
+        <svg width={svgWidth} height={svgHeight}>
           {tiles.map((tile, idx) => {
             const comp = components.find(c => c.id === tile.componentId);
             if (!comp) return null;
-            const x = 5 + tile.relativeX * scale;
-            const y = 5 + tile.relativeY * scale;
-            const w = (comp.width || 1) * scale * 0.9;
-            const h = (comp.height || 1) * scale * 0.9;
+            
+            const tileX = padding + tile.relativeX * scale;
+            const tileY = padding + tile.relativeY * scale;
+            const tileW = (comp.width || 1) * scale;
+            const tileH = (comp.height || 1) * scale;
+            
+            // Calculate scale factors for shapes within this tile
+            const shapeScaleX = tileW;
+            const shapeScaleY = tileH;
+            
             return (
-              <rect
-                key={idx}
-                x={x}
-                y={y}
-                width={w}
-                height={h}
-                fill="hsl(var(--primary) / 0.2)"
-                stroke="hsl(var(--primary))"
-                strokeWidth={1}
-                rx={2}
-              />
+              <g key={idx} transform={`translate(${tileX}, ${tileY})`}>
+                {/* Tile background */}
+                <rect
+                  x={0}
+                  y={0}
+                  width={tileW}
+                  height={tileH}
+                  fill="white"
+                  stroke="hsl(var(--border))"
+                  strokeWidth={0.5}
+                  strokeDasharray="2,1"
+                />
+                {/* Render component shapes */}
+                {comp.shapes.map((shape, shapeIdx) => (
+                  <g key={shapeIdx}>{renderShape(shape, shapeScaleX, shapeScaleY)}</g>
+                ))}
+              </g>
             );
           })}
         </svg>
@@ -342,10 +375,9 @@ export function ComponentLibrary({
       <ContextMenu key={group.id}>
         <ContextMenuTrigger>
           <div
-            className="library-item flex flex-col items-center gap-2 relative group cursor-grab active:cursor-grabbing"
+            className="library-item flex flex-col items-center gap-2 relative group cursor-grab active:cursor-grabbing p-1"
             draggable
             onDragStart={(e) => {
-              // Pass full group data including layout for drop handler
               e.dataTransfer.setData('application/json', JSON.stringify({ 
                 isGroup: true, 
                 groupId: group.id,
@@ -354,17 +386,17 @@ export function ComponentLibrary({
               e.dataTransfer.effectAllowed = 'copy';
             }}
           >
-            <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-primary/50 rounded bg-primary/5 relative">
+            <div className="min-w-[80px] min-h-[80px] flex items-center justify-center border border-dashed border-primary/50 rounded bg-white relative p-1">
               {renderGroupPreview()}
               <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
                 {group.layoutData?.tiles.length || group.componentIds.length}
               </div>
             </div>
-            <span className="text-xs text-muted-foreground text-center truncate w-full">
+            <span className="text-xs text-muted-foreground text-center truncate w-full max-w-[100px]">
               {group.name}
             </span>
             <button
-              className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+              className="absolute top-0 right-0 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDeleteGroupClick(group);
@@ -432,7 +464,7 @@ export function ComponentLibrary({
             {components.map(component => renderComponentItem(component))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-3">
             {groups.map(group => renderGroupItem(group))}
           </div>
         )}
