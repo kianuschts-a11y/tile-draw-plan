@@ -32,7 +32,9 @@ export function SchematicEditor() {
     updateComponent,
     updateComponentFull,
     deleteComponent,
-    clearAllComponents
+    clearAllComponents,
+    importFromLocalStorage,
+    hasLocalStorageComponents
   } = useComponents();
 
   const [tiles, setTiles] = useState<PlacedTile[]>([]);
@@ -261,6 +263,8 @@ export function SchematicEditor() {
           onDragStart={handleDragStart}
           onEditComponent={handleEditComponent}
           onUpdateComponent={handleUpdateComponent}
+          onImportFromLocalStorage={importFromLocalStorage}
+          hasLocalStorageComponents={hasLocalStorageComponents}
         />
       </div>
 

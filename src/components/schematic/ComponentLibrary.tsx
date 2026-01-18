@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Component, Shape } from "@/types/schematic";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Pencil } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -28,6 +28,8 @@ interface ComponentLibraryProps {
   onDragStart: (e: React.DragEvent, component: Component) => void;
   onEditComponent: (component: Component) => void;
   onUpdateComponent: (component: Component) => void;
+  onImportFromLocalStorage?: () => void;
+  hasLocalStorageComponents?: boolean;
 }
 
 function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
@@ -176,7 +178,9 @@ export function ComponentLibrary({
   onClearAll,
   onDragStart,
   onEditComponent,
-  onUpdateComponent
+  onUpdateComponent,
+  onImportFromLocalStorage,
+  hasLocalStorageComponents
 }: ComponentLibraryProps) {
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -299,6 +303,17 @@ export function ComponentLibrary({
           <div className="text-center py-8 text-muted-foreground">
             <p className="text-sm">Keine Komponenten</p>
             <p className="text-xs mt-1">Erstellen Sie eine neue Komponente</p>
+            {hasLocalStorageComponents && onImportFromLocalStorage && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-4 gap-2"
+                onClick={onImportFromLocalStorage}
+              >
+                <Upload className="w-4 h-4" />
+                Lokale Komponenten importieren
+              </Button>
+            )}
           </div>
         )}
       </ScrollArea>
