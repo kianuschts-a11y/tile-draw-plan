@@ -33,6 +33,7 @@ interface ComponentLibraryProps {
   components: Component[];
   groups: ComponentGroup[];
   selectedComponentIds: Set<string>;
+  activeTool: string;
   onCreateNew: () => void;
   onDeleteComponent: (id: string) => void;
   onClearAll: () => void;
@@ -187,6 +188,7 @@ export function ComponentLibrary({
   components, 
   groups,
   selectedComponentIds,
+  activeTool,
   onCreateNew, 
   onDeleteComponent,
   onClearAll,
@@ -202,6 +204,7 @@ export function ComponentLibrary({
   activeTab,
   onTabChange
 }: ComponentLibraryProps) {
+  const isSelectMode = activeTool === 'select';
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
@@ -270,10 +273,10 @@ export function ComponentLibrary({
             className={`library-item flex flex-col items-center gap-2 relative group cursor-pointer p-1 ${
               isSelected ? 'ring-2 ring-primary rounded-lg bg-primary/10' : ''
             }`}
-            draggable
+            draggable={!isSelectMode}
             onDragStart={(e) => {
-              // Only allow drag if not in selection mode
-              if (e.shiftKey || e.ctrlKey) {
+              // Don't allow drag in select mode
+              if (isSelectMode) {
                 e.preventDefault();
                 return;
               }
@@ -282,8 +285,10 @@ export function ComponentLibrary({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Component clicked:', component.id, 'shift:', e.shiftKey, 'ctrl:', e.ctrlKey);
-              onComponentSelect(component.id, e.shiftKey || e.ctrlKey || e.metaKey);
+              // In select mode, always toggle selection (multi-select behavior)
+              // Otherwise, use shift/ctrl for multi-select
+              const multiSelect = isSelectMode || e.shiftKey || e.ctrlKey || e.metaKey;
+              onComponentSelect(component.id, multiSelect);
             }}
           >
             <div className={`w-[50px] h-[50px] flex items-center justify-center border border-dashed rounded bg-white relative ${
