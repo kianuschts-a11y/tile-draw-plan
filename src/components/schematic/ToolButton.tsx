@@ -2,21 +2,27 @@ import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface ToolButtonProps {
+export interface ToolButtonProps {
   icon: LucideIcon;
   label: string;
   isActive?: boolean;
   onClick: () => void;
   shortcut?: string;
+  disabled?: boolean;
 }
 
-export function ToolButton({ icon: Icon, label, isActive, onClick, shortcut }: ToolButtonProps) {
+export function ToolButton({ icon: Icon, label, isActive, onClick, shortcut, disabled }: ToolButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
-          className={cn("tool-button w-10 h-10", isActive && "active")}
+          disabled={disabled}
+          className={cn(
+            "tool-button w-10 h-10", 
+            isActive && "active",
+            disabled && "opacity-40 cursor-not-allowed hover:bg-transparent"
+          )}
           aria-label={label}
         >
           <Icon className="w-5 h-5" />
