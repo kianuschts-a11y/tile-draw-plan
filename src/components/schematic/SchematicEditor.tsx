@@ -6,40 +6,33 @@ import { ComponentLibrary } from "./ComponentLibrary";
 import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
+import { useAuth } from "@/hooks/useAuth";
+import { useComponents } from "@/hooks/useComponents";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
-const STORAGE_KEY = 'schematic-editor-components';
-const CONNECTIONS_KEY = 'schematic-editor-connections';
-
-function loadComponentsFromStorage(): Component[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored) as Component[];
-  } catch (e) {
-    console.error('Failed to load components:', e);
-  }
-  return [];
-}
-
-function saveComponentsToStorage(components: Component[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(components));
-  } catch (e) {
-    console.error('Failed to save components:', e);
-  }
-}
-
 export function SchematicEditor() {
+  const { user, companyName, signOut } = useAuth();
+  const { 
+    components, 
+    loading: componentsLoading,
+    saveComponent,
+    updateComponent,
+    updateComponentFull,
+    deleteComponent,
+    clearAllComponents
+  } = useComponents();
+
   const [tiles, setTiles] = useState<PlacedTile[]>([]);
   const [connections, setConnections] = useState<CellConnection[]>([]);
   const [selectedTileIds, setSelectedTileIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<MainToolType>('select');
-  const [connectionColor, setConnectionColor] = useState<string>('#000000'); // Default black
+  const [connectionColor, setConnectionColor] = useState<string>('#000000');
   const [draggingComponent, setDraggingComponent] = useState<Component | null>(null);
-  const [components, setComponents] = useState<Component[]>(loadComponentsFromStorage);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
   const [canvasState, setCanvasState] = useState<CanvasState>({
@@ -101,47 +94,30 @@ export function SchematicEditor() {
     setSelectedTileIds(new Set([newTile.id]));
   }, []);
 
-  useEffect(() => {
-    saveComponentsToStorage(components);
-  }, [components]);
+  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize) => {
+    await saveComponent(name, shapes, tileSize);
+  }, [saveComponent]);
 
-  const handleSaveComponent = useCallback((name: string, shapes: Shape[], tileSize: TileSize) => {
-    const config = TILE_SIZES[tileSize];
-    const newComponent: Component = {
-      id: generateId(),
-      name,
-      shapes,
-      width: config.cols,
-      height: config.rows,
-      tileSize
-    };
-    setComponents(prev => [...prev, newComponent]);
-  }, []);
+  const handleDeleteComponent = useCallback(async (id: string) => {
+    await deleteComponent(id);
+  }, [deleteComponent]);
 
-  const handleDeleteComponent = useCallback((id: string) => {
-    setComponents(prev => prev.filter(c => c.id !== id));
-  }, []);
-
-  const handleClearAllComponents = useCallback(() => {
-    setComponents([]);
-    localStorage.removeItem(STORAGE_KEY);
-  }, []);
+  const handleClearAllComponents = useCallback(async () => {
+    await clearAllComponents();
+  }, [clearAllComponents]);
 
   const handleEditComponent = useCallback((component: Component) => {
     setEditingComponent(component);
     setIsEditorOpen(true);
   }, []);
 
-  const handleUpdateComponentShapes = useCallback((id: string, name: string, shapes: Shape[], tileSize: TileSize) => {
-    const config = TILE_SIZES[tileSize];
-    setComponents(prev => prev.map(c => 
-      c.id === id ? { ...c, name, shapes, width: config.cols, height: config.rows, tileSize } : c
-    ));
-  }, []);
+  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize) => {
+    await updateComponent(id, name, shapes, tileSize);
+  }, [updateComponent]);
 
-  const handleUpdateComponent = useCallback((updatedComponent: Component) => {
-    setComponents(prev => prev.map(c => c.id === updatedComponent.id ? updatedComponent : c));
-  }, []);
+  const handleUpdateComponent = useCallback(async (updatedComponent: Component) => {
+    await updateComponentFull(updatedComponent);
+  }, [updateComponentFull]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -159,6 +135,14 @@ export function SchematicEditor() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleZoomIn, handleZoomOut, handleResetView]);
 
+  if (componentsLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-muted-foreground">Komponenten werden geladen...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background no-select">
       <header className="toolbar-panel h-14 border-b flex items-center px-4 gap-4">
@@ -173,7 +157,7 @@ export function SchematicEditor() {
           </div>
           <div>
             <h1 className="font-semibold text-sm">Schema-Editor</h1>
-            <p className="text-xs text-muted-foreground">Anlagen-Diagramm Zeichner</p>
+            <p className="text-xs text-muted-foreground">{companyName || 'Anlagen-Diagramm Zeichner'}</p>
           </div>
         </div>
         <div className="h-8 w-px bg-border mx-2" />
@@ -192,6 +176,14 @@ export function SchematicEditor() {
           <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">C</kbd><span>Verbinden</span>
           <span className="mx-1">•</span>
           <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">X</kbd><span>Lösen</span>
+        </div>
+        <div className="h-8 w-px bg-border mx-2" />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{user?.email}</span>
+          <Button variant="ghost" size="sm" onClick={signOut} className="h-8 gap-1">
+            <LogOut className="w-4 h-4" />
+            Abmelden
+          </Button>
         </div>
       </header>
 

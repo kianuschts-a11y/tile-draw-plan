@@ -14,13 +14,115 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      companies: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      components: {
+        Row: {
+          company_id: string
+          created_at: string
+          height: number
+          id: string
+          name: string
+          shapes: Json
+          tile_size: string
+          updated_at: string
+          variations: Json | null
+          width: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          height?: number
+          id?: string
+          name: string
+          shapes?: Json
+          tile_size?: string
+          updated_at?: string
+          variations?: Json | null
+          width?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          height?: number
+          id?: string
+          name?: string
+          shapes?: Json
+          tile_size?: string
+          updated_at?: string
+          variations?: Json | null
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "components_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          company_id: string
+          created_at: string
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_company_id: { Args: { user_uuid: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
