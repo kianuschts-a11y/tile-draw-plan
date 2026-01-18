@@ -267,12 +267,24 @@ export function ComponentLibrary({
       <ContextMenu key={component.id}>
         <ContextMenuTrigger>
           <div
-            className={`library-item flex flex-col items-center gap-2 relative group cursor-pointer ${
-              isSelected ? 'ring-2 ring-primary rounded-lg' : ''
+            className={`library-item flex flex-col items-center gap-2 relative group cursor-pointer p-1 ${
+              isSelected ? 'ring-2 ring-primary rounded-lg bg-primary/10' : ''
             }`}
             draggable
-            onDragStart={(e) => onDragStart(e, component)}
-            onClick={(e) => onComponentSelect(component.id, e.shiftKey || e.ctrlKey)}
+            onDragStart={(e) => {
+              // Only allow drag if not in selection mode
+              if (e.shiftKey || e.ctrlKey) {
+                e.preventDefault();
+                return;
+              }
+              onDragStart(e, component);
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Component clicked:', component.id, 'shift:', e.shiftKey, 'ctrl:', e.ctrlKey);
+              onComponentSelect(component.id, e.shiftKey || e.ctrlKey || e.metaKey);
+            }}
           >
             <div className={`w-[50px] h-[50px] flex items-center justify-center border border-dashed rounded bg-white relative ${
               isSelected ? 'border-primary' : 'border-muted-foreground/30'
