@@ -46,10 +46,10 @@ interface ToolbarProps {
   hasSelection: boolean;
   connectionColor: string;
   onConnectionColorChange: (color: string) => void;
-  // Group creation
+  // Group creation from canvas tiles
   isGroupMode: boolean;
   onToggleGroupMode: () => void;
-  selectedComponentCount: number;
+  selectedTileCount: number;
   onSaveGroup: (name: string) => void;
   onCancelGroupMode: () => void;
 }
@@ -66,14 +66,14 @@ export function Toolbar({
   onConnectionColorChange,
   isGroupMode,
   onToggleGroupMode,
-  selectedComponentCount,
+  selectedTileCount,
   onSaveGroup,
   onCancelGroupMode
 }: ToolbarProps) {
   const [groupName, setGroupName] = useState("");
 
   const handleSaveGroup = () => {
-    if (groupName.trim() && selectedComponentCount >= 2) {
+    if (groupName.trim() && selectedTileCount >= 2) {
       onSaveGroup(groupName.trim());
       setGroupName("");
     }
@@ -125,7 +125,7 @@ export function Toolbar({
       <div className="relative">
         <ToolButton
           icon={FolderPlus}
-          label={`Gruppe erstellen (${selectedComponentCount} ausgewählt)`}
+          label={`Gruppe erstellen (${selectedTileCount} Tiles)`}
           shortcut="G"
           isActive={isGroupMode}
           onClick={onToggleGroupMode}
@@ -135,10 +135,9 @@ export function Toolbar({
         {isGroupMode && (
           <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-2 min-w-[220px] z-50">
             <div className="flex items-center gap-2 mb-2">
-              <FolderPlus className="w-4 h-4 text-primary" />
               <span className="font-medium text-sm">Gruppe erstellen</span>
               <span className="text-sm font-medium text-primary ml-auto">
-                {selectedComponentCount}
+                {selectedTileCount}
               </span>
               <button 
                 onClick={handleCancelGroupMode}
@@ -164,7 +163,7 @@ export function Toolbar({
                 size="sm" 
                 className="h-8 gap-1"
                 onClick={handleSaveGroup}
-                disabled={!groupName.trim() || selectedComponentCount < 2}
+                disabled={!groupName.trim() || selectedTileCount < 2}
               >
                 <Save className="w-3 h-3" />
               </Button>

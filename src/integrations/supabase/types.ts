@@ -41,6 +41,7 @@ export type Database = {
           component_ids: string[]
           created_at: string
           id: string
+          layout_data: Json | null
           name: string
           updated_at: string
         }
@@ -49,6 +50,7 @@ export type Database = {
           component_ids?: string[]
           created_at?: string
           id?: string
+          layout_data?: Json | null
           name: string
           updated_at?: string
         }
@@ -57,6 +59,7 @@ export type Database = {
           component_ids?: string[]
           created_at?: string
           id?: string
+          layout_data?: Json | null
           name?: string
           updated_at?: string
         }

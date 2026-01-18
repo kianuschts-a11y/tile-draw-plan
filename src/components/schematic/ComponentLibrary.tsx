@@ -32,8 +32,6 @@ import {
 interface ComponentLibraryProps {
   components: Component[];
   groups: ComponentGroup[];
-  selectedComponentIds: Set<string>;
-  isGroupMode: boolean;
   onCreateNew: () => void;
   onDeleteComponent: (id: string) => void;
   onClearAll: () => void;
@@ -42,10 +40,8 @@ interface ComponentLibraryProps {
   onUpdateComponent: (component: Component) => void;
   onImportFromLocalStorage?: () => void;
   hasLocalStorageComponents?: boolean;
-  onCreateGroup: (name: string, componentIds: string[]) => void;
   onDeleteGroup: (id: string) => void;
   onEditGroup: (group: ComponentGroup) => void;
-  onComponentSelect: (id: string) => void;
   activeTab: 'components' | 'groups';
   onTabChange: (tab: 'components' | 'groups') => void;
 }
@@ -187,8 +183,6 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
 export function ComponentLibrary({ 
   components, 
   groups,
-  selectedComponentIds,
-  isGroupMode,
   onCreateNew, 
   onDeleteComponent,
   onClearAll,
@@ -197,10 +191,8 @@ export function ComponentLibrary({
   onUpdateComponent,
   onImportFromLocalStorage,
   hasLocalStorageComponents,
-  onCreateGroup,
   onDeleteGroup,
   onEditGroup,
-  onComponentSelect,
   activeTab,
   onTabChange
 }: ComponentLibraryProps) {
@@ -208,8 +200,6 @@ export function ComponentLibrary({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
   const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
-  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
   const [groupToDelete, setGroupToDelete] = useState<ComponentGroup | null>(null);
   const [deleteGroupConfirmOpen, setDeleteGroupConfirmOpen] = useState(false);
 
@@ -231,14 +221,6 @@ export function ComponentLibrary({
     setClearAllConfirmOpen(false);
   };
 
-  const handleCreateGroup = () => {
-    if (newGroupName.trim() && selectedComponentIds.size > 0) {
-      onCreateGroup(newGroupName.trim(), Array.from(selectedComponentIds));
-      setNewGroupName("");
-      setGroupDialogOpen(false);
-    }
-  };
-
   const handleDeleteGroupClick = (group: ComponentGroup) => {
     setGroupToDelete(group);
     setDeleteGroupConfirmOpen(true);
@@ -252,7 +234,7 @@ export function ComponentLibrary({
     setGroupToDelete(null);
   };
 
-  const renderComponentItem = (component: Component, isSelected: boolean) => {
+  const renderComponentItem = (component: Component) => {
     const compWidth = component.width || 1;
     const compHeight = component.height || 1;
     const aspectRatio = compWidth / compHeight;
@@ -269,28 +251,11 @@ export function ComponentLibrary({
       <ContextMenu key={component.id}>
         <ContextMenuTrigger>
           <div
-            className={`library-item flex flex-col items-center gap-2 relative group cursor-pointer p-1 ${
-              isSelected ? 'ring-2 ring-primary rounded-lg bg-primary/10' : ''
-            } ${isGroupMode ? 'hover:bg-primary/5' : ''}`}
-            draggable={!isGroupMode}
-            onDragStart={(e) => {
-              if (isGroupMode) {
-                e.preventDefault();
-                return;
-              }
-              onDragStart(e, component);
-            }}
-            onClick={(e) => {
-              if (isGroupMode) {
-                e.preventDefault();
-                e.stopPropagation();
-                onComponentSelect(component.id);
-              }
-            }}
+            className="library-item flex flex-col items-center gap-2 relative group cursor-pointer p-1"
+            draggable
+            onDragStart={(e) => onDragStart(e, component)}
           >
-            <div className={`w-[50px] h-[50px] flex items-center justify-center border border-dashed rounded bg-white relative ${
-              isSelected ? 'border-primary' : 'border-muted-foreground/30'
-            }`}>
+            <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed rounded bg-white relative border-muted-foreground/30">
               <svg width={previewWidth} height={previewHeight}>
                 {component.shapes.map((shape, idx) => (
                   <g key={idx}>{renderShape(shape, previewWidth, previewHeight)}</g>
@@ -392,12 +357,7 @@ export function ComponentLibrary({
   };
 
   return (
-    <div className={`toolbar-panel border-l w-64 flex flex-col ${isGroupMode ? 'ring-2 ring-primary ring-inset' : ''}`}>
-      {isGroupMode && (
-        <div className="bg-primary/10 px-3 py-2 border-b text-xs text-primary font-medium">
-          Komponenten anklicken um auszuwählen
-        </div>
-      )}
+    <div className="toolbar-panel border-l w-64 flex flex-col">
       <div className="p-3 border-b">
         <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as 'components' | 'groups')}>
           <TabsList className="w-full">
@@ -422,12 +382,6 @@ export function ComponentLibrary({
                   Neu
                 </Button>
               </div>
-              {selectedComponentIds.size > 1 && (
-                <Button size="sm" variant="secondary" className="h-7 gap-1" onClick={() => setGroupDialogOpen(true)}>
-                  <FolderPlus className="w-3 h-3" />
-                  Gruppieren
-                </Button>
-              )}
             </>
           ) : (
             <p className="text-xs text-muted-foreground">
@@ -435,17 +389,12 @@ export function ComponentLibrary({
             </p>
           )}
         </div>
-        {activeTab === 'components' && selectedComponentIds.size > 0 && (
-          <p className="text-xs text-muted-foreground mt-2">
-            {selectedComponentIds.size} ausgewählt (Shift+Klick für Mehrfachauswahl)
-          </p>
-        )}
       </div>
       
       <ScrollArea className="flex-1 p-3">
         {activeTab === 'components' ? (
           <div className="grid grid-cols-2 gap-2">
-            {components.map(component => renderComponentItem(component, selectedComponentIds.has(component.id)))}
+            {components.map(component => renderComponentItem(component))}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
@@ -478,34 +427,6 @@ export function ComponentLibrary({
           </div>
         )}
       </ScrollArea>
-
-      {/* Create Group Dialog */}
-      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Neue Gruppe erstellen</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              placeholder="Gruppenname"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateGroup()}
-            />
-            <p className="text-sm text-muted-foreground mt-2">
-              {selectedComponentIds.size} Komponenten werden gruppiert
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGroupDialogOpen(false)}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleCreateGroup} disabled={!newGroupName.trim()}>
-              Erstellen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Component Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
