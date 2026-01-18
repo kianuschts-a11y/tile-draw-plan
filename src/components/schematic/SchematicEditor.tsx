@@ -149,17 +149,26 @@ export function SchematicEditor() {
   }, [updateComponentFull]);
 
   const handleComponentSelect = useCallback((id: string, multiSelect: boolean) => {
+    console.log('handleComponentSelect called:', id, 'multiSelect:', multiSelect);
     setSelectedComponentIds(prev => {
+      const next = new Set(prev);
       if (multiSelect) {
-        const next = new Set(prev);
         if (next.has(id)) {
           next.delete(id);
         } else {
           next.add(id);
         }
-        return next;
+      } else {
+        // Single select: toggle if already selected, otherwise select only this one
+        if (next.has(id) && next.size === 1) {
+          next.clear();
+        } else {
+          next.clear();
+          next.add(id);
+        }
       }
-      return new Set([id]);
+      console.log('New selection:', Array.from(next));
+      return next;
     });
   }, []);
 
