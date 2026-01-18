@@ -337,9 +337,10 @@ export function generateSingleConnectionLine(
       }
     }
     
-    // If no intersection found within cell, draw line to cell center
+    // If no intersection found within cell, draw line to the opposite edge of the cell
+    // This allows the connection line to span the entire cell when no shapes block it
     if (closestIntersectionX === null) {
-      closestIntersectionX = (cellLeftNorm + cellRightNorm) / 2;
+      closestIntersectionX = side === 'left' ? cellRightNorm : cellLeftNorm;
     }
     
     const lineStartX = side === 'left' ? cellLeftNorm : closestIntersectionX;
@@ -425,9 +426,10 @@ export function generateSingleConnectionLine(
     
     
     
-    // If no intersection found within cell, draw line to cell center
+    // If no intersection found within cell, draw line to the opposite edge of the cell
+    // This allows the connection line to span the entire cell when no shapes block it
     if (closestIntersectionY === null) {
-      closestIntersectionY = (cellTopNorm + cellBottomNorm) / 2;
+      closestIntersectionY = side === 'top' ? cellBottomNorm : cellTopNorm;
     }
     
     const lineStartY = side === 'top' ? cellTopNorm : closestIntersectionY;
