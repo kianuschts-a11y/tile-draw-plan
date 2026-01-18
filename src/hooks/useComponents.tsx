@@ -11,6 +11,20 @@ export function useComponents() {
   const [components, setComponents] = useState<Component[]>([]);
   const [loading, setLoading] = useState(true);
   const [migrated, setMigrated] = useState(false);
+  const [hasLocalStorageComponents, setHasLocalStorageComponents] = useState(false);
+
+  // Check if localStorage has components
+  useEffect(() => {
+    const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (stored) {
+      try {
+        const localComponents = JSON.parse(stored);
+        setHasLocalStorageComponents(Array.isArray(localComponents) && localComponents.length > 0);
+      } catch {
+        setHasLocalStorageComponents(false);
+      }
+    }
+  }, []);
 
   // Load components from database
   const loadComponents = useCallback(async () => {
@@ -249,6 +263,47 @@ export function useComponents() {
     }
   }, [companyId]);
 
+  // Manual import from localStorage
+  const importFromLocalStorage = useCallback(async (): Promise<boolean> => {
+    if (!companyId) return false;
+
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!stored) return false;
+
+      const localComponents: Component[] = JSON.parse(stored);
+      
+      if (localComponents.length === 0) return false;
+
+      // Insert each component into the database
+      for (const component of localComponents) {
+        await supabase.from('components').insert({
+          company_id: companyId,
+          name: component.name,
+          shapes: component.shapes as unknown as Json,
+          width: component.width,
+          height: component.height,
+          tile_size: component.tileSize || '1x1',
+          variations: (component.variations || []) as unknown as Json
+        });
+      }
+      
+      console.log(`Imported ${localComponents.length} components from localStorage`);
+      
+      // Clear localStorage after successful import
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      setHasLocalStorageComponents(false);
+      
+      // Reload components
+      await loadComponents();
+      
+      return true;
+    } catch (error) {
+      console.error('Error importing components:', error);
+      return false;
+    }
+  }, [companyId, loadComponents]);
+
   return {
     components,
     loading,
@@ -257,6 +312,8 @@ export function useComponents() {
     updateComponentFull,
     deleteComponent,
     clearAllComponents,
-    reloadComponents: loadComponents
+    reloadComponents: loadComponents,
+    importFromLocalStorage,
+    hasLocalStorageComponents
   };
 }
