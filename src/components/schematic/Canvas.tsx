@@ -423,22 +423,20 @@ export function Canvas({
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     // Handle connection path completion
     if (isConnecting && connectionPath.length >= 2 && (activeTool === 'connect' || activeTool === 'disconnect')) {
-      // Connect all adjacent cells in the path
-      for (let i = 0; i < connectionPath.length - 1; i++) {
-        const cell1 = connectionPath[i];
-        const cell2 = connectionPath[i + 1];
+      if (activeTool === 'connect') {
+        // Collect all new connections to add at once
+        const newConnectionsToAdd: CellConnection[] = [];
+        let currentConnections = [...connections];
         
-        const tile1Info = getTileAndCellAtPosition(cell1.gridX, cell1.gridY);
-        const tile2Info = getTileAndCellAtPosition(cell2.gridX, cell2.gridY);
-        
-        // Only connect if both cells are on tiles and they're different tiles
-        if (tile1Info && tile2Info && tile1Info.tile.id !== tile2Info.tile.id) {
-          if (activeTool === 'connect') {
-            createConnection(
-              tile1Info.tile, tile1Info.cellX, tile1Info.cellY,
-              tile2Info.tile, tile2Info.cellX, tile2Info.cellY
-            );
-          } else if (activeTool === 'disconnect') {
+        for (let i = 0; i < connectionPath.length - 1; i++) {
+          const cell1 = connectionPath[i];
+          const cell2 = connectionPath[i + 1];
+          
+          const tile1Info = getTileAndCellAtPosition(cell1.gridX, cell1.gridY);
+          const tile2Info = getTileAndCellAtPosition(cell2.gridX, cell2.gridY);
+          
+          // Only connect if both cells are on tiles and they're different tiles
+          if (tile1Info && tile2Info && tile1Info.tile.id !== tile2Info.tile.id) {
             const fromWidth = tile1Info.tile.component.width || 1;
             const fromHeight = tile1Info.tile.component.height || 1;
             const toWidth = tile2Info.tile.component.width || 1;
@@ -452,15 +450,78 @@ export function Canvas({
             );
             
             if (adjacency) {
-              removeConnectionAtCell(
-                tile1Info.tile.id,
-                tile1Info.cellX,
-                tile1Info.cellY,
-                adjacency.fromSide
-              );
+              // Remove existing connection between these cells
+              currentConnections = currentConnections.filter(c => {
+                const matchesForward = c.fromTileId === tile1Info.tile.id && c.fromCellX === tile1Info.cellX && c.fromCellY === tile1Info.cellY &&
+                                       c.toTileId === tile2Info.tile.id && c.toCellX === tile2Info.cellX && c.toCellY === tile2Info.cellY;
+                const matchesReverse = c.fromTileId === tile2Info.tile.id && c.fromCellX === tile2Info.cellX && c.fromCellY === tile2Info.cellY &&
+                                       c.toTileId === tile1Info.tile.id && c.toCellX === tile1Info.cellX && c.toCellY === tile1Info.cellY;
+                return !matchesForward && !matchesReverse;
+              });
+              
+              // Add new connection
+              newConnectionsToAdd.push({
+                id: generateConnectionId(),
+                fromTileId: tile1Info.tile.id,
+                fromCellX: tile1Info.cellX,
+                fromCellY: tile1Info.cellY,
+                fromSide: adjacency.fromSide,
+                toTileId: tile2Info.tile.id,
+                toCellX: tile2Info.cellX,
+                toCellY: tile2Info.cellY,
+                toSide: adjacency.toSide,
+                color: connectionColor
+              });
             }
           }
         }
+        
+        // Update connections once with all new connections
+        if (newConnectionsToAdd.length > 0) {
+          onConnectionsChange([...currentConnections, ...newConnectionsToAdd]);
+        }
+      } else if (activeTool === 'disconnect') {
+        // Collect all connections to remove at once
+        let currentConnections = [...connections];
+        
+        for (let i = 0; i < connectionPath.length - 1; i++) {
+          const cell1 = connectionPath[i];
+          const cell2 = connectionPath[i + 1];
+          
+          const tile1Info = getTileAndCellAtPosition(cell1.gridX, cell1.gridY);
+          const tile2Info = getTileAndCellAtPosition(cell2.gridX, cell2.gridY);
+          
+          if (tile1Info && tile2Info && tile1Info.tile.id !== tile2Info.tile.id) {
+            const fromWidth = tile1Info.tile.component.width || 1;
+            const fromHeight = tile1Info.tile.component.height || 1;
+            const toWidth = tile2Info.tile.component.width || 1;
+            const toHeight = tile2Info.tile.component.height || 1;
+            
+            const adjacency = areCellsAdjacent(
+              tile1Info.tile.gridX, tile1Info.tile.gridY, fromWidth, fromHeight,
+              tile1Info.cellX, tile1Info.cellY,
+              tile2Info.tile.gridX, tile2Info.tile.gridY, toWidth, toHeight,
+              tile2Info.cellX, tile2Info.cellY
+            );
+            
+            if (adjacency) {
+              // Remove connection at this cell
+              currentConnections = currentConnections.filter(c => {
+                if (c.fromTileId === tile1Info.tile.id && c.fromCellX === tile1Info.cellX && 
+                    c.fromCellY === tile1Info.cellY && c.fromSide === adjacency.fromSide) {
+                  return false;
+                }
+                if (c.toTileId === tile1Info.tile.id && c.toCellX === tile1Info.cellX && 
+                    c.toCellY === tile1Info.cellY && c.toSide === adjacency.fromSide) {
+                  return false;
+                }
+                return true;
+              });
+            }
+          }
+        }
+        
+        onConnectionsChange(currentConnections);
       }
     }
     
@@ -469,7 +530,7 @@ export function Canvas({
     setIsSelectionBox(false);
     setIsConnecting(false);
     setConnectionPath([]);
-  }, [isConnecting, connectionPath, activeTool, getTileAndCellAtPosition, createConnection, removeConnectionAtCell]);
+  }, [isConnecting, connectionPath, activeTool, getTileAndCellAtPosition, connections, connectionColor, onConnectionsChange]);
 
   const handleTileMouseDown = useCallback((e: React.MouseEvent, tile: PlacedTile) => {
     e.stopPropagation();
