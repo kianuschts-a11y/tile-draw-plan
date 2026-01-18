@@ -302,27 +302,67 @@ export function ComponentLibrary({
 
   const renderGroupItem = (group: ComponentGroup) => {
     const groupComponents = components.filter(c => group.componentIds.includes(c.id));
+    const hasLayout = group.layoutData && group.layoutData.tiles.length > 0;
+    
+    // Render a mini preview of the group layout
+    const renderGroupPreview = () => {
+      if (!hasLayout || !group.layoutData) {
+        return <Folder className="w-6 h-6 text-muted-foreground" />;
+      }
+      
+      // Calculate bounds of the layout
+      const tiles = group.layoutData.tiles;
+      const maxX = Math.max(...tiles.map(t => t.relativeX)) + 1;
+      const maxY = Math.max(...tiles.map(t => t.relativeY)) + 1;
+      const scale = 40 / Math.max(maxX, maxY);
+      
+      return (
+        <svg width={50} height={50} className="overflow-visible">
+          {tiles.map((tile, idx) => {
+            const comp = components.find(c => c.id === tile.componentId);
+            if (!comp) return null;
+            const x = 5 + tile.relativeX * scale;
+            const y = 5 + tile.relativeY * scale;
+            const w = (comp.width || 1) * scale * 0.9;
+            const h = (comp.height || 1) * scale * 0.9;
+            return (
+              <rect
+                key={idx}
+                x={x}
+                y={y}
+                width={w}
+                height={h}
+                fill="hsl(var(--primary) / 0.2)"
+                stroke="hsl(var(--primary))"
+                strokeWidth={1}
+                rx={2}
+              />
+            );
+          })}
+        </svg>
+      );
+    };
     
     return (
       <ContextMenu key={group.id}>
         <ContextMenuTrigger>
           <div
-            className="library-item flex flex-col items-center gap-2 relative group cursor-pointer"
+            className="library-item flex flex-col items-center gap-2 relative group cursor-grab active:cursor-grabbing"
             draggable
             onDragStart={(e) => {
-              // Drag all components in the group
+              // Pass full group data including layout for drop handler
               e.dataTransfer.setData('application/json', JSON.stringify({ 
                 isGroup: true, 
                 groupId: group.id,
-                components: groupComponents 
+                layoutData: group.layoutData
               }));
               e.dataTransfer.effectAllowed = 'copy';
             }}
           >
-            <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-muted-foreground/30 rounded bg-muted/50 relative">
-              <Folder className="w-6 h-6 text-muted-foreground" />
+            <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-primary/50 rounded bg-primary/5 relative">
+              {renderGroupPreview()}
               <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
-                {group.componentIds.length}
+                {group.layoutData?.tiles.length || group.componentIds.length}
               </div>
             </div>
             <span className="text-xs text-muted-foreground text-center truncate w-full">

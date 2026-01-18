@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, CellConnection } from "@/types/schematic";
+import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, CellConnection, ComponentGroup, GroupLayoutData } from "@/types/schematic";
 import { ShapeRenderer } from "./ShapeRenderer";
 import { MainToolType } from "./Toolbar";
 import { generateSingleConnectionLine, areCellsAdjacent, generateConnectionId } from "@/lib/connectionUtils";
@@ -19,10 +19,13 @@ interface CanvasProps {
   connections: CellConnection[];
   connectionColor: string;
   draggingComponent: Component | null;
+  isGroupMode?: boolean;
+  components?: Component[];
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
   onDropComponent: (component: Component, gridX: number, gridY: number) => void;
+  onDropGroup?: (group: ComponentGroup, gridX: number, gridY: number) => void;
   onConnectionsChange: (connections: CellConnection[]) => void;
   onDragEnd: () => void;
 }
@@ -35,10 +38,13 @@ export function Canvas({
   connections,
   connectionColor,
   draggingComponent,
+  isGroupMode = false,
+  components = [],
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
   onDropComponent,
+  onDropGroup,
   onConnectionsChange,
   onDragEnd
 }: CanvasProps) {
@@ -549,6 +555,18 @@ export function Canvas({
     
     if (activeTool !== 'select') return;
     
+    // In group mode, toggle selection on click
+    if (isGroupMode) {
+      const newSelection = new Set(selectedTileIds);
+      if (newSelection.has(tile.id)) {
+        newSelection.delete(tile.id);
+      } else {
+        newSelection.add(tile.id);
+      }
+      onSelectionChange(newSelection);
+      return;
+    }
+    
     if (selectedTileIds.has(tile.id)) {
       const pos = getCanvasPosition(e);
       setDragStartMousePos(pos);
@@ -568,7 +586,7 @@ export function Canvas({
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
       setIsDragging(true);
     }
-  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize]);
+  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode]);
 
   // Track drag position for preview using draggingComponent from parent
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -612,16 +630,24 @@ export function Canvas({
     if (!componentData) return;
 
     try {
-      const component: Component = JSON.parse(componentData);
+      const parsed = JSON.parse(componentData);
       const { gridX, gridY } = getGridPosition(e);
       
+      // Check if it's a group drop
+      if (parsed.isGroup && parsed.groupId && onDropGroup) {
+        onDropGroup(parsed as ComponentGroup & { isGroup: boolean; layoutData?: GroupLayoutData }, gridX, gridY);
+        return;
+      }
+      
+      // Regular component drop
+      const component: Component = parsed;
       if (canPlaceComponent(component, gridX, gridY)) {
         onDropComponent(component, gridX, gridY);
       }
     } catch (err) {
-      console.error('Failed to parse dropped component:', err);
+      console.error('Failed to parse dropped data:', err);
     }
-  }, [getGridPosition, canPlaceComponent, onDropComponent, onDragEnd]);
+  }, [getGridPosition, canPlaceComponent, onDropComponent, onDropGroup, onDragEnd]);
 
   // Keyboard shortcuts
   useEffect(() => {

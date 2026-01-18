@@ -124,6 +124,53 @@ export function SchematicEditor() {
     setSelectedTileIds(new Set([newTile.id]));
   }, []);
 
+  // Handle dropping a group onto the canvas - places all tiles with their relative positions and connections
+  const handleDropGroup = useCallback((groupData: any, gridX: number, gridY: number) => {
+    const group = groups.find(g => g.id === groupData.groupId);
+    if (!group || !group.layoutData) return;
+    
+    const newTileIds: string[] = [];
+    const newTiles: PlacedTile[] = [];
+    
+    // Create tiles from layout data
+    for (const tileData of group.layoutData.tiles) {
+      const component = components.find(c => c.id === tileData.componentId);
+      if (!component) continue;
+      
+      const newTile: PlacedTile = {
+        id: generateId(),
+        component,
+        gridX: gridX + tileData.relativeX,
+        gridY: gridY + tileData.relativeY
+      };
+      newTiles.push(newTile);
+      newTileIds.push(newTile.id);
+    }
+    
+    // Create connections using the new tile IDs
+    const newConnections: CellConnection[] = [];
+    for (const connData of group.layoutData.connections) {
+      if (connData.fromTileIndex < newTileIds.length && connData.toTileIndex < newTileIds.length) {
+        newConnections.push({
+          id: generateId(),
+          fromTileId: newTileIds[connData.fromTileIndex],
+          fromCellX: connData.fromCellX,
+          fromCellY: connData.fromCellY,
+          fromSide: connData.fromSide,
+          toTileId: newTileIds[connData.toTileIndex],
+          toCellX: connData.toCellX,
+          toCellY: connData.toCellY,
+          toSide: connData.toSide,
+          color: connData.color
+        });
+      }
+    }
+    
+    setTiles(prev => [...prev, ...newTiles]);
+    setConnections(prev => [...prev, ...newConnections]);
+    setSelectedTileIds(new Set(newTileIds));
+  }, [groups, components]);
+
   const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize) => {
     await saveComponent(name, shapes, tileSize);
   }, [saveComponent]);
@@ -366,10 +413,13 @@ export function SchematicEditor() {
             connections={connections}
             connectionColor={connectionColor}
             draggingComponent={draggingComponent}
+            isGroupMode={isGroupMode}
+            components={components}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
             onDropComponent={handleDropComponent}
+            onDropGroup={handleDropGroup}
             onConnectionsChange={setConnections}
             onDragEnd={handleDragEnd}
           />
