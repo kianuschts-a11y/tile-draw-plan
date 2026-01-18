@@ -84,22 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, companyName: string) => {
+  const signUp = async (email: string, password: string, companyNameInput: string) => {
     try {
       const redirectUrl = `${window.location.origin}/`;
       
-      // First create the company
-      const { data: newCompany, error: companyError } = await supabase
-        .from('companies')
-        .insert({ name: companyName })
-        .select()
-        .single();
-
-      if (companyError) {
-        return { error: new Error(companyError.message) };
-      }
-
-      // Then sign up the user
+      // First sign up the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -109,12 +98,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (authError) {
-        // Clean up company if auth fails
-        await supabase.from('companies').delete().eq('id', newCompany.id);
         return { error: new Error(authError.message) };
       }
 
       if (authData.user) {
+        // Now create the company as the authenticated user
+        const { data: newCompany, error: companyError } = await supabase
+          .from('companies')
+          .insert({ name: companyNameInput })
+          .select()
+          .single();
+
+        if (companyError) {
+          console.error('Company creation error:', companyError);
+          return { error: new Error(companyError.message) };
+        }
+
         // Create profile linking user to company
         const { error: profileError } = await supabase
           .from('profiles')
@@ -126,6 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.error('Profile creation error:', profileError);
+          // Clean up company if profile fails
+          await supabase.from('companies').delete().eq('id', newCompany.id);
           return { error: new Error(profileError.message) };
         }
       }
