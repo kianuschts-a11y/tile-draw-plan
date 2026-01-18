@@ -124,45 +124,81 @@ export function useProjects() {
   }, []);
 
   // Find matching groups based on project component list
+  // A group is only suggested if ALL its components are present in the project
+  // Match percentage = how much of the project the group covers
   const findMatchingGroups = useCallback((
     projectQuantities: ComponentQuantity[],
     groups: ComponentGroup[]
   ): GroupMatch[] => {
     if (projectQuantities.length === 0) return [];
 
+    // Build a map of project component IDs to their quantities
+    const projectComponentMap = new Map(projectQuantities.map(q => [q.componentId, q.quantity]));
     const projectComponentIds = new Set(projectQuantities.map(q => q.componentId));
 
     return groups.map(group => {
-      const groupComponentIds = new Set(group.componentIds);
+      // Get all component IDs needed by this group (from layoutData if available)
+      let groupComponentIds: string[] = [];
+      if (group.layoutData?.tiles && group.layoutData.tiles.length > 0) {
+        groupComponentIds = group.layoutData.tiles.map(t => t.componentId);
+      } else {
+        groupComponentIds = group.componentIds;
+      }
       
-      // Find matching components (in both project and group)
-      const matchingComponents = group.componentIds.filter(id => projectComponentIds.has(id));
+      const uniqueGroupComponentIds = [...new Set(groupComponentIds)];
       
-      // Find missing components (in project but not in group)
-      const missingComponents = projectQuantities
-        .map(q => q.componentId)
-        .filter(id => !groupComponentIds.has(id));
+      // Check if ALL group components are in the project
+      const allGroupComponentsInProject = uniqueGroupComponentIds.every(id => projectComponentIds.has(id));
       
-      // Find extra components (in group but not in project)
-      const extraComponents = group.componentIds.filter(id => !projectComponentIds.has(id));
+      if (!allGroupComponentsInProject) {
+        // Group cannot be used - some components are missing
+        return {
+          group,
+          matchPercentage: 0,
+          matchingComponents: [],
+          missingComponents: [...projectComponentIds].filter(id => !uniqueGroupComponentIds.includes(id)),
+          extraComponents: uniqueGroupComponentIds.filter(id => !projectComponentIds.has(id))
+        };
+      }
       
-      // Calculate match percentage
-      // A group must have ALL its components in the project to be a match
-      // The percentage is based on how many group components are in the project
-      const matchCount = matchingComponents.length;
+      // All group components are present - calculate match percentage
+      // Match percentage = (number of group component instances / total project components) * 100
+      const groupComponentCount = groupComponentIds.length;
+      const totalProjectComponents = projectQuantities.reduce((sum, q) => sum + q.quantity, 0);
       
-      // Only consider groups where all group components are in the project
-      const allGroupComponentsInProject = extraComponents.length === 0;
-      const matchPercentage = allGroupComponentsInProject 
-        ? (matchCount / projectComponentIds.size) * 100 
-        : 0;
+      // Check if we have enough quantity of each component
+      const componentCountInGroup = new Map<string, number>();
+      for (const id of groupComponentIds) {
+        componentCountInGroup.set(id, (componentCountInGroup.get(id) || 0) + 1);
+      }
+      
+      let canFulfill = true;
+      for (const [id, needed] of componentCountInGroup.entries()) {
+        const available = projectComponentMap.get(id) || 0;
+        if (available < needed) {
+          canFulfill = false;
+          break;
+        }
+      }
+      
+      if (!canFulfill) {
+        return {
+          group,
+          matchPercentage: 0,
+          matchingComponents: [],
+          missingComponents: [],
+          extraComponents: []
+        };
+      }
+      
+      const matchPercentage = (groupComponentCount / totalProjectComponents) * 100;
 
       return {
         group,
-        matchPercentage,
-        matchingComponents,
-        missingComponents,
-        extraComponents
+        matchPercentage: Math.min(100, matchPercentage),
+        matchingComponents: uniqueGroupComponentIds,
+        missingComponents: [...projectComponentIds].filter(id => !uniqueGroupComponentIds.includes(id)),
+        extraComponents: []
       };
     })
     .filter(match => match.matchPercentage > 0)
