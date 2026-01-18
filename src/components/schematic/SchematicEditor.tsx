@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
@@ -162,6 +162,56 @@ export function SchematicEditor() {
     });
   }, []);
 
+  // Create group from selected tiles on canvas
+  const handleCreateGroupFromTiles = useCallback(async (name: string) => {
+    if (selectedTileIds.size < 2) return;
+    
+    const selectedTiles = tiles.filter(t => selectedTileIds.has(t.id));
+    if (selectedTiles.length < 2) return;
+    
+    // Find min coordinates to calculate relative positions
+    const minX = Math.min(...selectedTiles.map(t => t.gridX));
+    const minY = Math.min(...selectedTiles.map(t => t.gridY));
+    
+    // Create tile data with relative positions
+    const tileData: GroupTileData[] = selectedTiles.map(tile => ({
+      componentId: tile.component.id,
+      relativeX: tile.gridX - minX,
+      relativeY: tile.gridY - minY
+    }));
+    
+    // Get component IDs (unique)
+    const componentIds = [...new Set(selectedTiles.map(t => t.component.id))];
+    
+    // Find connections between selected tiles
+    const relevantConnections = connections.filter(c => 
+      selectedTileIds.has(c.fromTileId) && selectedTileIds.has(c.toTileId)
+    );
+    
+    // Map tile IDs to indices
+    const tileIdToIndex = new Map(selectedTiles.map((t, i) => [t.id, i]));
+    
+    const connectionData: GroupConnectionData[] = relevantConnections.map(conn => ({
+      fromTileIndex: tileIdToIndex.get(conn.fromTileId)!,
+      fromCellX: conn.fromCellX,
+      fromCellY: conn.fromCellY,
+      fromSide: conn.fromSide,
+      toTileIndex: tileIdToIndex.get(conn.toTileId)!,
+      toCellX: conn.toCellX,
+      toCellY: conn.toCellY,
+      toSide: conn.toSide,
+      color: conn.color
+    }));
+    
+    const layoutData: GroupLayoutData = {
+      tiles: tileData,
+      connections: connectionData
+    };
+    
+    await createGroup(name, componentIds, layoutData);
+    setSelectedTileIds(new Set());
+  }, [selectedTileIds, tiles, connections, createGroup]);
+
   const handleCreateGroup = useCallback(async (name: string, componentIds: string[]) => {
     await createGroup(name, componentIds);
     setSelectedComponentIds(new Set());
@@ -296,21 +346,14 @@ export function SchematicEditor() {
           isGroupMode={isGroupMode}
           onToggleGroupMode={() => {
             setIsGroupMode(!isGroupMode);
-            if (!isGroupMode) {
-              // Entering group mode - switch to components tab and clear selection
-              setLibraryTab('components');
-              setSelectedComponentIds(new Set());
-            }
           }}
-          selectedComponentCount={selectedComponentIds.size}
+          selectedTileCount={selectedTileIds.size}
           onSaveGroup={(name) => {
-            handleCreateGroup(name, Array.from(selectedComponentIds));
+            handleCreateGroupFromTiles(name);
             setIsGroupMode(false);
-            setSelectedComponentIds(new Set());
           }}
           onCancelGroupMode={() => {
             setIsGroupMode(false);
-            setSelectedComponentIds(new Set());
           }}
         />
 
@@ -353,8 +396,6 @@ export function SchematicEditor() {
           <ComponentLibrary
             components={components}
             groups={groups}
-            selectedComponentIds={selectedComponentIds}
-            isGroupMode={isGroupMode}
             onCreateNew={() => { setEditingComponent(null); setIsEditorOpen(true); }}
             onDeleteComponent={handleDeleteComponent}
             onClearAll={handleClearAllComponents}
@@ -363,10 +404,8 @@ export function SchematicEditor() {
             onUpdateComponent={handleUpdateComponent}
             onImportFromLocalStorage={importFromLocalStorage}
             hasLocalStorageComponents={hasLocalStorageComponents}
-            onCreateGroup={handleCreateGroup}
             onDeleteGroup={handleDeleteGroup}
             onEditGroup={handleEditGroup}
-            onComponentSelect={handleComponentSelect}
             activeTab={libraryTab}
             onTabChange={setLibraryTab}
           />

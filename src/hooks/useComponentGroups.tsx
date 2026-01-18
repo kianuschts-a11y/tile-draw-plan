@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { ComponentGroup } from "@/types/schematic";
+import { ComponentGroup, GroupLayoutData } from "@/types/schematic";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { Json } from "@/integrations/supabase/types";
 
 export function useComponentGroups() {
   const { companyId } = useAuth();
@@ -27,7 +28,8 @@ export function useComponentGroups() {
       const mappedGroups: ComponentGroup[] = (data || []).map(row => ({
         id: row.id,
         name: row.name,
-        componentIds: row.component_ids || []
+        componentIds: row.component_ids || [],
+        layoutData: row.layout_data as unknown as GroupLayoutData | undefined
       }));
 
       setGroups(mappedGroups);
@@ -43,7 +45,11 @@ export function useComponentGroups() {
     loadGroups();
   }, [loadGroups]);
 
-  const createGroup = useCallback(async (name: string, componentIds: string[]): Promise<ComponentGroup | null> => {
+  const createGroup = useCallback(async (
+    name: string, 
+    componentIds: string[],
+    layoutData?: GroupLayoutData
+  ): Promise<ComponentGroup | null> => {
     if (!companyId) {
       toast.error('Keine Firma gefunden');
       return null;
@@ -55,7 +61,8 @@ export function useComponentGroups() {
         .insert({
           company_id: companyId,
           name,
-          component_ids: componentIds
+          component_ids: componentIds,
+          layout_data: layoutData as unknown as Json
         })
         .select()
         .single();
@@ -65,7 +72,8 @@ export function useComponentGroups() {
       const newGroup: ComponentGroup = {
         id: data.id,
         name: data.name,
-        componentIds: data.component_ids || []
+        componentIds: data.component_ids || [],
+        layoutData: data.layout_data as unknown as GroupLayoutData | undefined
       };
 
       setGroups(prev => [...prev, newGroup]);

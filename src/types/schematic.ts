@@ -112,11 +112,38 @@ export interface Component {
   activeVariationId?: string; // Legacy
 }
 
-// Component Group - groups multiple components together
+// Tile layout data for groups - stores relative positions
+export interface GroupTileData {
+  componentId: string;
+  relativeX: number; // Grid position relative to first tile (0-based)
+  relativeY: number;
+}
+
+// Connection data for groups - references tiles by index
+export interface GroupConnectionData {
+  fromTileIndex: number;
+  fromCellX: number;
+  fromCellY: number;
+  fromSide: 'left' | 'right' | 'top' | 'bottom';
+  toTileIndex: number;
+  toCellX: number;
+  toCellY: number;
+  toSide: 'left' | 'right' | 'top' | 'bottom';
+  color?: string;
+}
+
+// Layout data stored in groups
+export interface GroupLayoutData {
+  tiles: GroupTileData[];
+  connections: GroupConnectionData[];
+}
+
+// Component Group - groups multiple components together with layout
 export interface ComponentGroup {
   id: string;
   name: string;
   componentIds: string[]; // IDs of components in this group
+  layoutData?: GroupLayoutData; // Positions and connections for template placement
 }
 
 // Component quantity in a project
