@@ -380,14 +380,20 @@ export function generateSingleConnectionLine(
         }
       }
     }
-    // If no intersection found within cell, draw line to the opposite edge of the cell
-    // This allows the connection line to span the entire cell when no shapes block it
-    if (closestIntersectionX === null) {
-      closestIntersectionX = side === 'left' ? cellRightNorm : cellLeftNorm;
-    }
     
-    const lineStartX = side === 'left' ? cellLeftNorm : closestIntersectionX;
-    const lineEndX = side === 'left' ? closestIntersectionX : cellRightNorm;
+    // Determine line start and end positions
+    let lineStartX: number;
+    let lineEndX: number;
+    
+    if (side === 'left') {
+      // Connection coming from the left side of the cell
+      lineStartX = cellLeftNorm;
+      lineEndX = closestIntersectionX !== null ? closestIntersectionX : cellRightNorm;
+    } else {
+      // Connection coming from the right side of the cell
+      lineStartX = closestIntersectionX !== null ? closestIntersectionX : cellLeftNorm;
+      lineEndX = cellRightNorm;
+    }
     
     if (Math.abs(lineEndX - lineStartX) < 0.001) return shapes;
     
@@ -471,18 +477,19 @@ export function generateSingleConnectionLine(
       }
     }
     
+    // Determine line start and end positions
+    let lineStartY: number;
+    let lineEndY: number;
     
-    
-    // If no intersection found within cell, draw line to the opposite edge of the cell
-    // This allows the connection line to span the entire cell when no shapes block it
-    if (closestIntersectionY === null) {
-      closestIntersectionY = side === 'top' ? cellBottomNorm : cellTopNorm;
+    if (side === 'top') {
+      // Connection coming from the top side of the cell
+      lineStartY = cellTopNorm;
+      lineEndY = closestIntersectionY !== null ? closestIntersectionY : cellBottomNorm;
+    } else {
+      // Connection coming from the bottom side of the cell
+      lineStartY = closestIntersectionY !== null ? closestIntersectionY : cellTopNorm;
+      lineEndY = cellBottomNorm;
     }
-    
-    const lineStartY = side === 'top' ? cellTopNorm : closestIntersectionY;
-    const lineEndY = side === 'top' ? closestIntersectionY : cellBottomNorm;
-    
-    
     
     if (Math.abs(lineEndY - lineStartY) < 0.001) return shapes;
     
