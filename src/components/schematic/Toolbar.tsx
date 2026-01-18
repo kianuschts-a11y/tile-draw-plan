@@ -133,27 +133,19 @@ export function Toolbar({
         
         {/* Expanded group creation panel */}
         {isGroupMode && (
-          <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-3 min-w-[280px] z-50">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-2 min-w-[220px] z-50">
+            <div className="flex items-center gap-2 mb-2">
               <FolderPlus className="w-4 h-4 text-primary" />
               <span className="font-medium text-sm">Gruppe erstellen</span>
+              <span className="text-sm font-medium text-primary ml-auto">
+                {selectedComponentCount}
+              </span>
               <button 
                 onClick={handleCancelGroupMode}
-                className="ml-auto p-1 hover:bg-muted rounded"
+                className="p-1 hover:bg-muted rounded"
               >
                 <X className="w-4 h-4" />
               </button>
-            </div>
-            
-            <p className="text-xs text-muted-foreground mb-3">
-              Klicken Sie auf Komponenten in der Bibliothek, um sie auszuwählen. 
-              Bei erneutem Klicken wird die Auswahl aufgehoben.
-            </p>
-            
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-medium text-primary">
-                {selectedComponentCount} ausgewählt
-              </span>
             </div>
             
             <div className="flex gap-2">
@@ -175,15 +167,8 @@ export function Toolbar({
                 disabled={!groupName.trim() || selectedComponentCount < 2}
               >
                 <Save className="w-3 h-3" />
-                Speichern
               </Button>
             </div>
-            
-            {selectedComponentCount < 2 && (
-              <p className="text-xs text-destructive mt-2">
-                Mindestens 2 Komponenten erforderlich
-              </p>
-            )}
           </div>
         )}
       </div>

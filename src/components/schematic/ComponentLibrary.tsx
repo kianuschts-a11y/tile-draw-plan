@@ -392,7 +392,12 @@ export function ComponentLibrary({
   };
 
   return (
-    <div className="toolbar-panel border-l w-64 flex flex-col">
+    <div className={`toolbar-panel border-l w-64 flex flex-col ${isGroupMode ? 'ring-2 ring-primary ring-inset' : ''}`}>
+      {isGroupMode && (
+        <div className="bg-primary/10 px-3 py-2 border-b text-xs text-primary font-medium">
+          Komponenten anklicken um auszuwählen
+        </div>
+      )}
       <div className="p-3 border-b">
         <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as 'components' | 'groups')}>
           <TabsList className="w-full">
