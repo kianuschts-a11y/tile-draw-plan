@@ -7,13 +7,14 @@ import { ProjectPanel } from "./ProjectPanel";
 import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
+import { ComponentSelectorDialog } from "./ComponentSelectorDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
 import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans";
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
-import { LogOut, Menu, User, Building2, ClipboardList } from "lucide-react";
+import { LogOut, Menu, User, Building2, ClipboardList, Package } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +66,7 @@ export function SchematicEditor() {
   const [libraryTab, setLibraryTab] = useState<'components' | 'groups'>('components');
   const [showProjectPanel, setShowProjectPanel] = useState(false);
   const [isGroupMode, setIsGroupMode] = useState(false);
+  const [showComponentSelector, setShowComponentSelector] = useState(false);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -274,6 +276,69 @@ export function SchematicEditor() {
     console.log('Edit group:', group);
   }, []);
 
+  // Helper to generate unique ID
+  const generateNewId = useCallback(() => {
+    return Math.random().toString(36).substring(2, 11);
+  }, []);
+
+  // Insert a group from the component selector
+  const handleInsertGroupFromSelector = useCallback((group: ComponentGroup, count: number) => {
+    if (!group.layoutData) return;
+    
+    // Find next available position
+    const maxGridY = tiles.length > 0 ? Math.max(...tiles.map(t => t.gridY + (t.component.height || 1))) : 0;
+    
+    for (let i = 0; i < count; i++) {
+      const offsetY = maxGridY + (i * 5);
+      const newTileIds: string[] = [];
+      const newTiles: PlacedTile[] = [];
+      
+      // Create tiles from layout data
+      for (const tileData of group.layoutData.tiles) {
+        const component = components.find(c => c.id === tileData.componentId);
+        if (!component) continue;
+        
+        const newTile: PlacedTile = {
+          id: generateNewId(),
+          component,
+          gridX: tileData.relativeX,
+          gridY: offsetY + tileData.relativeY
+        };
+        newTiles.push(newTile);
+        newTileIds.push(newTile.id);
+      }
+      
+      // Create connections using the new tile IDs
+      const newConnections: CellConnection[] = [];
+      for (const connData of group.layoutData.connections) {
+        if (connData.fromTileIndex < newTileIds.length && connData.toTileIndex < newTileIds.length) {
+          newConnections.push({
+            id: generateNewId(),
+            fromTileId: newTileIds[connData.fromTileIndex],
+            fromCellX: connData.fromCellX,
+            fromCellY: connData.fromCellY,
+            fromSide: connData.fromSide,
+            toTileId: newTileIds[connData.toTileIndex],
+            toCellX: connData.toCellX,
+            toCellY: connData.toCellY,
+            toSide: connData.toSide,
+            color: connData.color
+          });
+        }
+      }
+      
+      setTiles(prev => [...prev, ...newTiles]);
+      setConnections(prev => [...prev, ...newConnections]);
+    }
+  }, [tiles, components, generateNewId]);
+
+  // Insert multiple groups from complementary set
+  const handleInsertMultipleGroups = useCallback((groupsWithCounts: Array<{ group: ComponentGroup; count: number }>) => {
+    for (const { group, count } of groupsWithCounts) {
+      handleInsertGroupFromSelector(group, count);
+    }
+  }, [handleInsertGroupFromSelector]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
@@ -334,7 +399,16 @@ export function SchematicEditor() {
         </div>
         <div className="h-8 w-px bg-border mx-2" />
         <Button
-          variant={showProjectPanel ? "default" : "outline"}
+          variant="default"
+          size="sm"
+          className="h-8 gap-1"
+          onClick={() => setShowComponentSelector(true)}
+        >
+          <Package className="w-4 h-4" />
+          Komponenten wählen
+        </Button>
+        <Button
+          variant={showProjectPanel ? "secondary" : "outline"}
           size="sm"
           className="h-8 gap-1"
           onClick={() => setShowProjectPanel(!showProjectPanel)}
@@ -471,6 +545,15 @@ export function SchematicEditor() {
         onUpdate={handleUpdateComponentShapes}
         tileSize={canvasState.gridSize}
         editingComponent={editingComponent}
+      />
+
+      <ComponentSelectorDialog
+        open={showComponentSelector}
+        onOpenChange={setShowComponentSelector}
+        components={components}
+        groups={groups}
+        onInsertGroup={handleInsertGroupFromSelector}
+        onInsertMultipleGroups={handleInsertMultipleGroups}
       />
     </div>
   );
