@@ -50,15 +50,16 @@ export function useComponents() {
     }
   }, [user, companyId]);
 
-  // Migrate localStorage components for first company
+  // Migrate localStorage components for current company (only if company has no components yet)
   const migrateLocalStorageComponents = useCallback(async () => {
     if (!user || !companyId || migrated) return;
 
     try {
-      // Check if this is the first company (no components exist in DB yet)
+      // Check if THIS COMPANY has any components yet
       const { count } = await supabase
         .from('components')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true })
+        .eq('company_id', companyId);
 
       if (count === 0) {
         // Load components from localStorage
@@ -66,20 +67,25 @@ export function useComponents() {
         if (stored) {
           const localComponents: Component[] = JSON.parse(stored);
           
-          // Insert each component into the database
-          for (const component of localComponents) {
-            await supabase.from('components').insert({
-              company_id: companyId,
-              name: component.name,
-              shapes: component.shapes as unknown as Json,
-              width: component.width,
-              height: component.height,
-              tile_size: component.tileSize || '1x1',
-              variations: (component.variations || []) as unknown as Json
-            });
+          if (localComponents.length > 0) {
+            // Insert each component into the database
+            for (const component of localComponents) {
+              await supabase.from('components').insert({
+                company_id: companyId,
+                name: component.name,
+                shapes: component.shapes as unknown as Json,
+                width: component.width,
+                height: component.height,
+                tile_size: component.tileSize || '1x1',
+                variations: (component.variations || []) as unknown as Json
+              });
+            }
+            
+            console.log(`Migrated ${localComponents.length} components from localStorage to company ${companyId}`);
+            
+            // Clear localStorage after successful migration
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
           }
-          
-          console.log(`Migrated ${localComponents.length} components to database`);
         }
       }
 
