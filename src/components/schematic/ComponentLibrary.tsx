@@ -273,13 +273,8 @@ export function ComponentLibrary({
             className={`library-item flex flex-col items-center gap-2 relative group cursor-pointer p-1 ${
               isSelected ? 'ring-2 ring-primary rounded-lg bg-primary/10' : ''
             }`}
-            draggable={!isSelectMode}
+            draggable
             onDragStart={(e) => {
-              // Don't allow drag in select mode
-              if (isSelectMode) {
-                e.preventDefault();
-                return;
-              }
               onDragStart(e, component);
             }}
             onClick={(e) => {
