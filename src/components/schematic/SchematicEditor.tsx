@@ -65,6 +65,7 @@ export function SchematicEditor() {
   const [libraryTab, setLibraryTab] = useState<'components' | 'groups'>('components');
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [showComponentSelector, setShowComponentSelector] = useState(false);
+  const [projectQuantities, setProjectQuantities] = useState<Map<string, number>>(new Map());
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -503,6 +504,8 @@ export function SchematicEditor() {
           onEditGroup={handleEditGroup}
           activeTab={libraryTab}
           onTabChange={setLibraryTab}
+          projectQuantities={projectQuantities}
+          placedTiles={tiles}
         />
       </div>
 
@@ -524,6 +527,8 @@ export function SchematicEditor() {
         groups={groups}
         onInsertGroup={handleInsertGroupFromSelector}
         onInsertMultipleGroups={handleInsertMultipleGroups}
+        projectQuantities={projectQuantities}
+        onProjectQuantitiesChange={setProjectQuantities}
       />
     </div>
   );
