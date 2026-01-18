@@ -261,11 +261,6 @@ export function ComponentLibrary({
                   <g key={idx}>{renderShape(shape, previewWidth, previewHeight)}</g>
                 ))}
               </svg>
-              {component.variations && component.variations.length > 0 && (
-                <div className="absolute -top-1 -left-1 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
-                  {component.variations.length}
-                </div>
-              )}
             </div>
             <span className="text-xs text-muted-foreground text-center truncate w-full">
               {component.name}
