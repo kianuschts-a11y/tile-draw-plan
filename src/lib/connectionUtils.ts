@@ -369,11 +369,12 @@ function findTextIntersectionsVertical(
 }
 
 /**
- * Generate a single connection line from tile edge to the FIRST shape intersection
- * For multi-cell components, the line is drawn only within the specific cell
+ * SIMPLE RULE: Draw line from cell edge towards center, STOP at first shape intersection.
  * 
- * UNIVERSAL RULE: The connection line STOPS at the FIRST geometric object it encounters.
- * All shapes except text are considered blocking shapes.
+ * This is the ONLY rule that matters:
+ * 1. Start at the cell edge (where the connection comes from)
+ * 2. Draw towards the center of the cell
+ * 3. STOP when hitting ANY geometric shape
  */
 export function generateSingleConnectionLine(
   componentShapes: Shape[],
@@ -389,248 +390,258 @@ export function generateSingleConnectionLine(
   const cellWidthNorm = 1 / tileWidth;
   const cellHeightNorm = 1 / tileHeight;
 
-  // Calculate cell boundaries in normalized coordinates
-  const cellLeftNorm = cellX * cellWidthNorm;
-  const cellRightNorm = (cellX + 1) * cellWidthNorm;
-  const cellTopNorm = cellY * cellHeightNorm;
-  const cellBottomNorm = (cellY + 1) * cellHeightNorm;
+  // Cell boundaries in normalized coordinates (0-1)
+  const cellLeft = cellX * cellWidthNorm;
+  const cellRight = (cellX + 1) * cellWidthNorm;
+  const cellTop = cellY * cellHeightNorm;
+  const cellBottom = (cellY + 1) * cellHeightNorm;
+  const cellCenterX = (cellLeft + cellRight) / 2;
+  const cellCenterY = (cellTop + cellBottom) / 2;
 
-  // UNIVERSAL RULE: ALL geometric shapes block connections, ONLY text is excluded
-  // This includes: rectangle, circle, ellipse, line, polyline, polygon, arc, triangle, diamond
+  // ALL shapes except text can block the connection line
   const blockingShapes = componentShapes.filter(s => s.type !== 'text');
 
   if (side === 'left' || side === 'right') {
-    const yNorm = (cellY + 0.5) * cellHeightNorm;
+    // Horizontal connection: scan line at cell's vertical center
+    const y = cellCenterY;
     
-    // Collect ALL intersections from ALL blocking shapes
-    let allIntersections: number[] = [];
+    // Starting point (cell edge) and end point (opposite edge or center)
+    const startX = side === 'left' ? cellLeft : cellRight;
+    const endX = side === 'left' ? cellRight : cellLeft;
+    
+    // Find ALL intersections with the horizontal scan line
+    let intersectionXValues: number[] = [];
     
     for (const shape of blockingShapes) {
-      // For each shape, find intersections with our horizontal scan line
-      const intersections = findShapeIntersections(0, yNorm, 1, yNorm, shape);
+      // Get all edges of this shape
+      const edges = getShapeEdges(shape);
       
-      // Also check if shape's bounding box intersects our Y level
-      const shapeTop = getShapeMinY(shape);
-      const shapeBottom = getShapeMaxY(shape);
+      for (const edge of edges) {
+        // Check if horizontal line at y intersects this edge
+        const intersection = lineSegmentIntersection(
+          startX, y, endX, y,  // Our horizontal scan line
+          edge.x1, edge.y1, edge.x2, edge.y2  // Shape edge
+        );
+        
+        if (intersection) {
+          intersectionXValues.push(intersection.x);
+        }
+      }
       
-      // Only consider intersections if the shape actually spans our Y level
-      if (yNorm >= shapeTop - 0.001 && yNorm <= shapeBottom + 0.001) {
-        for (const intersection of intersections) {
-          allIntersections.push(intersection.x);
+      // Also check ellipse/circle shapes specially
+      if (shape.type === 'circle' || shape.type === 'ellipse') {
+        const cx = shape.x + shape.width / 2;
+        const cy = shape.y + shape.height / 2;
+        const rx = shape.width / 2;
+        const ry = shape.height / 2;
+        
+        // Check if y is within the ellipse's vertical range
+        if (y >= shape.y && y <= shape.y + shape.height) {
+          // Calculate x intersections using ellipse equation
+          const dy = y - cy;
+          const discriminant = 1 - (dy * dy) / (ry * ry);
+          if (discriminant >= 0) {
+            const sqrtD = Math.sqrt(discriminant);
+            intersectionXValues.push(cx - rx * sqrtD);
+            intersectionXValues.push(cx + rx * sqrtD);
+          }
         }
       }
     }
     
-    // Filter to intersections within this cell (with small tolerance)
-    const cellIntersections = allIntersections.filter(
-      x => x >= cellLeftNorm - 0.001 && x <= cellRightNorm + 0.001
-    );
-    
-    // Find the closest intersection based on which side we're coming from
-    let closestIntersectionX: number | null = null;
+    // Find the FIRST intersection from our starting edge
+    let stopX: number | null = null;
     
     if (side === 'left') {
-      // Coming from left edge, find the SMALLEST X (first obstacle from left)
-      for (const x of cellIntersections) {
-        if (closestIntersectionX === null || x < closestIntersectionX) {
-          closestIntersectionX = x;
+      // Coming from left, find smallest X that's > startX
+      for (const x of intersectionXValues) {
+        if (x > startX + 0.001 && x <= cellRight + 0.001) {
+          if (stopX === null || x < stopX) {
+            stopX = x;
+          }
         }
       }
     } else {
-      // Coming from right edge, find the LARGEST X (first obstacle from right)
-      for (const x of cellIntersections) {
-        if (closestIntersectionX === null || x > closestIntersectionX) {
-          closestIntersectionX = x;
+      // Coming from right, find largest X that's < startX
+      for (const x of intersectionXValues) {
+        if (x < startX - 0.001 && x >= cellLeft - 0.001) {
+          if (stopX === null || x > stopX) {
+            stopX = x;
+          }
         }
       }
     }
     
-    // Determine line start and end positions
-    let lineStartX: number;
-    let lineEndX: number;
+    // Draw the line
+    const lineStart = side === 'left' ? cellLeft : (stopX !== null ? stopX : cellLeft);
+    const lineEnd = side === 'left' ? (stopX !== null ? stopX : cellRight) : cellRight;
     
-    if (side === 'left') {
-      lineStartX = cellLeftNorm;
-      lineEndX = closestIntersectionX !== null ? closestIntersectionX : cellRightNorm;
-    } else {
-      lineStartX = closestIntersectionX !== null ? closestIntersectionX : cellLeftNorm;
-      lineEndX = cellRightNorm;
-    }
-    
-    // Ensure we have a valid line (start < end)
-    if (lineStartX > lineEndX) {
-      [lineStartX, lineEndX] = [lineEndX, lineStartX];
-    }
-    
-    // Skip if line is too short (intersection at cell edge)
-    if (Math.abs(lineEndX - lineStartX) < 0.001) {
-      return shapes;
-    }
-    
-    // Handle text breaks
-    const textBreaks = findTextIntersectionsHorizontal(componentShapes, yNorm);
-    
-    if (textBreaks.length === 0) {
-      shapes.push({
-        id: `conn-${side}-${cellX}-${cellY}`,
-        type: 'line',
-        x: lineStartX,
-        y: yNorm,
-        width: lineEndX - lineStartX,
-        height: 0,
-        strokeWidth
-      });
-    } else {
-      let currentX = lineStartX;
-      for (const textBreak of textBreaks) {
-        if (textBreak.minX > currentX && textBreak.minX < lineEndX) {
+    if (Math.abs(lineEnd - lineStart) > 0.001) {
+      // Handle text breaks
+      const textBreaks = findTextIntersectionsHorizontal(componentShapes, y);
+      
+      if (textBreaks.length === 0) {
+        shapes.push({
+          id: `conn-${side}-${cellX}-${cellY}`,
+          type: 'line',
+          x: Math.min(lineStart, lineEnd),
+          y: y,
+          width: Math.abs(lineEnd - lineStart),
+          height: 0,
+          strokeWidth
+        });
+      } else {
+        // Draw segments around text
+        let currentX = Math.min(lineStart, lineEnd);
+        const maxX = Math.max(lineStart, lineEnd);
+        for (const textBreak of textBreaks) {
+          if (textBreak.minX > currentX && textBreak.minX < maxX) {
+            shapes.push({
+              id: `conn-${side}-${cellX}-${cellY}-seg-${currentX}`,
+              type: 'line',
+              x: currentX,
+              y: y,
+              width: textBreak.minX - currentX,
+              height: 0,
+              strokeWidth
+            });
+          }
+          currentX = Math.max(currentX, textBreak.maxX);
+        }
+        if (currentX < maxX) {
           shapes.push({
-            id: `conn-${side}-${cellX}-${cellY}-seg-${currentX}`,
+            id: `conn-${side}-${cellX}-${cellY}-seg-end`,
             type: 'line',
             x: currentX,
-            y: yNorm,
-            width: textBreak.minX - currentX,
+            y: y,
+            width: maxX - currentX,
             height: 0,
             strokeWidth
           });
         }
-        currentX = Math.max(currentX, textBreak.maxX);
-      }
-      if (currentX < lineEndX) {
-        shapes.push({
-          id: `conn-${side}-${cellX}-${cellY}-seg-end`,
-          type: 'line',
-          x: currentX,
-          y: yNorm,
-          width: lineEndX - currentX,
-          height: 0,
-          strokeWidth
-        });
       }
     }
   } else {
-    // Top or bottom connection
-    const xNorm = (cellX + 0.5) * cellWidthNorm;
+    // Vertical connection (top or bottom): scan line at cell's horizontal center
+    const x = cellCenterX;
     
-    // Collect ALL intersections from ALL blocking shapes
-    let allIntersections: number[] = [];
+    // Starting point (cell edge) and end point (opposite edge)
+    const startY = side === 'top' ? cellTop : cellBottom;
+    const endY = side === 'top' ? cellBottom : cellTop;
+    
+    // Find ALL intersections with the vertical scan line
+    let intersectionYValues: number[] = [];
     
     for (const shape of blockingShapes) {
-      // For each shape, find intersections with our vertical scan line
-      const intersections = findShapeIntersections(xNorm, 0, xNorm, 1, shape);
+      // Get all edges of this shape
+      const edges = getShapeEdges(shape);
       
-      // Also check if shape's bounding box intersects our X level
-      const shapeLeft = getShapeMinX(shape);
-      const shapeRight = getShapeMaxX(shape);
-      
-      // Only consider intersections if the shape actually spans our X level
-      if (xNorm >= shapeLeft - 0.001 && xNorm <= shapeRight + 0.001) {
-        for (const intersection of intersections) {
-          allIntersections.push(intersection.y);
-        }
-      }
-    }
-    
-    // Filter to intersections within this cell (with small tolerance)
-    const cellIntersections = allIntersections.filter(
-      y => y >= cellTopNorm - 0.001 && y <= cellBottomNorm + 0.001
-    );
-    
-    // Find the closest intersection based on which side we're coming from
-    let closestIntersectionY: number | null = null;
-    
-    if (side === 'top') {
-      // Coming from top edge, find the SMALLEST Y (first obstacle from top)
-      for (const y of cellIntersections) {
-        if (closestIntersectionY === null || y < closestIntersectionY) {
-          closestIntersectionY = y;
-        }
-      }
-    } else {
-      // Coming from bottom edge, find the LARGEST Y (first obstacle from bottom)
-      for (const y of cellIntersections) {
-        if (closestIntersectionY === null || y > closestIntersectionY) {
-          closestIntersectionY = y;
-        }
-      }
-    }
-    
-    // Determine line start and end positions
-    let lineStartY: number;
-    let lineEndY: number;
-    
-    if (side === 'top') {
-      lineStartY = cellTopNorm;
-      lineEndY = closestIntersectionY !== null ? closestIntersectionY : cellBottomNorm;
-    } else {
-      lineStartY = closestIntersectionY !== null ? closestIntersectionY : cellTopNorm;
-      lineEndY = cellBottomNorm;
-    }
-    
-    // Ensure we have a valid line (start < end)
-    if (lineStartY > lineEndY) {
-      [lineStartY, lineEndY] = [lineEndY, lineStartY];
-    }
-    
-    // Skip if line is too short (intersection at cell edge)
-    if (Math.abs(lineEndY - lineStartY) < 0.001) {
-      return shapes;
-    }
-    
-    // Handle text breaks
-    const textBreaks = findTextIntersectionsVertical(componentShapes, xNorm);
-    
-    
-    
-    // Filter text breaks to only those within our line range
-    const relevantTextBreaks = textBreaks.filter(tb => 
-      tb.maxY > lineStartY && tb.minY < lineEndY
-    );
-    
-    
-    
-    if (relevantTextBreaks.length === 0) {
-      const newShape = {
-        id: `conn-${side}-${cellX}-${cellY}`,
-        type: 'line' as const,
-        x: xNorm,
-        y: lineStartY,
-        width: 0,
-        height: lineEndY - lineStartY,
-        strokeWidth
-      };
-      
-      shapes.push(newShape);
-    } else {
-      let currentY = lineStartY;
-      for (const textBreak of relevantTextBreaks) {
-        // Clamp text break to our line range
-        const clampedMinY = Math.max(textBreak.minY, lineStartY);
-        const clampedMaxY = Math.min(textBreak.maxY, lineEndY);
+      for (const edge of edges) {
+        // Check if vertical line at x intersects this edge
+        const intersection = lineSegmentIntersection(
+          x, startY, x, endY,  // Our vertical scan line
+          edge.x1, edge.y1, edge.x2, edge.y2  // Shape edge
+        );
         
-        if (clampedMinY > currentY) {
+        if (intersection) {
+          intersectionYValues.push(intersection.y);
+        }
+      }
+      
+      // Also check ellipse/circle shapes specially
+      if (shape.type === 'circle' || shape.type === 'ellipse') {
+        const cx = shape.x + shape.width / 2;
+        const cy = shape.y + shape.height / 2;
+        const rx = shape.width / 2;
+        const ry = shape.height / 2;
+        
+        // Check if x is within the ellipse's horizontal range
+        if (x >= shape.x && x <= shape.x + shape.width) {
+          // Calculate y intersections using ellipse equation
+          const dx = x - cx;
+          const discriminant = 1 - (dx * dx) / (rx * rx);
+          if (discriminant >= 0) {
+            const sqrtD = Math.sqrt(discriminant);
+            intersectionYValues.push(cy - ry * sqrtD);
+            intersectionYValues.push(cy + ry * sqrtD);
+          }
+        }
+      }
+    }
+    
+    // Find the FIRST intersection from our starting edge
+    let stopY: number | null = null;
+    
+    if (side === 'top') {
+      // Coming from top, find smallest Y that's > startY
+      for (const y of intersectionYValues) {
+        if (y > startY + 0.001 && y <= cellBottom + 0.001) {
+          if (stopY === null || y < stopY) {
+            stopY = y;
+          }
+        }
+      }
+    } else {
+      // Coming from bottom, find largest Y that's < startY
+      for (const y of intersectionYValues) {
+        if (y < startY - 0.001 && y >= cellTop - 0.001) {
+          if (stopY === null || y > stopY) {
+            stopY = y;
+          }
+        }
+      }
+    }
+    
+    // Draw the line
+    const lineStart = side === 'top' ? cellTop : (stopY !== null ? stopY : cellTop);
+    const lineEnd = side === 'top' ? (stopY !== null ? stopY : cellBottom) : cellBottom;
+    
+    if (Math.abs(lineEnd - lineStart) > 0.001) {
+      // Handle text breaks
+      const textBreaks = findTextIntersectionsVertical(componentShapes, x);
+      const relevantTextBreaks = textBreaks.filter(tb => 
+        tb.maxY > Math.min(lineStart, lineEnd) && tb.minY < Math.max(lineStart, lineEnd)
+      );
+      
+      if (relevantTextBreaks.length === 0) {
+        shapes.push({
+          id: `conn-${side}-${cellX}-${cellY}`,
+          type: 'line',
+          x: x,
+          y: Math.min(lineStart, lineEnd),
+          width: 0,
+          height: Math.abs(lineEnd - lineStart),
+          strokeWidth
+        });
+      } else {
+        // Draw segments around text
+        let currentY = Math.min(lineStart, lineEnd);
+        const maxY = Math.max(lineStart, lineEnd);
+        for (const textBreak of relevantTextBreaks) {
+          if (textBreak.minY > currentY && textBreak.minY < maxY) {
+            shapes.push({
+              id: `conn-${side}-${cellX}-${cellY}-seg-${currentY}`,
+              type: 'line',
+              x: x,
+              y: currentY,
+              width: 0,
+              height: textBreak.minY - currentY,
+              strokeWidth
+            });
+          }
+          currentY = Math.max(currentY, textBreak.maxY);
+        }
+        if (currentY < maxY) {
           shapes.push({
-            id: `conn-${side}-${cellX}-${cellY}-seg-${currentY}`,
+            id: `conn-${side}-${cellX}-${cellY}-seg-end`,
             type: 'line',
-            x: xNorm,
+            x: x,
             y: currentY,
             width: 0,
-            height: clampedMinY - currentY,
+            height: maxY - currentY,
             strokeWidth
           });
         }
-        currentY = Math.max(currentY, clampedMaxY);
-      }
-      if (currentY < lineEndY) {
-        shapes.push({
-          id: `conn-${side}-${cellX}-${cellY}-seg-end`,
-          type: 'line',
-          x: xNorm,
-          y: currentY,
-          width: 0,
-          height: lineEndY - currentY,
-          strokeWidth
-        });
       }
     }
   }
