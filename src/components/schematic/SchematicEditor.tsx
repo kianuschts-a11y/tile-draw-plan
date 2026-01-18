@@ -354,6 +354,7 @@ export function SchematicEditor() {
             components={components}
             groups={groups}
             selectedComponentIds={selectedComponentIds}
+            activeTool={activeTool}
             onCreateNew={() => { setEditingComponent(null); setIsEditorOpen(true); }}
             onDeleteComponent={handleDeleteComponent}
             onClearAll={handleClearAllComponents}
