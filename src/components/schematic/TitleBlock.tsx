@@ -161,44 +161,61 @@ export function TitleBlock({ data, paperWidth, paperHeight, tileSize, onDataChan
       {/* x=2680 from 1810 to 1930 */}
       <polyline points={`${sx(2680)} ${sy(1810)}, ${sx(2680)} ${sy(1930)}`} fill="none" stroke="black" strokeWidth={strokeWidth(2)} />
       
-      {/* === TITLE BLOCK LABELS - exact positions from SVG === */}
-      <text x={sx(1431.85)} y={sy(1840)} fontFamily="Arial" fontSize={fontSize} fill="black">Änderungen</text>
-      <text x={sx(1736.16)} y={sy(1880)} fontFamily="Arial" fontSize={fontSize} fill="black">gez.:</text>
-      <text x={sx(1727.38)} y={sy(1920)} fontFamily="Arial" fontSize={fontSize} fill="black">gepr.:</text>
-      <text x={sx(1823.81)} y={sy(1840)} fontFamily="Arial" fontSize={fontSize} fill="black">Datum</text>
-      <text x={sx(2022.76)} y={sy(1840)} fontFamily="Arial" fontSize={fontSize} fill="black">Name</text>
-      <text x={sx(2098.25)} y={sy(1843)} fontFamily="Arial" fontSize={fontSizeLarge} fill="black">Projekt:</text>
-      <text x={sx(2059.54)} y={sy(1913)} fontFamily="Arial" fontSize={fontSizeLarge} fill="black">Zeichnungs-Nr.:</text>
-      <text x={sx(2684.18)} y={sy(1913.37)} fontFamily="Arial" fontSize={fontSizeLarge} fill="black">Blattzahl:</text>
-      <text x={sx(2708.88)} y={sy(1873.37)} fontFamily="Arial" fontSize={fontSizeLarge} fill="black">Blatt-Nr.:</text>
+      {/* === TITLE BLOCK LABELS - positioned inside cells === */}
+      {/* "Änderungen" centered in cell between x=500-940, y=1810-1870 */}
+      <text x={sx(650)} y={sy(1845)} fontFamily="Arial" fontSize={fontSize} fill="black" textAnchor="middle">Änderungen</text>
+      
+      {/* "Datum" centered in cell between x=1760-1900, y=1810-1850 */}
+      <text x={sx(1830)} y={sy(1835)} fontFamily="Arial" fontSize={fontSize} fill="black" textAnchor="middle">Datum</text>
+      
+      {/* "Name" centered in cell between x=1900-2070, y=1810-1850 */}
+      <text x={sx(1985)} y={sy(1835)} fontFamily="Arial" fontSize={fontSize} fill="black" textAnchor="middle">Name</text>
+      
+      {/* "gez.:" in cell between x=1680-1760, y=1850-1890 */}
+      <text x={sx(1695)} y={sy(1875)} fontFamily="Arial" fontSize={fontSize} fill="black">gez.:</text>
+      
+      {/* "gepr.:" in cell between x=1680-1760, y=1890-1930 */}
+      <text x={sx(1690)} y={sy(1915)} fontFamily="Arial" fontSize={fontSize} fill="black">gepr.:</text>
+      
+      {/* "Projekt:" in cell between x=2070-2680, y=1810-1890 */}
+      <text x={sx(2085)} y={sy(1855)} fontFamily="Arial" fontSize={fontSizeLarge} fill="black">Projekt:</text>
+      
+      {/* "Zeichnungs-Nr.:" in cell between x=2070-2680, y=1890-1930 */}
+      <text x={sx(2085)} y={sy(1918)} fontFamily="Arial" fontSize={fontSizeLarge} fill="black">Zeichnungs-Nr.:</text>
+      
+      {/* "Blatt-Nr.:" in cell between x=2680-2870, y=1810-1850 */}
+      <text x={sx(2695)} y={sy(1835)} fontFamily="Arial" fontSize={fontSizeLarge} fill="black">Blatt-Nr.:</text>
+      
+      {/* "Blattzahl:" in cell between x=2680-2870, y=1850-1890 */}
+      <text x={sx(2695)} y={sy(1875)} fontFamily="Arial" fontSize={fontSizeLarge} fill="black">Blattzahl:</text>
       
       {/* === EDITABLE FIELD VALUES === */}
-      {/* Projekt value */}
-      <text x={sx(2200)} y={sy(1865)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.projekt}</text>
+      {/* Projekt value - right side of Projekt label */}
+      <text x={sx(2220)} y={sy(1855)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.projekt}</text>
       
-      {/* Zeichnungs-Nr. value */}
-      <text x={sx(2200)} y={sy(1935)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.zeichnungsNr}</text>
+      {/* Zeichnungs-Nr. value - right side of label */}
+      <text x={sx(2280)} y={sy(1918)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.zeichnungsNr}</text>
       
-      {/* Blatt-Nr. value */}
-      <text x={sx(2820)} y={sy(1895)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.blattNr}</text>
+      {/* Blatt-Nr. value - right of label */}
+      <text x={sx(2820)} y={sy(1835)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.blattNr}</text>
       
-      {/* Blattzahl value */}
-      <text x={sx(2820)} y={sy(1935)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.blattzahl}</text>
+      {/* Blattzahl value - right of label */}
+      <text x={sx(2820)} y={sy(1875)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.blattzahl}</text>
       
-      {/* gez. Datum */}
-      <text x={sx(1770)} y={sy(1905)} fontSize={fontSize} fill="rgb(0,128,0)">{data.gezeichnet.datum}</text>
+      {/* gez. Datum - in cell x=1760-1900, y=1850-1890 */}
+      <text x={sx(1770)} y={sy(1875)} fontSize={fontSize} fill="rgb(0,128,0)">{data.gezeichnet.datum}</text>
       
-      {/* gez. Name */}
-      <text x={sx(1910)} y={sy(1905)} fontSize={fontSize} fill="rgb(0,128,0)">{data.gezeichnet.name}</text>
+      {/* gez. Name - in cell x=1900-2070, y=1850-1890 */}
+      <text x={sx(1910)} y={sy(1875)} fontSize={fontSize} fill="rgb(0,128,0)">{data.gezeichnet.name}</text>
       
-      {/* gepr. Datum */}
-      <text x={sx(1770)} y={sy(1945)} fontSize={fontSize} fill="rgb(0,128,0)">{data.geprueft.datum}</text>
+      {/* gepr. Datum - in cell x=1760-1900, y=1890-1930 */}
+      <text x={sx(1770)} y={sy(1915)} fontSize={fontSize} fill="rgb(0,128,0)">{data.geprueft.datum}</text>
       
-      {/* gepr. Name */}
-      <text x={sx(1910)} y={sy(1945)} fontSize={fontSize} fill="rgb(0,128,0)">{data.geprueft.name}</text>
+      {/* gepr. Name - in cell x=1900-2070, y=1890-1930 */}
+      <text x={sx(1910)} y={sy(1915)} fontSize={fontSize} fill="rgb(0,128,0)">{data.geprueft.name}</text>
       
-      {/* Änderungen value */}
-      <text x={sx(70)} y={sy(1855)} fontSize={fontSize} fill="black">{data.aenderungen}</text>
+      {/* Änderungen value - in left section */}
+      <text x={sx(70)} y={sy(1900)} fontSize={fontSize} fill="black">{data.aenderungen}</text>
     </g>
   );
 }
