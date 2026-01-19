@@ -85,19 +85,21 @@ export function SchematicEditor() {
   const historyRef = useRef<HistoryEntry[]>([{ tiles: [], connections: [] }]);
   const historyIndexRef = useRef(0);
   const [historyVersion, setHistoryVersion] = useState(0);
-  const skipNextSaveRef = useRef(false);
+  const isUndoRedoRef = useRef(false);
+  const saveTimeoutRef = useRef<number | null>(null);
 
-  // Snapshot des aktuellen Zustands speichern
+  // Snapshot des aktuellen Zustands speichern (debounced)
   const saveToHistory = useCallback((newTiles: PlacedTile[], newConnections: CellConnection[]) => {
-    if (skipNextSaveRef.current) {
-      skipNextSaveRef.current = false;
+    // Wenn gerade Undo/Redo läuft, nicht speichern
+    if (isUndoRedoRef.current) {
       return;
     }
     
     const currentEntry = historyRef.current[historyIndexRef.current];
-    // Nur speichern wenn sich etwas geändert hat
-    if (JSON.stringify(currentEntry?.tiles) !== JSON.stringify(newTiles) ||
-        JSON.stringify(currentEntry?.connections) !== JSON.stringify(newConnections)) {
+    const tilesChanged = JSON.stringify(currentEntry?.tiles) !== JSON.stringify(newTiles);
+    const connectionsChanged = JSON.stringify(currentEntry?.connections) !== JSON.stringify(newConnections);
+    
+    if (tilesChanged || connectionsChanged) {
       // Historie bis zum aktuellen Index abschneiden, neuen Eintrag hinzufügen
       historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
       historyRef.current.push({ 
@@ -110,65 +112,93 @@ export function SchematicEditor() {
       } else {
         historyIndexRef.current++;
       }
+      console.log('[History] Saved, index:', historyIndexRef.current, 'length:', historyRef.current.length);
       setHistoryVersion(v => v + 1);
     }
   }, []);
 
-  // Normale setTiles - speichert nach Update zur History
+  // Debounced save - wartet bis keine weiteren Änderungen kommen
+  const scheduleSave = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = window.setTimeout(() => {
+      // Aktuellen State holen und speichern
+      setTilesInternal(currentTiles => {
+        setConnectionsInternal(currentConnections => {
+          saveToHistory(currentTiles, currentConnections);
+          return currentConnections;
+        });
+        return currentTiles;
+      });
+    }, 100);
+  }, [saveToHistory]);
+
+  // Normale setTiles
   const setTiles = useCallback((newTilesOrUpdater: PlacedTile[] | ((prev: PlacedTile[]) => PlacedTile[])) => {
     setTilesInternal(prev => {
       const newTiles = typeof newTilesOrUpdater === 'function' ? newTilesOrUpdater(prev) : newTilesOrUpdater;
-      // Verzögert speichern um connections mitzunehmen
-      setTimeout(() => {
-        setConnectionsInternal(currentConnections => {
-          saveToHistory(newTiles, currentConnections);
-          return currentConnections;
-        });
-      }, 50);
       return newTiles;
     });
-  }, [saveToHistory]);
+    scheduleSave();
+  }, [scheduleSave]);
 
-  // Normale setConnections - speichert nach Update zur History
+  // Normale setConnections
   const setConnections = useCallback((newConnectionsOrUpdater: CellConnection[] | ((prev: CellConnection[]) => CellConnection[])) => {
     setConnectionsInternal(prev => {
       const newConnections = typeof newConnectionsOrUpdater === 'function' ? newConnectionsOrUpdater(prev) : newConnectionsOrUpdater;
-      // Verzögert speichern um tiles mitzunehmen
-      setTimeout(() => {
-        setTilesInternal(currentTiles => {
-          saveToHistory(currentTiles, newConnections);
-          return currentTiles;
-        });
-      }, 50);
       return newConnections;
     });
-  }, [saveToHistory]);
+    scheduleSave();
+  }, [scheduleSave]);
 
-  // Undo-Funktion - direkt ohne useCallback wrapper
-  const handleUndo = () => {
+  // Undo-Funktion
+  const handleUndo = useCallback(() => {
+    console.log('[Undo] Called, index:', historyIndexRef.current);
     if (historyIndexRef.current > 0) {
-      skipNextSaveRef.current = true;
+      // Pending saves abbrechen
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      isUndoRedoRef.current = true;
       historyIndexRef.current--;
       const prevState = historyRef.current[historyIndexRef.current];
+      console.log('[Undo] Restoring to index:', historyIndexRef.current, 'tiles:', prevState.tiles.length);
       setTilesInternal(JSON.parse(JSON.stringify(prevState.tiles)));
       setConnectionsInternal(JSON.parse(JSON.stringify(prevState.connections)));
       setSelectedTileIds(new Set());
       setHistoryVersion(v => v + 1);
+      // Flag nach kurzer Zeit zurücksetzen
+      setTimeout(() => {
+        isUndoRedoRef.current = false;
+      }, 200);
     }
-  };
+  }, []);
 
-  // Redo-Funktion - direkt ohne useCallback wrapper
-  const handleRedo = () => {
+  // Redo-Funktion
+  const handleRedo = useCallback(() => {
+    console.log('[Redo] Called, index:', historyIndexRef.current, 'max:', historyRef.current.length - 1);
     if (historyIndexRef.current < historyRef.current.length - 1) {
-      skipNextSaveRef.current = true;
+      // Pending saves abbrechen
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      isUndoRedoRef.current = true;
       historyIndexRef.current++;
       const nextState = historyRef.current[historyIndexRef.current];
+      console.log('[Redo] Restoring to index:', historyIndexRef.current);
       setTilesInternal(JSON.parse(JSON.stringify(nextState.tiles)));
       setConnectionsInternal(JSON.parse(JSON.stringify(nextState.connections)));
       setSelectedTileIds(new Set());
       setHistoryVersion(v => v + 1);
+      // Flag nach kurzer Zeit zurücksetzen
+      setTimeout(() => {
+        isUndoRedoRef.current = false;
+      }, 200);
     }
-  };
+  }, []);
 
   // Keyboard-Shortcuts für Undo/Redo
   useEffect(() => {
