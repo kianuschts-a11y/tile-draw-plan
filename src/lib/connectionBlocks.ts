@@ -15,7 +15,11 @@ import { Component, Shape } from "@/types/schematic";
  * - Ecke unten-rechts: L-förmig von links nach oben
  */
 
-const STROKE_WIDTH = 0.02;
+// Muss mit connectionUtils.ts übereinstimmen (dort 0.02) und mit Canvas strokeWidth-Skalierung
+// Canvas nutzt: tileSize / 50 * 1.5 = tileSize * 0.03 für Verbindungslinien
+// Für Komponenten: strokeWidth * refScale, wobei refScale = tileSize
+// Also brauchen wir 0.03 hier damit 0.03 * tileSize = tileSize * 0.03
+const STROKE_WIDTH = 0.03;
 
 // Horizontale Linie (von links nach rechts durch die Mitte)
 const horizontalLineShape: Shape = {
