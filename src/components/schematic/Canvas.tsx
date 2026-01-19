@@ -3,6 +3,75 @@ import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, CellConnection, C
 import { ShapeRenderer } from "./ShapeRenderer";
 import { MainToolType } from "./Toolbar";
 import { generateSingleConnectionLine, areCellsAdjacent, generateConnectionId } from "@/lib/connectionUtils";
+import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
+
+function generateTileId(): string {
+  return Math.random().toString(36).substring(2, 11);
+}
+
+/**
+ * Bestimmt den passenden Verbindungsblock für eine leere Zelle basierend auf
+ * der vorherigen und nächsten Zelle im Pfad
+ */
+function getConnectionBlockForPath(
+  prevCell: { gridX: number; gridY: number } | null,
+  currentCell: { gridX: number; gridY: number },
+  nextCell: { gridX: number; gridY: number } | null
+): Component | null {
+  if (!prevCell && !nextCell) return null;
+  
+  // Richtungen ermitteln
+  const fromLeft = prevCell && prevCell.gridX < currentCell.gridX;
+  const fromRight = prevCell && prevCell.gridX > currentCell.gridX;
+  const fromTop = prevCell && prevCell.gridY < currentCell.gridY;
+  const fromBottom = prevCell && prevCell.gridY > currentCell.gridY;
+  
+  const toLeft = nextCell && nextCell.gridX < currentCell.gridX;
+  const toRight = nextCell && nextCell.gridX > currentCell.gridX;
+  const toTop = nextCell && nextCell.gridY < currentCell.gridY;
+  const toBottom = nextCell && nextCell.gridY > currentCell.gridY;
+  
+  // Alle aktiven Richtungen
+  const hasLeft = fromLeft || toLeft;
+  const hasRight = fromRight || toRight;
+  const hasTop = fromTop || toTop;
+  const hasBottom = fromBottom || toBottom;
+  
+  // Zähle aktive Richtungen
+  const directions = [hasLeft, hasRight, hasTop, hasBottom].filter(Boolean).length;
+  
+  if (directions === 4) {
+    return CONNECTION_BLOCKS.find(b => b.id === 'connection-cross') || null;
+  }
+  
+  if (directions === 3) {
+    // T-Stück
+    if (!hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-top') || null;
+    if (!hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-bottom') || null;
+    if (!hasLeft) return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-left') || null;
+    if (!hasRight) return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-right') || null;
+  }
+  
+  if (directions === 2) {
+    // Gerade Linie oder Ecke
+    if (hasLeft && hasRight) return CONNECTION_BLOCKS.find(b => b.id === 'connection-horizontal') || null;
+    if (hasTop && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-vertical') || null;
+    
+    // Ecken (Namensgebung nach der offenen Ecke)
+    if (hasRight && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tr') || null;  // ┌
+    if (hasLeft && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tl') || null;   // ┐
+    if (hasRight && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-br') || null;     // └
+    if (hasLeft && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-bl') || null;      // ┘
+  }
+  
+  if (directions === 1) {
+    // Einzelne Richtung (Ende einer Linie)
+    if (hasLeft || hasRight) return CONNECTION_BLOCKS.find(b => b.id === 'connection-horizontal') || null;
+    if (hasTop || hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-vertical') || null;
+  }
+  
+  return null;
+}
 
 export interface PlacedTile {
   id: string;
@@ -430,6 +499,61 @@ export function Canvas({
     // Handle connection path completion
     if (isConnecting && connectionPath.length >= 2 && (activeTool === 'connect' || activeTool === 'disconnect')) {
       if (activeTool === 'connect') {
+        // First, place connection blocks on empty cells
+        const newTilesToAdd: PlacedTile[] = [];
+        let updatedTiles = [...tiles];
+        
+        // Check each cell in the path for empty cells and add connection blocks
+        for (let i = 0; i < connectionPath.length; i++) {
+          const cell = connectionPath[i];
+          const tileInfo = getTileAndCellAtPosition(cell.gridX, cell.gridY);
+          
+          // If no tile at this position, add a connection block
+          if (!tileInfo) {
+            const prevCell = i > 0 ? connectionPath[i - 1] : null;
+            const nextCell = i < connectionPath.length - 1 ? connectionPath[i + 1] : null;
+            
+            const connectionBlock = getConnectionBlockForPath(prevCell, cell, nextCell);
+            
+            if (connectionBlock) {
+              // Check if there's already a tile we just added at this position
+              const existingNewTile = newTilesToAdd.find(t => t.gridX === cell.gridX && t.gridY === cell.gridY);
+              if (!existingNewTile) {
+                newTilesToAdd.push({
+                  id: generateTileId(),
+                  component: connectionBlock,
+                  gridX: cell.gridX,
+                  gridY: cell.gridY
+                });
+              }
+            }
+          }
+        }
+        
+        // Add the new tiles
+        if (newTilesToAdd.length > 0) {
+          updatedTiles = [...updatedTiles, ...newTilesToAdd];
+          onTilesChange(updatedTiles);
+        }
+        
+        // Now process connections with the updated tile list
+        // Need to use the updated tiles for connection lookup
+        const getTileAtPos = (gx: number, gy: number) => {
+          for (const tile of updatedTiles) {
+            const w = tile.component.width || 1;
+            const h = tile.component.height || 1;
+            if (gx >= tile.gridX && gx < tile.gridX + w &&
+                gy >= tile.gridY && gy < tile.gridY + h) {
+              return {
+                tile,
+                cellX: gx - tile.gridX,
+                cellY: gy - tile.gridY
+              };
+            }
+          }
+          return null;
+        };
+        
         // Collect all new connections to add at once
         const newConnectionsToAdd: CellConnection[] = [];
         let currentConnections = [...connections];
@@ -438,8 +562,8 @@ export function Canvas({
           const cell1 = connectionPath[i];
           const cell2 = connectionPath[i + 1];
           
-          const tile1Info = getTileAndCellAtPosition(cell1.gridX, cell1.gridY);
-          const tile2Info = getTileAndCellAtPosition(cell2.gridX, cell2.gridY);
+          const tile1Info = getTileAtPos(cell1.gridX, cell1.gridY);
+          const tile2Info = getTileAtPos(cell2.gridX, cell2.gridY);
           
           // Only connect if both cells are on tiles and they're different tiles
           if (tile1Info && tile2Info && tile1Info.tile.id !== tile2Info.tile.id) {

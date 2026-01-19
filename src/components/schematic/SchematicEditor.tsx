@@ -62,7 +62,7 @@ export function SchematicEditor() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
   const [editingGroup, setEditingGroup] = useState<ComponentGroup | null>(null);
-  const [libraryTab, setLibraryTab] = useState<'components' | 'groups'>('components');
+  const [libraryTab, setLibraryTab] = useState<'components' | 'connections' | 'groups'>('components');
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [showComponentSelector, setShowComponentSelector] = useState(false);
   const [projectQuantities, setProjectQuantities] = useState<Map<string, number>>(new Map());
