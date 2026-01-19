@@ -434,13 +434,6 @@ export function SchematicEditor() {
           onGridSizeChange={handleGridSizeChange}
         />
         <div className="flex-1" />
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">V</kbd><span>Auswählen</span>
-          <span className="mx-1">•</span>
-          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">C</kbd><span>Verbinden</span>
-          <span className="mx-1">•</span>
-          <kbd className="px-2 py-1 bg-muted rounded text-xs font-mono">X</kbd><span>Lösen</span>
-        </div>
         <div className="h-8 w-px bg-border mx-2" />
         <Button
           variant="default"
@@ -514,7 +507,7 @@ export function SchematicEditor() {
           }}
         />
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden schematic-canvas">
           <Canvas
             tiles={tiles}
             selectedTileIds={selectedTileIds}
