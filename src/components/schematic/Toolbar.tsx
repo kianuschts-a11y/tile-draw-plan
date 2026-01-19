@@ -12,6 +12,7 @@ import {
   Save,
   X,
   Download,
+  FileText,
   Undo2,
   Redo2
 } from "lucide-react";
@@ -47,6 +48,7 @@ interface ToolbarProps {
   onResetView: () => void;
   onDelete: () => void;
   onExport: () => void;
+  onOpenBOM: () => void;
   hasSelection: boolean;
   connectionColor: string;
   onConnectionColorChange: (color: string) => void;
@@ -71,6 +73,7 @@ export function Toolbar({
   onResetView,
   onDelete,
   onExport,
+  onOpenBOM,
   hasSelection,
   connectionColor,
   onConnectionColorChange,
@@ -265,6 +268,12 @@ export function Toolbar({
         label="Zeichnung exportieren"
         shortcut="E"
         onClick={onExport}
+      />
+      <ToolButton
+        icon={FileText}
+        label="Stückliste"
+        shortcut="B"
+        onClick={onOpenBOM}
       />
       
       <div className="flex-1" />
