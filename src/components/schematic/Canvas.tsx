@@ -446,17 +446,35 @@ export function Canvas({
         }
         
         // If not adjacent, fill in the gap with intermediate cells
-        // Use Bresenham-like approach to fill horizontal/vertical path
+        // WICHTIG: Erst die aktuelle Bewegungsrichtung fortsetzen, um T-Stücke zu vermeiden!
         const newCells: { gridX: number; gridY: number }[] = [];
         let cx = lastCell.gridX;
         let cy = lastCell.gridY;
         
+        // Bestimme die letzte Bewegungsrichtung aus dem Pfad
+        let lastMoveWasHorizontal = true; // Default
+        if (prev.length >= 2) {
+          const prevPrev = prev[prev.length - 2];
+          const dxLast = lastCell.gridX - prevPrev.gridX;
+          const dyLast = lastCell.gridY - prevPrev.gridY;
+          lastMoveWasHorizontal = dxLast !== 0;
+        }
+        
         while (cx !== clampedX || cy !== clampedY) {
-          // Prioritize horizontal movement first, then vertical
-          if (cx < clampedX) cx++;
-          else if (cx > clampedX) cx--;
-          else if (cy < clampedY) cy++;
-          else if (cy > clampedY) cy--;
+          // Setze die letzte Bewegungsrichtung fort, wenn möglich
+          if (lastMoveWasHorizontal) {
+            // Erst horizontal, dann vertikal
+            if (cx < clampedX) cx++;
+            else if (cx > clampedX) cx--;
+            else if (cy < clampedY) cy++;
+            else if (cy > clampedY) cy--;
+          } else {
+            // Erst vertikal, dann horizontal
+            if (cy < clampedY) cy++;
+            else if (cy > clampedY) cy--;
+            else if (cx < clampedX) cx++;
+            else if (cx > clampedX) cx--;
+          }
           
           // Check if cell is already in path
           const alreadyInPath = prev.some(c => c.gridX === cx && c.gridY === cy);
