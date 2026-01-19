@@ -11,17 +11,20 @@ function generateTileId(): string {
 
 /**
  * Bestimmt den passenden Verbindungsblock für eine leere Zelle basierend auf
- * der vorherigen und nächsten Zelle im Pfad sowie benachbarten Komponenten
+ * der vorherigen und nächsten Zelle im Pfad.
+ * 
+ * WICHTIG: Wir berücksichtigen NUR die Pfad-Richtungen, nicht benachbarte Komponenten.
+ * Das stellt sicher, dass ein L-förmiger Pfad immer eine Ecke ergibt, nicht ein T-Stück.
  */
 function getConnectionBlockForPath(
   prevCell: { gridX: number; gridY: number } | null,
   currentCell: { gridX: number; gridY: number },
   nextCell: { gridX: number; gridY: number } | null,
-  tiles: PlacedTile[] = []
+  _tiles: PlacedTile[] = [] // Nicht verwendet - nur Pfad-basierte Erkennung
 ): Component | null {
   if (!prevCell && !nextCell) return null;
   
-  // Richtungen aus dem Pfad ermitteln
+  // Richtungen NUR aus dem Pfad ermitteln
   const fromLeft = prevCell && prevCell.gridX < currentCell.gridX;
   const fromRight = prevCell && prevCell.gridX > currentCell.gridX;
   const fromTop = prevCell && prevCell.gridY < currentCell.gridY;
@@ -32,44 +35,11 @@ function getConnectionBlockForPath(
   const toTop = nextCell && nextCell.gridY < currentCell.gridY;
   const toBottom = nextCell && nextCell.gridY > currentCell.gridY;
   
-  // Prüfe ob es am Anfang oder Ende eine benachbarte Komponente gibt
-  // Hilfsfunktion: Prüft ob eine Zelle von einer Komponente belegt ist
-  const hasTileAt = (gx: number, gy: number): boolean => {
-    return tiles.some(tile => {
-      const w = tile.component.width || 1;
-      const h = tile.component.height || 1;
-      return gx >= tile.gridX && gx < tile.gridX + w &&
-             gy >= tile.gridY && gy < tile.gridY + h;
-    });
-  };
-  
-  // Am Anfang des Pfads: Prüfe ob Komponente in der entgegengesetzten Richtung ist
-  let adjacentLeft = false;
-  let adjacentRight = false;
-  let adjacentTop = false;
-  let adjacentBottom = false;
-  
-  if (!prevCell) {
-    // Anfang des Pfads - prüfe alle benachbarten Zellen auf Komponenten
-    adjacentLeft = hasTileAt(currentCell.gridX - 1, currentCell.gridY);
-    adjacentRight = hasTileAt(currentCell.gridX + 1, currentCell.gridY);
-    adjacentTop = hasTileAt(currentCell.gridX, currentCell.gridY - 1);
-    adjacentBottom = hasTileAt(currentCell.gridX, currentCell.gridY + 1);
-  }
-  
-  if (!nextCell) {
-    // Ende des Pfads - prüfe alle benachbarten Zellen auf Komponenten
-    adjacentLeft = adjacentLeft || hasTileAt(currentCell.gridX - 1, currentCell.gridY);
-    adjacentRight = adjacentRight || hasTileAt(currentCell.gridX + 1, currentCell.gridY);
-    adjacentTop = adjacentTop || hasTileAt(currentCell.gridX, currentCell.gridY - 1);
-    adjacentBottom = adjacentBottom || hasTileAt(currentCell.gridX, currentCell.gridY + 1);
-  }
-  
-  // Alle aktiven Richtungen (Pfad + benachbarte Komponenten)
-  const hasLeft = fromLeft || toLeft || adjacentLeft;
-  const hasRight = fromRight || toRight || adjacentRight;
-  const hasTop = fromTop || toTop || adjacentTop;
-  const hasBottom = fromBottom || toBottom || adjacentBottom;
+  // Alle aktiven Richtungen NUR aus dem Pfad
+  const hasLeft = fromLeft || toLeft;
+  const hasRight = fromRight || toRight;
+  const hasTop = fromTop || toTop;
+  const hasBottom = fromBottom || toBottom;
   
   // Zähle aktive Richtungen
   const directions = [hasLeft, hasRight, hasTop, hasBottom].filter(Boolean).length;
