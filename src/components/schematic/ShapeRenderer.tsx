@@ -1,5 +1,4 @@
 import { Shape } from "@/types/schematic";
-import { cn } from "@/lib/utils";
 
 interface ShapeRendererProps {
   shape: Shape;
@@ -8,11 +7,14 @@ interface ShapeRendererProps {
   onMouseDown?: (e: React.MouseEvent) => void;
 }
 
+// Fixed color values for consistent rendering (including export)
+const STROKE_COLOR = "#293341"; // hsl(220, 25%, 20%)
+const SELECTED_STROKE_COLOR = "#1a74dc"; // hsl(215, 80%, 50%)
+const TEXT_COLOR = "#293341";
+
 export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: ShapeRendererProps) {
-  const baseClass = cn(
-    "component-tile",
-    isSelected && "selected"
-  );
+  const strokeColor = isSelected ? SELECTED_STROKE_COLOR : STROKE_COLOR;
+  const strokeWidth = isSelected ? 2.5 : (shape.strokeWidth || 2);
 
   const renderShape = () => {
     const transform = shape.rotation 
@@ -29,9 +31,9 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             y={shape.y}
             width={shape.width}
             height={shape.height}
-            className={baseClass}
-            style={{ fill }}
-            strokeWidth={shape.strokeWidth || 2}
+            stroke={strokeColor}
+            fill={fill}
+            strokeWidth={strokeWidth}
             transform={transform}
           />
         );
@@ -44,9 +46,9 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             cy={shape.y + shape.height / 2}
             rx={shape.width / 2}
             ry={shape.height / 2}
-            className={baseClass}
-            style={{ fill }}
-            strokeWidth={shape.strokeWidth || 2}
+            stroke={strokeColor}
+            fill={fill}
+            strokeWidth={strokeWidth}
             transform={transform}
           />
         );
@@ -66,9 +68,8 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
           return (
             <path
               d={`M ${lx1} ${ly1} Q ${cx} ${cy} ${lx2} ${ly2}`}
-              className={shape.stroke ? undefined : baseClass}
-              stroke={shape.stroke}
-              strokeWidth={shape.strokeWidth || 2}
+              stroke={shape.stroke || strokeColor}
+              strokeWidth={strokeWidth}
               fill="none"
             />
           );
@@ -80,9 +81,8 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             y1={ly1}
             x2={lx2}
             y2={ly2}
-            className={shape.stroke ? undefined : baseClass}
-            stroke={shape.stroke}
-            strokeWidth={shape.strokeWidth || 2}
+            stroke={shape.stroke || strokeColor}
+            strokeWidth={strokeWidth}
           />
         );
       }
@@ -123,16 +123,16 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             <g>
               <path
                 d={`M ${ax1} ${ay1} Q ${cx} ${cy} ${ax2} ${ay2}`}
-                className={baseClass}
-                strokeWidth={shape.strokeWidth || 2}
+                stroke={strokeColor}
+                strokeWidth={strokeWidth}
                 strokeLinecap="round"
                 fill="none"
               />
               <polyline
                 points={`${ahx1},${ahy1} ${ax2},${ay2} ${ahx2},${ahy2}`}
-                className={baseClass}
+                stroke={strokeColor}
                 fill="none"
-                strokeWidth={shape.strokeWidth || 2}
+                strokeWidth={strokeWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -147,15 +147,15 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
               y1={ay1}
               x2={ax2}
               y2={ay2}
-              className={baseClass}
-              strokeWidth={shape.strokeWidth || 2}
+              stroke={strokeColor}
+              strokeWidth={strokeWidth}
               strokeLinecap="round"
             />
             <polyline
               points={`${ahx1},${ahy1} ${ax2},${ay2} ${ahx2},${ahy2}`}
-              className={baseClass}
+              stroke={strokeColor}
               fill="none"
-              strokeWidth={shape.strokeWidth || 2}
+              strokeWidth={strokeWidth}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -172,9 +172,9 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
         return (
           <polygon
             points={triPoints}
-            className={baseClass}
-            style={{ fill }}
-            strokeWidth={shape.strokeWidth || 2}
+            stroke={strokeColor}
+            fill={fill}
+            strokeWidth={strokeWidth}
             transform={transform}
           />
         );
@@ -190,9 +190,9 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
         return (
           <polygon
             points={diaPoints}
-            className={baseClass}
-            style={{ fill }}
-            strokeWidth={shape.strokeWidth || 2}
+            stroke={strokeColor}
+            fill={fill}
+            strokeWidth={strokeWidth}
             transform={transform}
           />
         );
@@ -203,9 +203,9 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
         return (
           <polygon
             points={shape.points.map(p => `${p.x},${p.y}`).join(' ')}
-            className={baseClass}
-            style={{ fill }}
-            strokeWidth={shape.strokeWidth || 2}
+            stroke={strokeColor}
+            fill={fill}
+            strokeWidth={strokeWidth}
             transform={transform}
           />
         );
@@ -215,8 +215,8 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
         return (
           <polyline
             points={shape.points.map(p => `${p.x},${p.y}`).join(' ')}
-            className={baseClass}
-            strokeWidth={shape.strokeWidth || 2}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
             fill="none"
           />
         );
@@ -236,8 +236,8 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
         return (
           <path 
             d={`M ${x1} ${y1} A ${rx} ${ry} 0 ${largeArc} 1 ${x2} ${y2}`} 
-            className={baseClass}
-            strokeWidth={shape.strokeWidth || 2}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
             fill="none"
           />
         );
@@ -249,8 +249,8 @@ export function ShapeRenderer({ shape, isSelected, onClick, onMouseDown }: Shape
             y={shape.y + (shape.fontSize || 14)} 
             fontSize={shape.fontSize || 14}
             fontFamily={shape.fontFamily || 'sans-serif'}
-            className="fill-current"
-            style={{ stroke: 'none', fill: 'hsl(var(--component-stroke))' }}
+            stroke="none"
+            fill={TEXT_COLOR}
           >
             {shape.text}
           </text>

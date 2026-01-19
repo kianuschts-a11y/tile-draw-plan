@@ -101,23 +101,44 @@ export function SchematicEditor() {
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
     if (!svgElement) return;
 
+    // Import paper size constants
+    const { PAPER_SIZES, MM_TO_PX } = require('@/types/schematic');
+    
+    // Calculate fixed paper dimensions based on format and orientation
+    const paperSize = PAPER_SIZES[canvasState.paperFormat];
+    const paperWidth = (canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width) * MM_TO_PX;
+    const paperHeight = (canvasState.orientation === 'landscape' ? paperSize.width : paperSize.height) * MM_TO_PX;
+
     // Clone the SVG to avoid modifying the original
     const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
     
-    // Get the paper dimensions from the viewBox or create one
-    const viewBox = clonedSvg.getAttribute('viewBox');
-    let width = 1200, height = 800;
-    if (viewBox) {
-      const parts = viewBox.split(' ');
-      width = parseFloat(parts[2]);
-      height = parseFloat(parts[3]);
+    // Set fixed viewBox for paper size (no zoom/pan)
+    clonedSvg.setAttribute('viewBox', `0 0 ${paperWidth} ${paperHeight}`);
+    clonedSvg.setAttribute('width', String(paperWidth));
+    clonedSvg.setAttribute('height', String(paperHeight));
+    
+    // Find and reset the main transform group to scale(1) translate(0,0)
+    const transformGroup = clonedSvg.querySelector('g[transform]');
+    if (transformGroup) {
+      transformGroup.setAttribute('transform', 'translate(0, 0) scale(1)');
     }
+    
+    // Remove temporary UI elements that shouldn't be exported
+    const selectorsToRemove = [
+      '[data-export-ignore]',
+      '.selection-box',
+      '.connection-preview',
+      '.drop-preview'
+    ];
+    selectorsToRemove.forEach(selector => {
+      clonedSvg.querySelectorAll(selector).forEach(el => el.remove());
+    });
 
     // Create a canvas to render the SVG
     const canvas = document.createElement('canvas');
-    const scale = 2; // Higher resolution
-    canvas.width = width * scale;
-    canvas.height = height * scale;
+    const scale = 2; // Higher resolution for better quality
+    canvas.width = paperWidth * scale;
+    canvas.height = paperHeight * scale;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -135,12 +156,12 @@ export function SchematicEditor() {
 
       // Download as PNG
       const link = document.createElement('a');
-      link.download = `zeichnung-${new Date().toISOString().slice(0, 10)}.png`;
+      link.download = `zeichnung-${canvasState.paperFormat}-${new Date().toISOString().slice(0, 10)}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     };
     img.src = url;
-  }, []);
+  }, [canvasState.paperFormat, canvasState.orientation]);
 
   const handlePaperFormatChange = useCallback((format: PaperFormat) => {
     setCanvasState(prev => ({ ...prev, paperFormat: format }));
