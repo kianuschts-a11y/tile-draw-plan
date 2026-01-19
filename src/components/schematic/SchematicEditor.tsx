@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
@@ -101,9 +101,6 @@ export function SchematicEditor() {
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
     if (!svgElement) return;
 
-    // Import paper size constants
-    const { PAPER_SIZES, MM_TO_PX } = require('@/types/schematic');
-    
     // Calculate fixed paper dimensions based on format and orientation
     const paperSize = PAPER_SIZES[canvasState.paperFormat];
     const paperWidth = (canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width) * MM_TO_PX;
