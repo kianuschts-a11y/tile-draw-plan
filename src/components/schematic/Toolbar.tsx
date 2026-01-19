@@ -239,15 +239,6 @@ export function Toolbar({
       />
       
       <div className="flex-1" />
-      
-      {hasSelection && (
-        <ToolButton
-          icon={Trash2}
-          label="Löschen"
-          shortcut="Del"
-          onClick={onDelete}
-        />
-      )}
     </div>
   );
 }
