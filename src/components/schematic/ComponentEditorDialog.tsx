@@ -116,13 +116,21 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
 
   // Canvas size based on tile size selection
   const tileSizeConfig = TILE_SIZES[componentTileSize];
-  const baseCanvasSize = 300;
+  const baseCanvasSize = 200; // Kleinere Basis für bessere Sichtbarkeit
+  const maxCanvasWidth = 800; // Maximale Breite damit es in den Dialog passt
   // Berechne Canvas-Dimensionen basierend auf dem Seitenverhältnis
   const aspectRatio = tileSizeConfig.cols / tileSizeConfig.rows;
-  const canvasWidth = aspectRatio >= 1 ? baseCanvasSize * aspectRatio : baseCanvasSize;
-  const canvasHeight = aspectRatio < 1 ? baseCanvasSize / aspectRatio : baseCanvasSize;
+  let canvasWidth = aspectRatio >= 1 ? baseCanvasSize * aspectRatio : baseCanvasSize;
+  let canvasHeight = aspectRatio < 1 ? baseCanvasSize / aspectRatio : baseCanvasSize;
   
-  const gridSize = baseCanvasSize / 20;
+  // Skaliere runter wenn zu breit
+  if (canvasWidth > maxCanvasWidth) {
+    const scale = maxCanvasWidth / canvasWidth;
+    canvasWidth = maxCanvasWidth;
+    canvasHeight = canvasHeight * scale;
+  }
+  
+  const gridSize = Math.min(canvasWidth, canvasHeight) / 20;
   const handleSize = 10;
   const lineHitArea = 12;
 
