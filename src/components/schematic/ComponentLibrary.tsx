@@ -3,9 +3,10 @@ import { Component, Shape, ComponentGroup } from "@/types/schematic";
 import { PlacedTile } from "./Canvas";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Pencil, Upload, FolderPlus, Folder, Info } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
+import { Plus, Trash2, Pencil, Upload, Folder, Info, Link2, ChevronDown, ChevronRight } from "lucide-react";
+import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -183,6 +184,84 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
     return <g transform={rotationTransform}>{element}</g>;
   }
   return element;
+}
+
+// Separate component for the components tab with connection blocks section
+interface ComponentsTabProps {
+  sortedComponents: Component[];
+  renderComponentItem: (component: Component) => React.ReactNode;
+  onDragStart: (e: React.DragEvent, component: Component) => void;
+}
+
+function ComponentsTab({ sortedComponents, renderComponentItem, onDragStart }: ComponentsTabProps) {
+  const [connectionBlocksOpen, setConnectionBlocksOpen] = useState(true);
+  const previewSize = 50;
+
+  const renderConnectionBlockItem = (block: Component) => {
+    const compWidth = block.width || 1;
+    const compHeight = block.height || 1;
+    const aspectRatio = compWidth / compHeight;
+    
+    let previewWidth = previewSize;
+    let previewHeight = previewSize;
+    if (aspectRatio > 1) {
+      previewHeight = previewSize / aspectRatio;
+    } else if (aspectRatio < 1) {
+      previewWidth = previewSize * aspectRatio;
+    }
+    
+    return (
+      <div
+        key={block.id}
+        className="library-item flex flex-col items-center gap-1 relative group cursor-grab active:cursor-grabbing p-1 rounded-lg hover:bg-muted/50 transition-colors"
+        draggable
+        onDragStart={(e) => onDragStart(e, block)}
+      >
+        <div className="w-[40px] h-[40px] flex items-center justify-center border border-dashed border-muted-foreground/30 rounded bg-white">
+          <svg width={35} height={35}>
+            {block.shapes.map((shape, idx) => (
+              <g key={idx}>{renderShape(shape, 35, 35)}</g>
+            ))}
+          </svg>
+        </div>
+        <span className="text-[10px] text-muted-foreground text-center truncate w-full">
+          {block.name}
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Connection blocks section */}
+      <Collapsible open={connectionBlocksOpen} onOpenChange={setConnectionBlocksOpen}>
+        <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 px-1 rounded-md hover:bg-muted/50 transition-colors">
+          {connectionBlocksOpen ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          )}
+          <Link2 className="w-4 h-4 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Verbindungsblöcke</span>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="grid grid-cols-3 gap-1 pt-2">
+            {CONNECTION_BLOCKS.map(block => renderConnectionBlockItem(block))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Divider */}
+      {sortedComponents.length > 0 && (
+        <div className="border-t border-muted" />
+      )}
+
+      {/* Regular components */}
+      <div className="grid grid-cols-2 gap-2">
+        {sortedComponents.map(component => renderComponentItem(component))}
+      </div>
+    </div>
+  );
 }
 
 export function ComponentLibrary({ 
@@ -545,9 +624,11 @@ export function ComponentLibrary({
       
       <ScrollArea className="flex-1 p-3">
         {activeTab === 'components' ? (
-          <div className="grid grid-cols-2 gap-2">
-            {sortedComponents.map(component => renderComponentItem(component))}
-          </div>
+          <ComponentsTab
+            sortedComponents={sortedComponents}
+            renderComponentItem={renderComponentItem}
+            onDragStart={onDragStart}
+          />
         ) : (
           <div className="flex flex-col gap-3">
             {groups.map(group => renderGroupItem(group))}
