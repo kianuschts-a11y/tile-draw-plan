@@ -97,6 +97,51 @@ export function SchematicEditor() {
     }
   }, [selectedTileIds]);
 
+  const handleExport = useCallback(() => {
+    const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
+    if (!svgElement) return;
+
+    // Clone the SVG to avoid modifying the original
+    const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
+    
+    // Get the paper dimensions from the viewBox or create one
+    const viewBox = clonedSvg.getAttribute('viewBox');
+    let width = 1200, height = 800;
+    if (viewBox) {
+      const parts = viewBox.split(' ');
+      width = parseFloat(parts[2]);
+      height = parseFloat(parts[3]);
+    }
+
+    // Create a canvas to render the SVG
+    const canvas = document.createElement('canvas');
+    const scale = 2; // Higher resolution
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Create an image from the SVG
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.onload = () => {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+
+      // Download as PNG
+      const link = document.createElement('a');
+      link.download = `zeichnung-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+    img.src = url;
+  }, []);
+
   const handlePaperFormatChange = useCallback((format: PaperFormat) => {
     setCanvasState(prev => ({ ...prev, paperFormat: format }));
   }, []);
@@ -451,6 +496,7 @@ export function SchematicEditor() {
           onZoomOut={handleZoomOut}
           onResetView={handleResetView}
           onDelete={handleDelete}
+          onExport={handleExport}
           hasSelection={selectedTileIds.size > 0}
           connectionColor={connectionColor}
           onConnectionColorChange={setConnectionColor}
