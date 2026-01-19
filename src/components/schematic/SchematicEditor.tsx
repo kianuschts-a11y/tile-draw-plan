@@ -8,6 +8,7 @@ import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
 import { ComponentSelectorDialog } from "./ComponentSelectorDialog";
 import { TitleBlockEditor } from "./TitleBlockEditor";
+import { BillOfMaterials } from "./BillOfMaterials";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
@@ -84,6 +85,7 @@ export function SchematicEditor() {
     geprueft: { name: '', datum: '' },
   });
   const [isTitleBlockEditorOpen, setIsTitleBlockEditorOpen] = useState(false);
+  const [isBOMOpen, setIsBOMOpen] = useState(false);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -733,6 +735,7 @@ export function SchematicEditor() {
           onResetView={handleResetView}
           onDelete={handleDelete}
           onExport={handleExport}
+          onOpenBOM={() => setIsBOMOpen(true)}
           hasSelection={selectedTileIds.size > 0}
           connectionColor={connectionColor}
           onConnectionColorChange={setConnectionColor}
@@ -823,6 +826,15 @@ export function SchematicEditor() {
         data={titleBlockData}
         onClose={() => setIsTitleBlockEditorOpen(false)}
         onSave={setTitleBlockData}
+      />
+
+      <BillOfMaterials
+        open={isBOMOpen}
+        onClose={() => setIsBOMOpen(false)}
+        tiles={tiles}
+        titleBlockData={titleBlockData}
+        paperFormat={canvasState.paperFormat}
+        orientation={canvasState.orientation}
       />
     </div>
   );
