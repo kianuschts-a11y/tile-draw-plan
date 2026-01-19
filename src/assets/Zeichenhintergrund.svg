@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Created with "sPlan" (http://www.abacom-online.de) -->
+<svg version="1.1" baseProfile="full"
+xmlns="http://www.w3.org/2000/svg"
+width="2970" height="2100">
+<title>78194-1 Max-Eyth-Str._Immendingen_Messkonzept_v1</title>
+<defs>
+<style type="text/css">
+<![CDATA[
+polyline {stroke-linecap:round; stroke-linejoin:round}
+polygon {stroke-linecap:round; stroke-linejoin:round}
+path {stroke-linecap:round; stroke-linejoin:round}
+circle {stroke-linecap:round; stroke-linejoin:round}
+]]>
+</style>
+</defs>
+<text x="1431.85" y="1840.00" font-family ="ARIAL" font-size ="18pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(1.013,1.000)">&#196;nderungen</text>
+<text x="1736.16" y="1880.00" font-family ="ARIAL" font-size ="18pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.979,1.000)">gez.:</text>
+<text x="1727.38" y="1920.00" font-family ="ARIAL" font-size ="18pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.978,1.000)">gepr.:</text>
+<text x="1823.81" y="1840.00" font-family ="ARIAL" font-size ="18pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.976,1.000)">Datum</text>
+<text x="2022.76" y="1840.00" font-family ="ARIAL" font-size ="18pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.964,1.000)">Name</text>
+<text x="2098.25" y="1843.00" font-family ="ARIAL" font-size ="20pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.991,1.000)">Projekt:</text>
+<text x="2059.54" y="1913.00" font-family ="ARIAL" font-size ="20pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(1.010,1.000)">Zeichnungs-Nr.:</text>
+<text x="2684.18" y="1913.37" font-family ="ARIAL" font-size ="20pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(1.002,1.000)">Blattzahl:</text>
+<text x="2708.88" y="1873.37" font-family ="ARIAL" font-size ="20pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.993,1.000)">Blatt-Nr.:</text>
+<text x="236.72" y="54.00" font-family ="ARIAL" font-size ="21pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(1.016,1.000)">1</text>
+<text x="829.55" y="54.00" font-family ="ARIAL" font-size ="21pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.856,1.000)">2</text>
+<text x="1309.85" y="54.00" font-family ="ARIAL" font-size ="21pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.907,1.000)">3</text>
+<text x="1923.03" y="54.00" font-family ="ARIAL" font-size ="21pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.864,1.000)">4</text>
+<text x="2516.18" y="54.00" font-family ="ARIAL" font-size ="21pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.849,1.000)">5</text>
+<text x="3093.35" y="54.00" font-family ="ARIAL" font-size ="21pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.844,1.000)">6</text>
+<text x="56.85" y="274.00" font-family ="ARIAL" font-size ="30pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.651,1.000)">A</text>
+<polyline points="60.00 60.00 30.00 30.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="30.00 30.00 2870.00 30.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="30.00 30.00 30.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="60.00 60.00 2870.00 60.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="2400.00 30.00 2400.00 60.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="1930.00 30.00 1930.00 60.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="1450.00 30.00 1450.00 60.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="980.00 30.00 980.00 60.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="500.00 30.00 500.00 60.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="60.00 60.00 60.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="30.00 500.00 60.00 500.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="60.00 980.00 30.00 980.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="60.00 1450.00 30.00 1450.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="2870.00 30.00 2870.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<polyline points="2870.00 1930.00 30.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="3" />
+<text x="55.91" y="774.00" font-family ="ARIAL" font-size ="30pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.662,1.000)">B</text>
+<text x="55.95" y="1214.00" font-family ="ARIAL" font-size ="30pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.661,1.000)">C</text>
+<text x="57.46" y="1674.00" font-family ="ARIAL" font-size ="30pt" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" transform=" rotate(0.000) scale(0.661,1.000)">D</text>
+<polyline points="2070.00 1890.00 2870.00 1890.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="2070.00 1930.00 2070.00 1810.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="2680.00 1850.00 2870.00 1850.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="2070.00 1810.00 2870.00 1810.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="2680.00 1810.00 2680.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="2070.00 1810.00 60.00 1810.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="2070.00 1850.00 1370.00 1850.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="2070.00 1890.00 1370.00 1890.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="1900.00 1810.00 1900.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="1760.00 1810.00 1760.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="1680.00 1810.00 1680.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="1510.00 1850.00 1510.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="1370.00 1810.00 1370.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="940.00 1810.00 940.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="60.00 1870.00 500.00 1870.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="500.00 1810.00 500.00 1930.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+<polyline points="585.00 1.00 630.21 1.00" fill="none" stroke="rgb(0,0,0)" stroke-width="2" />
+</svg>

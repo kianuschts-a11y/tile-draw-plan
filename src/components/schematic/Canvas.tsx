@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, CellConnection, ComponentGroup, GroupLayoutData } from "@/types/schematic";
+import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, CellConnection, ComponentGroup, GroupLayoutData, TitleBlockData } from "@/types/schematic";
 import { ShapeRenderer } from "./ShapeRenderer";
+import { TitleBlock } from "./TitleBlock";
 import { MainToolType } from "./Toolbar";
 import { generateSingleConnectionLine, areCellsAdjacent, generateConnectionId } from "@/lib/connectionUtils";
 import { CONNECTION_BLOCKS, isConnectionBlock } from "@/lib/connectionBlocks";
@@ -165,6 +166,7 @@ interface CanvasProps {
   draggingComponent: Component | null;
   isGroupMode?: boolean;
   components?: Component[];
+  titleBlockData?: TitleBlockData;
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
@@ -184,6 +186,7 @@ export function Canvas({
   draggingComponent,
   isGroupMode = false,
   components = [],
+  titleBlockData,
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
@@ -1211,6 +1214,17 @@ export function Canvas({
             stroke="hsl(var(--primary))"
             strokeWidth={1}
             strokeDasharray="4 2"
+          />
+        )}
+
+        {/* Title Block (Zeichenkopf) */}
+        {titleBlockData?.enabled && (
+          <TitleBlock
+            data={titleBlockData}
+            paperWidth={gridCols * tileSize}
+            paperHeight={gridRows * tileSize}
+            tileSize={tileSize}
+            onDataChange={() => {}}
           />
         )}
 
