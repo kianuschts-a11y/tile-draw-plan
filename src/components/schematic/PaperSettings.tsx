@@ -1,16 +1,21 @@
-import { PaperFormat, Orientation, PAPER_SIZES, MM_TO_PX } from "@/types/schematic";
+import { PaperFormat, Orientation, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { RotateCw, Plus, Minus, Grid3X3 } from "lucide-react";
+import { RotateCw, Plus, Minus, Grid3X3, FileText, Edit } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface PaperSettingsProps {
   paperFormat: PaperFormat;
   orientation: Orientation;
   gridSize: number;
+  titleBlockData?: TitleBlockData;
   onPaperFormatChange: (format: PaperFormat) => void;
   onOrientationChange: (orientation: Orientation) => void;
   onGridSizeChange: (size: number) => void;
+  onTitleBlockToggle?: (enabled: boolean) => void;
+  onEditTitleBlock?: () => void;
 }
 
 const MIN_GRID_SIZE = 20;
@@ -21,9 +26,12 @@ export function PaperSettings({
   paperFormat,
   orientation,
   gridSize,
+  titleBlockData,
   onPaperFormatChange,
   onOrientationChange,
-  onGridSizeChange
+  onGridSizeChange,
+  onTitleBlockToggle,
+  onEditTitleBlock
 }: PaperSettingsProps) {
   const handleGridIncrease = () => {
     onGridSizeChange(Math.min(gridSize + GRID_STEP, MAX_GRID_SIZE));
@@ -45,7 +53,7 @@ export function PaperSettings({
   const gridRows = Math.floor(paperHeight / gridSize);
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 flex-wrap">
       {/* Paper Format Selector */}
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Format:</span>
@@ -122,6 +130,36 @@ export function PaperSettings({
           <TooltipContent>Größere Kacheln (weniger Felder)</TooltipContent>
         </Tooltip>
       </div>
+
+      {/* Title Block Toggle */}
+      {onTitleBlockToggle && (
+        <div className="flex items-center gap-2 ml-4 border-l pl-4">
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          <Label htmlFor="title-block-toggle" className="text-xs text-muted-foreground">
+            Zeichenkopf
+          </Label>
+          <Switch
+            id="title-block-toggle"
+            checked={titleBlockData?.enabled || false}
+            onCheckedChange={onTitleBlockToggle}
+          />
+          {titleBlockData?.enabled && onEditTitleBlock && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={onEditTitleBlock}
+                >
+                  <Edit className="w-3 h-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Zeichenkopf bearbeiten</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
@@ -7,6 +7,7 @@ import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
 import { ComponentSelectorDialog } from "./ComponentSelectorDialog";
+import { TitleBlockEditor } from "./TitleBlockEditor";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
@@ -72,6 +73,17 @@ export function SchematicEditor() {
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [showComponentSelector, setShowComponentSelector] = useState(false);
   const [projectQuantities, setProjectQuantities] = useState<Map<string, number>>(new Map());
+  const [titleBlockData, setTitleBlockData] = useState<TitleBlockData>({
+    enabled: false,
+    projekt: '',
+    zeichnungsNr: '',
+    blattNr: '1',
+    blattzahl: '1',
+    aenderungen: '',
+    gezeichnet: { name: '', datum: '' },
+    geprueft: { name: '', datum: '' },
+  });
+  const [isTitleBlockEditorOpen, setIsTitleBlockEditorOpen] = useState(false);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -657,9 +669,12 @@ export function SchematicEditor() {
           paperFormat={canvasState.paperFormat}
           orientation={canvasState.orientation}
           gridSize={canvasState.gridSize}
+          titleBlockData={titleBlockData}
           onPaperFormatChange={handlePaperFormatChange}
           onOrientationChange={handleOrientationChange}
           onGridSizeChange={handleGridSizeChange}
+          onTitleBlockToggle={(enabled) => setTitleBlockData(prev => ({ ...prev, enabled }))}
+          onEditTitleBlock={() => setIsTitleBlockEditorOpen(true)}
         />
         <div className="flex-1" />
         <div className="h-8 w-px bg-border mx-2" />
@@ -750,6 +765,7 @@ export function SchematicEditor() {
             draggingComponent={draggingComponent}
             isGroupMode={isGroupMode}
             components={components}
+            titleBlockData={titleBlockData}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
@@ -800,6 +816,13 @@ export function SchematicEditor() {
         onInsertMultipleGroups={handleInsertMultipleGroups}
         projectQuantities={projectQuantities}
         onProjectQuantitiesChange={setProjectQuantities}
+      />
+
+      <TitleBlockEditor
+        open={isTitleBlockEditorOpen}
+        data={titleBlockData}
+        onClose={() => setIsTitleBlockEditorOpen(false)}
+        onSave={setTitleBlockData}
       />
     </div>
   );

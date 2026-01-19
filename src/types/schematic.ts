@@ -6,6 +6,18 @@ export type PaperFormat = 'A5' | 'A4' | 'A3' | 'A2' | 'A1' | 'Letter' | 'Legal';
 
 export type Orientation = 'portrait' | 'landscape';
 
+// Title block (Zeichenkopf) data
+export interface TitleBlockData {
+  enabled: boolean;
+  projekt: string;
+  zeichnungsNr: string;
+  blattNr: string;
+  blattzahl: string;
+  aenderungen: string;
+  gezeichnet: { name: string; datum: string };
+  geprueft: { name: string; datum: string };
+}
+
 // Tile size configurations
 export type TileSize = '1x1' | '2x2' | '3x2' | '5x1'; // 2x2 = 2 high, 2 wide; 3x2 = 3 high, 2 wide; 5x1 = 5 wide, 1 high
 
