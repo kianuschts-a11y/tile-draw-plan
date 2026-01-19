@@ -10,36 +10,69 @@ function generateTileId(): string {
 }
 
 /**
- * Bestimmt den passenden Verbindungsblock für eine leere Zelle basierend auf
- * der vorherigen und nächsten Zelle im Pfad.
+ * Ermittelt welche Richtungen ein bestehender Verbindungsblock hat
+ */
+function getExistingBlockDirections(component: Component): { left: boolean; right: boolean; top: boolean; bottom: boolean } {
+  const id = component.id;
+  return {
+    left: id.includes('horizontal') || id.includes('corner-tl') || id.includes('corner-bl') || 
+          id.includes('t-top') || id.includes('t-bottom') || id.includes('t-right') || id.includes('cross'),
+    right: id.includes('horizontal') || id.includes('corner-tr') || id.includes('corner-br') || 
+           id.includes('t-top') || id.includes('t-bottom') || id.includes('t-left') || id.includes('cross'),
+    top: id.includes('vertical') || id.includes('corner-br') || id.includes('corner-bl') || 
+         id.includes('t-left') || id.includes('t-right') || id.includes('t-bottom') || id.includes('cross'),
+    bottom: id.includes('vertical') || id.includes('corner-tr') || id.includes('corner-tl') || 
+            id.includes('t-left') || id.includes('t-right') || id.includes('t-top') || id.includes('cross')
+  };
+}
+
+/**
+ * Bestimmt den passenden Verbindungsblock für eine Zelle basierend auf
+ * dem aktuellen Pfad UND einem eventuell bestehenden Verbindungsblock.
  * 
- * WICHTIG: Wir berücksichtigen NUR die Pfad-Richtungen, nicht benachbarte Komponenten.
- * Das stellt sicher, dass ein L-förmiger Pfad immer eine Ecke ergibt, nicht ein T-Stück.
+ * WICHTIG: 
+ * - Ein einzelner Pfad kann nur 2 Richtungen haben (Linie oder Ecke)
+ * - T-Stücke (3 Richtungen) nur wenn neuer Pfad + bestehender Block = 3
+ * - Kreuzung (4 Richtungen) nur wenn neuer Pfad + bestehender Block = 4
  */
 function getConnectionBlockForPath(
   prevCell: { gridX: number; gridY: number } | null,
   currentCell: { gridX: number; gridY: number },
   nextCell: { gridX: number; gridY: number } | null,
-  _tiles: PlacedTile[] = [] // Nicht verwendet - nur Pfad-basierte Erkennung
+  tiles: PlacedTile[] = []
 ): Component | null {
   if (!prevCell && !nextCell) return null;
   
-  // Richtungen NUR aus dem Pfad ermitteln
-  const fromLeft = prevCell && prevCell.gridX < currentCell.gridX;
-  const fromRight = prevCell && prevCell.gridX > currentCell.gridX;
-  const fromTop = prevCell && prevCell.gridY < currentCell.gridY;
-  const fromBottom = prevCell && prevCell.gridY > currentCell.gridY;
+  // Richtungen aus dem aktuellen Pfad ermitteln
+  const pathLeft = (prevCell && prevCell.gridX < currentCell.gridX) || (nextCell && nextCell.gridX < currentCell.gridX);
+  const pathRight = (prevCell && prevCell.gridX > currentCell.gridX) || (nextCell && nextCell.gridX > currentCell.gridX);
+  const pathTop = (prevCell && prevCell.gridY < currentCell.gridY) || (nextCell && nextCell.gridY < currentCell.gridY);
+  const pathBottom = (prevCell && prevCell.gridY > currentCell.gridY) || (nextCell && nextCell.gridY > currentCell.gridY);
   
-  const toLeft = nextCell && nextCell.gridX < currentCell.gridX;
-  const toRight = nextCell && nextCell.gridX > currentCell.gridX;
-  const toTop = nextCell && nextCell.gridY < currentCell.gridY;
-  const toBottom = nextCell && nextCell.gridY > currentCell.gridY;
+  // Prüfen ob bereits ein Verbindungsblock an dieser Position existiert
+  const existingTile = tiles.find(tile => {
+    const w = tile.component.width || 1;
+    const h = tile.component.height || 1;
+    return currentCell.gridX >= tile.gridX && currentCell.gridX < tile.gridX + w &&
+           currentCell.gridY >= tile.gridY && currentCell.gridY < tile.gridY + h &&
+           isConnectionBlock(tile.component);
+  });
   
-  // Alle aktiven Richtungen NUR aus dem Pfad
-  const hasLeft = fromLeft || toLeft;
-  const hasRight = fromRight || toRight;
-  const hasTop = fromTop || toTop;
-  const hasBottom = fromBottom || toBottom;
+  // Bestehende Richtungen vom Block (falls vorhanden)
+  let existingLeft = false, existingRight = false, existingTop = false, existingBottom = false;
+  if (existingTile) {
+    const existing = getExistingBlockDirections(existingTile.component);
+    existingLeft = existing.left;
+    existingRight = existing.right;
+    existingTop = existing.top;
+    existingBottom = existing.bottom;
+  }
+  
+  // Kombiniere Pfad-Richtungen mit bestehenden Richtungen
+  const hasLeft = pathLeft || existingLeft;
+  const hasRight = pathRight || existingRight;
+  const hasTop = pathTop || existingTop;
+  const hasBottom = pathBottom || existingBottom;
   
   // Zähle aktive Richtungen
   const directions = [hasLeft, hasRight, hasTop, hasBottom].filter(Boolean).length;
@@ -61,15 +94,14 @@ function getConnectionBlockForPath(
     if (hasLeft && hasRight) return CONNECTION_BLOCKS.find(b => b.id === 'connection-horizontal') || null;
     if (hasTop && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-vertical') || null;
     
-    // Ecken (Namensgebung nach der offenen Ecke)
-    if (hasRight && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tr') || null;  // ┌
-    if (hasLeft && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tl') || null;   // ┐
-    if (hasRight && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-br') || null;     // └
-    if (hasLeft && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-bl') || null;      // ┘
+    // Ecken
+    if (hasRight && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tr') || null;
+    if (hasLeft && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tl') || null;
+    if (hasRight && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-br') || null;
+    if (hasLeft && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-bl') || null;
   }
   
   if (directions === 1) {
-    // Einzelne Richtung - verlängere die Linie
     if (hasLeft || hasRight) return CONNECTION_BLOCKS.find(b => b.id === 'connection-horizontal') || null;
     if (hasTop || hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-vertical') || null;
   }
@@ -503,24 +535,24 @@ export function Canvas({
     // Handle connection path completion
     if (isConnecting && connectionPath.length >= 2 && (activeTool === 'connect' || activeTool === 'disconnect')) {
       if (activeTool === 'connect') {
-        // First, place connection blocks on empty cells
+        // First, place or update connection blocks on empty cells or existing connection blocks
         const newTilesToAdd: PlacedTile[] = [];
+        const tilesToRemove: Set<string> = new Set();
         let updatedTiles = [...tiles];
         
-        // Check each cell in the path for empty cells and add connection blocks
+        // Check each cell in the path for empty cells or existing connection blocks
         for (let i = 0; i < connectionPath.length; i++) {
           const cell = connectionPath[i];
           const tileInfo = getTileAndCellAtPosition(cell.gridX, cell.gridY);
           
-          // If no tile at this position, add a connection block
+          const prevCell = i > 0 ? connectionPath[i - 1] : null;
+          const nextCell = i < connectionPath.length - 1 ? connectionPath[i + 1] : null;
+          
+          // Fall 1: Keine Tile an dieser Position - neuen Verbindungsblock hinzufügen
           if (!tileInfo) {
-            const prevCell = i > 0 ? connectionPath[i - 1] : null;
-            const nextCell = i < connectionPath.length - 1 ? connectionPath[i + 1] : null;
-            
             const connectionBlock = getConnectionBlockForPath(prevCell, cell, nextCell, tiles);
             
             if (connectionBlock) {
-              // Check if there's already a tile we just added at this position
               const existingNewTile = newTilesToAdd.find(t => t.gridX === cell.gridX && t.gridY === cell.gridY);
               if (!existingNewTile) {
                 newTilesToAdd.push({
@@ -532,10 +564,26 @@ export function Canvas({
               }
             }
           }
+          // Fall 2: Bestehender Verbindungsblock - erweitern wenn nötig
+          else if (isConnectionBlock(tileInfo.tile.component)) {
+            const updatedBlock = getConnectionBlockForPath(prevCell, cell, nextCell, tiles);
+            
+            if (updatedBlock && updatedBlock.id !== tileInfo.tile.component.id) {
+              // Block muss aktualisiert werden (z.B. Linie → T-Stück)
+              tilesToRemove.add(tileInfo.tile.id);
+              newTilesToAdd.push({
+                id: generateTileId(),
+                component: updatedBlock,
+                gridX: cell.gridX,
+                gridY: cell.gridY
+              });
+            }
+          }
         }
         
-        // Add the new tiles
-        if (newTilesToAdd.length > 0) {
+        // Remove tiles that need to be replaced, then add new tiles
+        if (tilesToRemove.size > 0 || newTilesToAdd.length > 0) {
+          updatedTiles = updatedTiles.filter(t => !tilesToRemove.has(t.id));
           updatedTiles = [...updatedTiles, ...newTilesToAdd];
           onTilesChange(updatedTiles);
         }
