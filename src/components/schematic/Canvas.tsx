@@ -599,27 +599,14 @@ export function Canvas({
           const cellKey = `${cell.gridX},${cell.gridY}`;
           
           // Fall 1: Keine Tile an dieser Position - neuen Verbindungsblock hinzufügen
-          // WICHTIG: Hier dürfen wir KEINE bestehenden Tiles berücksichtigen (leeres Array übergeben)
+          // WICHTIG: NUR Pfad-Richtungen, KEINE Kombination mit anderen Blöcken!
           if (!tileInfo) {
-            // Nur Pfad-Richtungen berücksichtigen, keine bestehenden Blöcke!
+            // Übergebe leeres Array - wir wollen NUR prevCell und nextCell berücksichtigen
             const connectionBlock = getConnectionBlockForPath(prevCell, cell, nextCell, []);
             
             if (connectionBlock) {
-              const existingUpdate = blockUpdates.get(cellKey);
-              if (existingUpdate) {
-                // Kombiniere mit bereits geplantem Block für diese Zelle
-                const combinedBlock = getConnectionBlockForPath(prevCell, cell, nextCell, [{
-                  id: 'temp',
-                  component: existingUpdate.component,
-                  gridX: cell.gridX,
-                  gridY: cell.gridY
-                }]);
-                if (combinedBlock) {
-                  blockUpdates.set(cellKey, { component: combinedBlock, gridX: cell.gridX, gridY: cell.gridY });
-                }
-              } else {
-                blockUpdates.set(cellKey, { component: connectionBlock, gridX: cell.gridX, gridY: cell.gridY });
-              }
+              // Einfach setzen - KEINE Kombination! Überschreibe bei Duplikaten
+              blockUpdates.set(cellKey, { component: connectionBlock, gridX: cell.gridX, gridY: cell.gridY });
             }
           }
           // Fall 2: Bestehender Verbindungsblock - erweitern wenn nötig
