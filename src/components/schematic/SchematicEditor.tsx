@@ -101,18 +101,27 @@ export function SchematicEditor() {
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
     if (!svgElement) return;
 
-    // Calculate fixed paper dimensions based on format and orientation
+    // Calculate paper dimensions based on format and orientation
     const paperSize = PAPER_SIZES[canvasState.paperFormat];
-    const paperWidth = (canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width) * MM_TO_PX;
-    const paperHeight = (canvasState.orientation === 'landscape' ? paperSize.width : paperSize.height) * MM_TO_PX;
+    const paperWidthMM = canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width;
+    const paperHeightMM = canvasState.orientation === 'landscape' ? paperSize.width : paperSize.height;
+    const paperWidthPx = paperWidthMM * MM_TO_PX;
+    const paperHeightPx = paperHeightMM * MM_TO_PX;
+    
+    // Calculate grid dimensions (same logic as Canvas.tsx)
+    const tileSize = canvasState.gridSize;
+    const gridCols = Math.floor(paperWidthPx / tileSize);
+    const gridRows = Math.floor(paperHeightPx / tileSize);
+    const canvasWidth = gridCols * tileSize;
+    const canvasHeight = gridRows * tileSize;
 
     // Clone the SVG to avoid modifying the original
     const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
     
-    // Set fixed viewBox for paper size (no zoom/pan)
-    clonedSvg.setAttribute('viewBox', `0 0 ${paperWidth} ${paperHeight}`);
-    clonedSvg.setAttribute('width', String(paperWidth));
-    clonedSvg.setAttribute('height', String(paperHeight));
+    // Set viewBox to match the actual canvas content (grid area only)
+    clonedSvg.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
+    clonedSvg.setAttribute('width', String(canvasWidth));
+    clonedSvg.setAttribute('height', String(canvasHeight));
     
     // Find and reset the main transform group to scale(1) translate(0,0)
     const transformGroup = clonedSvg.querySelector('g[transform]');
@@ -120,22 +129,74 @@ export function SchematicEditor() {
       transformGroup.setAttribute('transform', 'translate(0, 0) scale(1)');
     }
     
+    // Replace CSS variables with fixed colors for export compatibility
+    const cssVarReplacements: Record<string, string> = {
+      'hsl(var(--primary) / 0.1)': 'rgba(37, 99, 235, 0.1)',
+      'hsl(var(--primary) / 0.15)': 'rgba(37, 99, 235, 0.15)',
+      'hsl(var(--primary) / 0.3)': 'rgba(37, 99, 235, 0.3)',
+      'hsl(var(--primary) / 0.4)': 'rgba(37, 99, 235, 0.4)',
+      'hsl(var(--primary) / 0.5)': 'rgba(37, 99, 235, 0.5)',
+      'hsl(var(--primary))': '#2563eb',
+      'hsl(var(--muted) / 0.3)': 'rgba(241, 245, 249, 0.3)',
+      'hsl(var(--muted-foreground))': '#64748b',
+      'hsl(var(--foreground) / 0.1)': 'rgba(15, 23, 42, 0.1)',
+      'hsl(var(--border))': '#e2e8f0',
+      'hsl(var(--canvas-grid))': '#cbd5e1',
+      'hsl(var(--destructive) / 0.3)': 'rgba(239, 68, 68, 0.3)',
+      'hsl(var(--destructive))': '#ef4444',
+    };
+    
+    // Replace CSS variables in all elements
+    const allElements = clonedSvg.querySelectorAll('*');
+    allElements.forEach(el => {
+      const element = el as SVGElement;
+      ['fill', 'stroke', 'style'].forEach(attr => {
+        const value = element.getAttribute(attr);
+        if (value) {
+          let newValue = value;
+          Object.entries(cssVarReplacements).forEach(([cssVar, replacement]) => {
+            newValue = newValue.replace(new RegExp(cssVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replacement);
+          });
+          element.setAttribute(attr, newValue);
+        }
+      });
+      
+      // Also check inline style
+      if (element.style) {
+        Object.entries(cssVarReplacements).forEach(([cssVar, replacement]) => {
+          if (element.style.fill && element.style.fill.includes('var(')) {
+            element.style.fill = replacement;
+          }
+          if (element.style.stroke && element.style.stroke.includes('var(')) {
+            element.style.stroke = replacement;
+          }
+        });
+      }
+    });
+    
     // Remove temporary UI elements that shouldn't be exported
     const selectorsToRemove = [
       '[data-export-ignore]',
-      '.selection-box',
-      '.connection-preview',
-      '.drop-preview'
     ];
     selectorsToRemove.forEach(selector => {
       clonedSvg.querySelectorAll(selector).forEach(el => el.remove());
+    });
+    
+    // Remove elements that are clearly UI-only (selection boxes, previews, dimension labels)
+    // Remove the last text element (dimension label)
+    const textElements = clonedSvg.querySelectorAll('text');
+    textElements.forEach(text => {
+      const content = text.textContent || '';
+      if (content.includes('Kacheln') || content.includes('×')) {
+        text.remove();
+      }
     });
 
     // Create a canvas to render the SVG
     const canvas = document.createElement('canvas');
     const scale = 2; // Higher resolution for better quality
-    canvas.width = paperWidth * scale;
-    canvas.height = paperHeight * scale;
+    canvas.width = canvasWidth * scale;
+    canvas.height = canvasHeight * scale;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -153,12 +214,16 @@ export function SchematicEditor() {
 
       // Download as PNG
       const link = document.createElement('a');
-      link.download = `zeichnung-${canvasState.paperFormat}-${new Date().toISOString().slice(0, 10)}.png`;
+      link.download = `zeichnung-${canvasState.paperFormat}-${canvasState.orientation}-${new Date().toISOString().slice(0, 10)}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     };
+    img.onerror = (err) => {
+      console.error('Export failed:', err);
+      URL.revokeObjectURL(url);
+    };
     img.src = url;
-  }, [canvasState.paperFormat, canvasState.orientation]);
+  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
 
   const handlePaperFormatChange = useCallback((format: PaperFormat) => {
     setCanvasState(prev => ({ ...prev, paperFormat: format }));
