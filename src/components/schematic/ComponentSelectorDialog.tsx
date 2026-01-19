@@ -1,10 +1,10 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { Component, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData } from "@/types/schematic";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { Component, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, ProjectComponentData } from "@/types/schematic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Folder, Check, X, Layers, ArrowRight } from "lucide-react";
+import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface ComponentSelectorDialogProps {
   open: boolean;
@@ -22,6 +27,9 @@ interface ComponentSelectorDialogProps {
   onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>) => void;
   projectQuantities: Map<string, number>;
   onProjectQuantitiesChange: (quantities: Map<string, number>) => void;
+  // New: descriptions per component instance
+  projectDescriptions: Map<string, string[]>;
+  onProjectDescriptionsChange: (descriptions: Map<string, string[]>) => void;
 }
 
 interface GroupSuggestion {
@@ -45,17 +53,45 @@ export function ComponentSelectorDialog({
   onInsertGroup,
   onInsertMultipleGroups,
   projectQuantities,
-  onProjectQuantitiesChange
+  onProjectQuantitiesChange,
+  projectDescriptions,
+  onProjectDescriptionsChange
 }: ComponentSelectorDialogProps) {
   // Use the passed projectQuantities as initial state, but allow local editing
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
+  const [descriptions, setDescriptions] = useState<Map<string, string[]>>(new Map());
+  const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
+  
+  // Track initial state to determine button text
+  const initialQuantitiesRef = useRef<string>("");
+  const initialDescriptionsRef = useRef<string>("");
+  const [hasChanges, setHasChanges] = useState(false);
+  const [wasOpened, setWasOpened] = useState(false);
 
   // Sync local state with projectQuantities when dialog opens
   useEffect(() => {
     if (open) {
       setQuantities(new Map(projectQuantities));
+      setDescriptions(new Map(projectDescriptions));
+      
+      // Store initial state for comparison
+      initialQuantitiesRef.current = JSON.stringify(Array.from(projectQuantities.entries()));
+      initialDescriptionsRef.current = JSON.stringify(Array.from(projectDescriptions.entries()));
+      
+      // Check if there was already data
+      setWasOpened(projectQuantities.size > 0);
+      setHasChanges(false);
     }
-  }, [open, projectQuantities]);
+  }, [open, projectQuantities, projectDescriptions]);
+
+  // Check for changes
+  useEffect(() => {
+    const currentQuantities = JSON.stringify(Array.from(quantities.entries()));
+    const currentDescriptions = JSON.stringify(Array.from(descriptions.entries()));
+    const changed = currentQuantities !== initialQuantitiesRef.current || 
+                    currentDescriptions !== initialDescriptionsRef.current;
+    setHasChanges(changed);
+  }, [quantities, descriptions]);
 
   // Update both local and parent state
   const updateQuantity = (componentId: string, delta: number) => {
@@ -65,11 +101,30 @@ export function ComponentSelectorDialog({
       const newValue = Math.max(0, current + delta);
       if (newValue === 0) {
         next.delete(componentId);
+        // Also clear descriptions
+        setDescriptions(d => {
+          const newD = new Map(d);
+          newD.delete(componentId);
+          return newD;
+        });
+        // Collapse
+        setExpandedComponents(e => {
+          const newE = new Set(e);
+          newE.delete(componentId);
+          return newE;
+        });
       } else {
         next.set(componentId, newValue);
+        // Adjust descriptions array
+        setDescriptions(d => {
+          const newD = new Map(d);
+          const currentDescs = newD.get(componentId) || [];
+          // Extend or shrink descriptions array
+          const newDescs = Array.from({ length: newValue }, (_, i) => currentDescs[i] || '');
+          newD.set(componentId, newDescs);
+          return newD;
+        });
       }
-      // Also update parent state to persist
-      onProjectQuantitiesChange(next);
       return next;
     });
   };
@@ -79,19 +134,75 @@ export function ComponentSelectorDialog({
       const next = new Map(prev);
       if (value <= 0) {
         next.delete(componentId);
+        setDescriptions(d => {
+          const newD = new Map(d);
+          newD.delete(componentId);
+          return newD;
+        });
+        setExpandedComponents(e => {
+          const newE = new Set(e);
+          newE.delete(componentId);
+          return newE;
+        });
       } else {
         next.set(componentId, value);
+        setDescriptions(d => {
+          const newD = new Map(d);
+          const currentDescs = newD.get(componentId) || [];
+          const newDescs = Array.from({ length: value }, (_, i) => currentDescs[i] || '');
+          newD.set(componentId, newDescs);
+          return newD;
+        });
       }
-      // Also update parent state to persist
-      onProjectQuantitiesChange(next);
+      return next;
+    });
+  };
+
+  const updateDescription = (componentId: string, instanceIndex: number, description: string) => {
+    setDescriptions(prev => {
+      const next = new Map(prev);
+      const descs = [...(next.get(componentId) || [])];
+      descs[instanceIndex] = description;
+      next.set(componentId, descs);
+      return next;
+    });
+  };
+
+  const copyDescriptionToAll = (componentId: string, sourceIndex: number) => {
+    setDescriptions(prev => {
+      const next = new Map(prev);
+      const descs = next.get(componentId) || [];
+      const sourceDesc = descs[sourceIndex] || '';
+      const newDescs = descs.map(() => sourceDesc);
+      next.set(componentId, newDescs);
+      return next;
+    });
+  };
+
+  const toggleExpanded = (componentId: string) => {
+    setExpandedComponents(prev => {
+      const next = new Set(prev);
+      if (next.has(componentId)) {
+        next.delete(componentId);
+      } else {
+        next.add(componentId);
+      }
       return next;
     });
   };
 
   const clearAll = () => {
     const empty = new Map<string, number>();
+    const emptyDescs = new Map<string, string[]>();
     setQuantities(empty);
-    onProjectQuantitiesChange(empty);
+    setDescriptions(emptyDescs);
+    setExpandedComponents(new Set());
+  };
+
+  const handleSave = () => {
+    onProjectQuantitiesChange(quantities);
+    onProjectDescriptionsChange(descriptions);
+    onOpenChange(false);
   };
 
   // Get component requirements from a group
@@ -162,10 +273,8 @@ export function ComponentSelectorDialog({
     if (matchingGroups.length < 2) return [];
     
     const sets: ComplementaryGroupSet[] = [];
-    const remainingAfterFirst = new Map(quantities);
     
     // Try to find groups that complement each other
-    // Start with the highest coverage group and try to add more
     for (let i = 0; i < Math.min(matchingGroups.length, 3); i++) {
       const firstGroup = matchingGroups[i];
       const tempRemaining = new Map(quantities);
@@ -190,7 +299,6 @@ export function ComponentSelectorDialog({
         if (possible && maxCount > 0) {
           const totalCoverage = firstGroup.coveragePercent + secondGroup.coveragePercent;
           
-          // Calculate remaining after both groups
           const finalRemaining = new Map(tempRemaining);
           for (const [compId, needed] of secondGroup.usedComponents.entries()) {
             const current = finalRemaining.get(compId) || 0;
@@ -213,7 +321,6 @@ export function ComponentSelectorDialog({
       }
     }
     
-    // Sort by total coverage and remove duplicates
     return sets
       .sort((a, b) => b.totalCoverage - a.totalCoverage)
       .slice(0, 3);
@@ -228,7 +335,6 @@ export function ComponentSelectorDialog({
   const handleInsertGroup = (group: ComponentGroup, count: number = 1) => {
     onInsertGroup(group, count);
     
-    // Update remaining quantities (but don't reduce project totals - just reduce what still needs inserting)
     const requirements = getGroupComponentRequirements(group);
     setQuantities(prev => {
       const next = new Map(prev);
@@ -241,8 +347,6 @@ export function ComponentSelectorDialog({
           next.set(compId, remaining);
         }
       }
-      // Note: We don't update projectQuantities here - those are the "total needed"
-      // The remaining is tracked separately by comparing placed tiles to project quantities
       return next;
     });
   };
@@ -252,9 +356,20 @@ export function ComponentSelectorDialog({
     setQuantities(set.remainingComponents);
   };
 
+  // Determine button text
+  const getButtonText = () => {
+    if (!wasOpened && quantities.size === 0) {
+      return "Schließen";
+    }
+    if (wasOpened && hasChanges) {
+      return "Aktualisieren";
+    }
+    return "Speichern";
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="w-5 h-5" />
@@ -284,40 +399,87 @@ export function ComponentSelectorDialog({
               <div className="space-y-1">
                 {components.map(component => {
                   const qty = quantities.get(component.id) || 0;
+                  const isExpanded = expandedComponents.has(component.id);
+                  const componentDescs = descriptions.get(component.id) || [];
+                  
                   return (
-                    <div
-                      key={component.id}
-                      className={`flex items-center justify-between gap-2 p-2 rounded-lg border transition-colors ${
-                        qty > 0 ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-transparent'
-                      }`}
-                    >
-                      <span className="text-sm truncate flex-1">{component.name}</span>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 w-7 p-0"
-                          onClick={() => updateQuantity(component.id, -1)}
-                          disabled={qty === 0}
-                        >
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={qty}
-                          onChange={(e) => setQuantity(component.id, parseInt(e.target.value) || 0)}
-                          className="h-7 w-14 text-center text-sm px-1"
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 w-7 p-0"
-                          onClick={() => updateQuantity(component.id, 1)}
-                        >
-                          <Plus className="w-3 h-3" />
-                        </Button>
+                    <div key={component.id} className="space-y-1">
+                      <div
+                        className={`flex items-center justify-between gap-2 p-2 rounded-lg border transition-colors ${
+                          qty > 0 ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-transparent'
+                        }`}
+                      >
+                        {/* Expand button for descriptions */}
+                        {qty > 0 && (
+                          <button
+                            onClick={() => toggleExpanded(component.id)}
+                            className="p-0.5 hover:bg-accent rounded"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                        <span className={`text-sm truncate flex-1 ${qty === 0 ? 'ml-6' : ''}`}>
+                          {component.name}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-7 p-0"
+                            onClick={() => updateQuantity(component.id, -1)}
+                            disabled={qty === 0}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={qty}
+                            onChange={(e) => setQuantity(component.id, parseInt(e.target.value) || 0)}
+                            className="h-7 w-14 text-center text-sm px-1"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 w-7 p-0"
+                            onClick={() => updateQuantity(component.id, 1)}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
+                      
+                      {/* Expanded descriptions for each instance */}
+                      {qty > 0 && isExpanded && (
+                        <div className="ml-6 pl-2 border-l-2 border-primary/20 space-y-1">
+                          {Array.from({ length: qty }, (_, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground w-6">#{i + 1}</span>
+                              <Input
+                                placeholder="Beschreibung..."
+                                value={componentDescs[i] || ''}
+                                onChange={(e) => updateDescription(component.id, i, e.target.value)}
+                                className="h-7 text-sm flex-1"
+                              />
+                              {qty > 1 && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => copyDescriptionToAll(component.id, i)}
+                                  title="Beschreibung auf alle kopieren"
+                                >
+                                  <Equal className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -470,8 +632,8 @@ export function ComponentSelectorDialog({
         </div>
         
         <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Schließen
+          <Button onClick={handleSave}>
+            {getButtonText()}
           </Button>
         </DialogFooter>
       </DialogContent>

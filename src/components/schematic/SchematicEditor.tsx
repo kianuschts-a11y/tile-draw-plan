@@ -74,6 +74,7 @@ export function SchematicEditor() {
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [showComponentSelector, setShowComponentSelector] = useState(false);
   const [projectQuantities, setProjectQuantities] = useState<Map<string, number>>(new Map());
+  const [projectDescriptions, setProjectDescriptions] = useState<Map<string, string[]>>(new Map());
   const [titleBlockData, setTitleBlockData] = useState<TitleBlockData>({
     enabled: false,
     projekt: '',
@@ -819,6 +820,8 @@ export function SchematicEditor() {
         onInsertMultipleGroups={handleInsertMultipleGroups}
         projectQuantities={projectQuantities}
         onProjectQuantitiesChange={setProjectQuantities}
+        projectDescriptions={projectDescriptions}
+        onProjectDescriptionsChange={setProjectDescriptions}
       />
 
       <TitleBlockEditor
@@ -835,6 +838,7 @@ export function SchematicEditor() {
         titleBlockData={titleBlockData}
         paperFormat={canvasState.paperFormat}
         orientation={canvasState.orientation}
+        projectDescriptions={projectDescriptions}
       />
     </div>
   );
