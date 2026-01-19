@@ -117,12 +117,10 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   // Canvas size based on tile size selection
   const tileSizeConfig = TILE_SIZES[componentTileSize];
   const baseCanvasSize = 300;
-  const canvasWidth = tileSizeConfig.cols > 1 ? baseCanvasSize : baseCanvasSize;
-  const canvasHeight = tileSizeConfig.rows > tileSizeConfig.cols 
-    ? baseCanvasSize * (tileSizeConfig.rows / tileSizeConfig.cols)
-    : tileSizeConfig.rows === tileSizeConfig.cols && tileSizeConfig.rows > 1
-      ? baseCanvasSize
-      : baseCanvasSize;
+  // Berechne Canvas-Dimensionen basierend auf dem Seitenverhältnis
+  const aspectRatio = tileSizeConfig.cols / tileSizeConfig.rows;
+  const canvasWidth = aspectRatio >= 1 ? baseCanvasSize * aspectRatio : baseCanvasSize;
+  const canvasHeight = aspectRatio < 1 ? baseCanvasSize / aspectRatio : baseCanvasSize;
   
   const gridSize = baseCanvasSize / 20;
   const handleSize = 10;
@@ -136,10 +134,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       
       // Berechne Canvas-Größe für die zu ladende Komponente
       const loadTileConfig = TILE_SIZES[editingComponent.tileSize || '1x1'];
-      const loadCanvasWidth = baseCanvasSize;
-      const loadCanvasHeight = loadTileConfig.rows > loadTileConfig.cols 
-        ? baseCanvasSize * (loadTileConfig.rows / loadTileConfig.cols)
-        : baseCanvasSize;
+      const loadAspectRatio = loadTileConfig.cols / loadTileConfig.rows;
+      const loadCanvasWidth = loadAspectRatio >= 1 ? baseCanvasSize * loadAspectRatio : baseCanvasSize;
+      const loadCanvasHeight = loadAspectRatio < 1 ? baseCanvasSize / loadAspectRatio : baseCanvasSize;
       
       // Denormalisiere die Formen (von 0-1 auf Canvas-Koordinaten)
       const denormalizedShapes = editingComponent.shapes.map(s => ({
