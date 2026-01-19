@@ -11,7 +11,9 @@ import {
   FolderPlus,
   Save,
   X,
-  Download
+  Download,
+  Undo2,
+  Redo2
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
@@ -54,6 +56,11 @@ interface ToolbarProps {
   selectedTileCount: number;
   onSaveGroup: (name: string) => void;
   onCancelGroupMode: () => void;
+  // Undo/Redo
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export function Toolbar({
@@ -71,7 +78,11 @@ export function Toolbar({
   onToggleGroupMode,
   selectedTileCount,
   onSaveGroup,
-  onCancelGroupMode
+  onCancelGroupMode,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo
 }: ToolbarProps) {
   const [groupName, setGroupName] = useState("");
 
@@ -89,6 +100,24 @@ export function Toolbar({
 
   return (
     <div className="toolbar-panel flex flex-col items-center py-3 px-1.5 border-r gap-1">
+      {/* Undo/Redo */}
+      <ToolButton
+        icon={Undo2}
+        label="Rückgängig"
+        shortcut="Strg+Z"
+        onClick={onUndo}
+        disabled={!canUndo || isGroupMode}
+      />
+      <ToolButton
+        icon={Redo2}
+        label="Wiederholen"
+        shortcut="Strg+Y"
+        onClick={onRedo}
+        disabled={!canRedo || isGroupMode}
+      />
+      
+      <Separator className="my-2 w-8" />
+      
       <ToolButton
         icon={MousePointer2}
         label="Auswählen"
