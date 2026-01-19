@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { sanitizeDatabaseError } from '@/lib/errorUtils';
 
 interface AuthContextType {
   user: User | null;
@@ -110,8 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .single();
 
         if (companyError) {
-          console.error('Company creation error:', companyError);
-          return { error: new Error(companyError.message) };
+          return { error: new Error(sanitizeDatabaseError(companyError)) };
         }
 
         // Create profile linking user to company
@@ -124,10 +124,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
 
         if (profileError) {
-          console.error('Profile creation error:', profileError);
           // Clean up company if profile fails
           await supabase.from('companies').delete().eq('id', newCompany.id);
-          return { error: new Error(profileError.message) };
+          return { error: new Error(sanitizeDatabaseError(profileError)) };
         }
       }
 

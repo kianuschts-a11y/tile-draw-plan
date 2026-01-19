@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import { sanitizeAuthError } from '@/lib/errorUtils';
 
 const loginSchema = z.object({
   email: z.string().email('Ungültige E-Mail-Adresse'),
@@ -58,9 +59,7 @@ export default function Auth() {
     if (error) {
       toast({
         title: 'Anmeldung fehlgeschlagen',
-        description: error.message === 'Invalid login credentials' 
-          ? 'Ungültige E-Mail oder Passwort' 
-          : error.message,
+        description: sanitizeAuthError(error.message),
         variant: 'destructive'
       });
     } else {
@@ -96,19 +95,11 @@ export default function Auth() {
     const { error } = await signUp(signUpEmail, signUpPassword, companyName);
     
     if (error) {
-      if (error.message.includes('already registered')) {
-        toast({
-          title: 'Registrierung fehlgeschlagen',
-          description: 'Diese E-Mail-Adresse ist bereits registriert',
-          variant: 'destructive'
-        });
-      } else {
-        toast({
-          title: 'Registrierung fehlgeschlagen',
-          description: error.message,
-          variant: 'destructive'
-        });
-      }
+      toast({
+        title: 'Registrierung fehlgeschlagen',
+        description: sanitizeAuthError(error.message),
+        variant: 'destructive'
+      });
     } else {
       toast({
         title: 'Erfolgreich registriert',
