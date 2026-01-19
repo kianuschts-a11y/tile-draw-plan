@@ -84,88 +84,91 @@ export function SchematicEditor() {
   // Undo/Redo History - speichert kompletten Zustand
   const historyRef = useRef<HistoryEntry[]>([{ tiles: [], connections: [] }]);
   const historyIndexRef = useRef(0);
-  const [, forceUpdate] = useState(0);
-  const skipHistoryRef = useRef(false);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const skipNextSaveRef = useRef(false);
 
   // Snapshot des aktuellen Zustands speichern
-  const saveToHistory = useCallback(() => {
-    if (skipHistoryRef.current) {
-      skipHistoryRef.current = false;
+  const saveToHistory = useCallback((newTiles: PlacedTile[], newConnections: CellConnection[]) => {
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
       return;
     }
     
-    // Aktuellen State holen
-    setTilesInternal(currentTiles => {
-      setConnectionsInternal(currentConnections => {
-        const currentEntry = historyRef.current[historyIndexRef.current];
-        // Nur speichern wenn sich etwas geändert hat
-        if (JSON.stringify(currentEntry.tiles) !== JSON.stringify(currentTiles) ||
-            JSON.stringify(currentEntry.connections) !== JSON.stringify(currentConnections)) {
-          // Historie bis zum aktuellen Index abschneiden, neuen Eintrag hinzufügen
-          historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
-          historyRef.current.push({ 
-            tiles: JSON.parse(JSON.stringify(currentTiles)), 
-            connections: JSON.parse(JSON.stringify(currentConnections)) 
-          });
-          // Maximal 50 Einträge
-          if (historyRef.current.length > 50) {
-            historyRef.current.shift();
-          } else {
-            historyIndexRef.current++;
-          }
-          forceUpdate(n => n + 1);
-        }
-        return currentConnections;
+    const currentEntry = historyRef.current[historyIndexRef.current];
+    // Nur speichern wenn sich etwas geändert hat
+    if (JSON.stringify(currentEntry?.tiles) !== JSON.stringify(newTiles) ||
+        JSON.stringify(currentEntry?.connections) !== JSON.stringify(newConnections)) {
+      // Historie bis zum aktuellen Index abschneiden, neuen Eintrag hinzufügen
+      historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
+      historyRef.current.push({ 
+        tiles: JSON.parse(JSON.stringify(newTiles)), 
+        connections: JSON.parse(JSON.stringify(newConnections)) 
       });
-      return currentTiles;
-    });
+      // Maximal 50 Einträge
+      if (historyRef.current.length > 50) {
+        historyRef.current.shift();
+      } else {
+        historyIndexRef.current++;
+      }
+      setHistoryVersion(v => v + 1);
+    }
   }, []);
 
   // Normale setTiles - speichert nach Update zur History
   const setTiles = useCallback((newTilesOrUpdater: PlacedTile[] | ((prev: PlacedTile[]) => PlacedTile[])) => {
     setTilesInternal(prev => {
       const newTiles = typeof newTilesOrUpdater === 'function' ? newTilesOrUpdater(prev) : newTilesOrUpdater;
+      // Verzögert speichern um connections mitzunehmen
+      setTimeout(() => {
+        setConnectionsInternal(currentConnections => {
+          saveToHistory(newTiles, currentConnections);
+          return currentConnections;
+        });
+      }, 50);
       return newTiles;
     });
-    // Nach dem State-Update zur History speichern
-    setTimeout(saveToHistory, 10);
   }, [saveToHistory]);
 
   // Normale setConnections - speichert nach Update zur History
   const setConnections = useCallback((newConnectionsOrUpdater: CellConnection[] | ((prev: CellConnection[]) => CellConnection[])) => {
     setConnectionsInternal(prev => {
       const newConnections = typeof newConnectionsOrUpdater === 'function' ? newConnectionsOrUpdater(prev) : newConnectionsOrUpdater;
+      // Verzögert speichern um tiles mitzunehmen
+      setTimeout(() => {
+        setTilesInternal(currentTiles => {
+          saveToHistory(currentTiles, newConnections);
+          return currentTiles;
+        });
+      }, 50);
       return newConnections;
     });
-    // Nach dem State-Update zur History speichern
-    setTimeout(saveToHistory, 10);
   }, [saveToHistory]);
 
-  // Undo-Funktion
-  const handleUndo = useCallback(() => {
+  // Undo-Funktion - direkt ohne useCallback wrapper
+  const handleUndo = () => {
     if (historyIndexRef.current > 0) {
-      skipHistoryRef.current = true;
+      skipNextSaveRef.current = true;
       historyIndexRef.current--;
       const prevState = historyRef.current[historyIndexRef.current];
       setTilesInternal(JSON.parse(JSON.stringify(prevState.tiles)));
       setConnectionsInternal(JSON.parse(JSON.stringify(prevState.connections)));
       setSelectedTileIds(new Set());
-      forceUpdate(n => n + 1);
+      setHistoryVersion(v => v + 1);
     }
-  }, []);
+  };
 
-  // Redo-Funktion
-  const handleRedo = useCallback(() => {
+  // Redo-Funktion - direkt ohne useCallback wrapper
+  const handleRedo = () => {
     if (historyIndexRef.current < historyRef.current.length - 1) {
-      skipHistoryRef.current = true;
+      skipNextSaveRef.current = true;
       historyIndexRef.current++;
       const nextState = historyRef.current[historyIndexRef.current];
       setTilesInternal(JSON.parse(JSON.stringify(nextState.tiles)));
       setConnectionsInternal(JSON.parse(JSON.stringify(nextState.connections)));
       setSelectedTileIds(new Set());
-      forceUpdate(n => n + 1);
+      setHistoryVersion(v => v + 1);
     }
-  }, []);
+  };
 
   // Keyboard-Shortcuts für Undo/Redo
   useEffect(() => {
