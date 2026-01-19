@@ -66,10 +66,19 @@ function getConnectionBlockForPath(
   if (!prevCell && !nextCell) return null;
   
   // Richtungen aus dem aktuellen Pfad ermitteln
+  // pathLeft = true wenn es einen Nachbarn auf der LINKEN Seite gibt
   const pathLeft = (prevCell && prevCell.gridX < currentCell.gridX) || (nextCell && nextCell.gridX < currentCell.gridX);
   const pathRight = (prevCell && prevCell.gridX > currentCell.gridX) || (nextCell && nextCell.gridX > currentCell.gridX);
   const pathTop = (prevCell && prevCell.gridY < currentCell.gridY) || (nextCell && nextCell.gridY < currentCell.gridY);
   const pathBottom = (prevCell && prevCell.gridY > currentCell.gridY) || (nextCell && nextCell.gridY > currentCell.gridY);
+  
+  // DEBUG: Log zur Fehlersuche
+  console.log(`getConnectionBlockForPath at (${currentCell.gridX}, ${currentCell.gridY}):`, {
+    prevCell: prevCell ? `(${prevCell.gridX}, ${prevCell.gridY})` : 'null',
+    nextCell: nextCell ? `(${nextCell.gridX}, ${nextCell.gridY})` : 'null',
+    pathLeft, pathRight, pathTop, pathBottom,
+    tilesCount: tiles.length
+  });
   
   // Prüfen ob bereits ein Verbindungsblock an dieser Position existiert
   const existingTile = tiles.find(tile => {
@@ -88,6 +97,7 @@ function getConnectionBlockForPath(
     existingRight = existing.right;
     existingTop = existing.top;
     existingBottom = existing.bottom;
+    console.log(`  Existing tile: ${existingTile.component.id}`, existing);
   }
   
   // Kombiniere Pfad-Richtungen mit bestehenden Richtungen
@@ -99,16 +109,19 @@ function getConnectionBlockForPath(
   // Zähle aktive Richtungen
   const directions = [hasLeft, hasRight, hasTop, hasBottom].filter(Boolean).length;
   
+  console.log(`  Combined: L=${hasLeft} R=${hasRight} T=${hasTop} B=${hasBottom} => ${directions} directions`);
+  
   if (directions === 4) {
+    console.log(`  => connection-cross`);
     return CONNECTION_BLOCKS.find(b => b.id === 'connection-cross') || null;
   }
   
   if (directions === 3) {
     // T-Stück
-    if (!hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-top') || null;
-    if (!hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-bottom') || null;
-    if (!hasLeft) return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-left') || null;
-    if (!hasRight) return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-right') || null;
+    if (!hasTop) { console.log(`  => connection-t-top`); return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-top') || null; }
+    if (!hasBottom) { console.log(`  => connection-t-bottom`); return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-bottom') || null; }
+    if (!hasLeft) { console.log(`  => connection-t-left`); return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-left') || null; }
+    if (!hasRight) { console.log(`  => connection-t-right`); return CONNECTION_BLOCKS.find(b => b.id === 'connection-t-right') || null; }
   }
   
   if (directions === 2) {
