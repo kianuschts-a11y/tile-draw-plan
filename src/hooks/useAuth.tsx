@@ -119,8 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('profiles')
           .insert({
             user_id: authData.user.id,
-            company_id: newCompany.id,
-            email: email
+            company_id: newCompany.id
           });
 
         if (profileError) {
