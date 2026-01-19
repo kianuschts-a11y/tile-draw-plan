@@ -561,9 +561,13 @@ export function Canvas({
     // Handle connection path completion
     if (isConnecting && connectionPath.length >= 2 && (activeTool === 'connect' || activeTool === 'disconnect')) {
       if (activeTool === 'connect') {
-        // First, place or update connection blocks on empty cells or existing connection blocks
-        const newTilesToAdd: PlacedTile[] = [];
+        // WICHTIG: Für NEUE Verbindungsblöcke dürfen wir NUR den aktuellen Pfad betrachten,
+        // NICHT bestehende Blöcke kombinieren. Das würde sonst T-Stücke erzeugen.
+        // Bestehende Blöcke werden nur erweitert wenn der Pfad ÜBER sie verläuft.
+        
         const tilesToRemove: Set<string> = new Set();
+        // Map von gridX,gridY -> Block für neue/aktualisierte Blöcke
+        const blockUpdates: Map<string, { component: Component; gridX: number; gridY: number }> = new Map();
         let updatedTiles = [...tiles];
         
         // Check each cell in the path for empty cells or existing connection blocks
@@ -574,19 +578,29 @@ export function Canvas({
           const prevCell = i > 0 ? connectionPath[i - 1] : null;
           const nextCell = i < connectionPath.length - 1 ? connectionPath[i + 1] : null;
           
+          const cellKey = `${cell.gridX},${cell.gridY}`;
+          
           // Fall 1: Keine Tile an dieser Position - neuen Verbindungsblock hinzufügen
+          // WICHTIG: Hier dürfen wir KEINE bestehenden Tiles berücksichtigen (leeres Array übergeben)
           if (!tileInfo) {
-            const connectionBlock = getConnectionBlockForPath(prevCell, cell, nextCell, tiles);
+            // Nur Pfad-Richtungen berücksichtigen, keine bestehenden Blöcke!
+            const connectionBlock = getConnectionBlockForPath(prevCell, cell, nextCell, []);
             
             if (connectionBlock) {
-              const existingNewTile = newTilesToAdd.find(t => t.gridX === cell.gridX && t.gridY === cell.gridY);
-              if (!existingNewTile) {
-                newTilesToAdd.push({
-                  id: generateTileId(),
-                  component: connectionBlock,
+              const existingUpdate = blockUpdates.get(cellKey);
+              if (existingUpdate) {
+                // Kombiniere mit bereits geplantem Block für diese Zelle
+                const combinedBlock = getConnectionBlockForPath(prevCell, cell, nextCell, [{
+                  id: 'temp',
+                  component: existingUpdate.component,
                   gridX: cell.gridX,
                   gridY: cell.gridY
-                });
+                }]);
+                if (combinedBlock) {
+                  blockUpdates.set(cellKey, { component: combinedBlock, gridX: cell.gridX, gridY: cell.gridY });
+                }
+              } else {
+                blockUpdates.set(cellKey, { component: connectionBlock, gridX: cell.gridX, gridY: cell.gridY });
               }
             }
           }
@@ -597,19 +611,20 @@ export function Canvas({
             if (updatedBlock && updatedBlock.id !== tileInfo.tile.component.id) {
               // Block muss aktualisiert werden (z.B. Linie → T-Stück)
               tilesToRemove.add(tileInfo.tile.id);
-              newTilesToAdd.push({
-                id: generateTileId(),
-                component: updatedBlock,
-                gridX: cell.gridX,
-                gridY: cell.gridY
-              });
+              blockUpdates.set(cellKey, { component: updatedBlock, gridX: cell.gridX, gridY: cell.gridY });
             }
           }
         }
         
         // Remove tiles that need to be replaced, then add new tiles
-        if (tilesToRemove.size > 0 || newTilesToAdd.length > 0) {
+        if (tilesToRemove.size > 0 || blockUpdates.size > 0) {
           updatedTiles = updatedTiles.filter(t => !tilesToRemove.has(t.id));
+          const newTilesToAdd: PlacedTile[] = Array.from(blockUpdates.values()).map(update => ({
+            id: generateTileId(),
+            component: update.component,
+            gridX: update.gridX,
+            gridY: update.gridY
+          }));
           updatedTiles = [...updatedTiles, ...newTilesToAdd];
           onTilesChange(updatedTiles);
         }
