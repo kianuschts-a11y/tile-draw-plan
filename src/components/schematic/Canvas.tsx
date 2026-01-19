@@ -3,7 +3,7 @@ import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, CellConnection, C
 import { ShapeRenderer } from "./ShapeRenderer";
 import { MainToolType } from "./Toolbar";
 import { generateSingleConnectionLine, areCellsAdjacent, generateConnectionId } from "@/lib/connectionUtils";
-import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
+import { CONNECTION_BLOCKS, isConnectionBlock } from "@/lib/connectionBlocks";
 
 function generateTileId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -844,7 +844,8 @@ export function Canvas({
     
     // Connection lines should have UNIFORM stroke width based on tileSize, 
     // not component size. This ensures lines from 1x1 and 2x2 components match.
-    const connectionStrokeWidth = tileSize / 50 * 1.5; // Proportional to base tile size
+    // WICHTIG: Diese Berechnung muss mit renderTileShapes für Verbindungsblöcke übereinstimmen!
+    const connectionStrokeWidth = tileSize * 0.03; // = tileSize / 50 * 1.5
     
     return connectionShapeGroups.flatMap((group, groupIdx) => 
       group.shapes.map((shape, idx) => {
@@ -869,17 +870,28 @@ export function Canvas({
     const compHeight = (component.height || 1) * tileSize;
     const refScale = Math.min(compWidth, compHeight);
     
-    // Library preview size is 50x50 and uses 1.5 as default strokeWidth
-    // We need to match that proportionally
+    // Prüfen ob es ein Verbindungsblock ist - dann einheitliche Liniendicke verwenden
+    const isConnBlock = isConnectionBlock(component);
+    
+    // Für Verbindungsblöcke: Einheitliche Liniendicke wie bei Verbindungslinien
+    // Für normale Komponenten: Skaliert basierend auf Komponentengröße
+    const connectionBlockStrokeWidth = tileSize * 0.03; // Muss mit renderConnectionLines übereinstimmen
+    
     const libraryPreviewSize = 50;
     const scaleRatio = refScale / libraryPreviewSize;
     const defaultStrokeWidth = 1.5 * scaleRatio;
     
     return component.shapes.map((shape, idx) => {
-      // Scale strokeWidth the same way as the library does
-      const sw = shape.strokeWidth 
-        ? shape.strokeWidth * refScale 
-        : defaultStrokeWidth;
+      // Für Verbindungsblöcke: Immer einheitliche Liniendicke
+      // Für normale Komponenten: Skaliert wie bisher
+      let sw: number;
+      if (isConnBlock) {
+        sw = connectionBlockStrokeWidth;
+      } else {
+        sw = shape.strokeWidth 
+          ? shape.strokeWidth * refScale 
+          : defaultStrokeWidth;
+      }
       
       const scaledShape: Shape = {
         ...shape,
@@ -887,7 +899,7 @@ export function Canvas({
         y: shape.y * compHeight,
         width: shape.width * compWidth,
         height: shape.height * compHeight,
-        strokeWidth: Math.max(0.5, sw), // Match library's minimum
+        strokeWidth: Math.max(0.5, sw),
         fontSize: shape.fontSize ? shape.fontSize * refScale : undefined,
         arrowSize: shape.arrowSize ? shape.arrowSize * refScale : undefined,
         // Scale curveOffset for curved lines
