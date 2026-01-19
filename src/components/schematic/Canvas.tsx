@@ -10,19 +10,41 @@ function generateTileId(): string {
 }
 
 /**
- * Ermittelt welche Richtungen ein bestehender Verbindungsblock hat
+ * Ermittelt welche Richtungen ein bestehender Verbindungsblock hat.
+ * Basierend auf den tatsächlichen Shape-Definitionen in connectionBlocks.ts:
+ * - horizontal: LEFT + RIGHT
+ * - vertical: TOP + BOTTOM
+ * - corner-tl (┐): RIGHT + BOTTOM (Linie von rechts zur Mitte, dann nach unten)
+ * - corner-tr (┌): LEFT + BOTTOM (Linie von links zur Mitte, dann nach unten)
+ * - corner-bl (┘): RIGHT + TOP (Linie von rechts zur Mitte, dann nach oben)
+ * - corner-br (└): LEFT + TOP (Linie von links zur Mitte, dann nach oben)
+ * - t-top (┬): LEFT + RIGHT + BOTTOM
+ * - t-bottom (┴): LEFT + RIGHT + TOP
+ * - t-left (├): TOP + BOTTOM + RIGHT
+ * - t-right (┤): TOP + BOTTOM + LEFT
+ * - cross (┼): ALL
  */
 function getExistingBlockDirections(component: Component): { left: boolean; right: boolean; top: boolean; bottom: boolean } {
   const id = component.id;
+  
+  // Exakte ID-Prüfung statt .includes() um Fehler zu vermeiden
+  const isHorizontal = id === 'connection-horizontal';
+  const isVertical = id === 'connection-vertical';
+  const isCornerTL = id === 'connection-corner-tl';  // ┐
+  const isCornerTR = id === 'connection-corner-tr';  // ┌
+  const isCornerBL = id === 'connection-corner-bl';  // ┘
+  const isCornerBR = id === 'connection-corner-br';  // └
+  const isTTop = id === 'connection-t-top';          // ┬
+  const isTBottom = id === 'connection-t-bottom';    // ┴
+  const isTLeft = id === 'connection-t-left';        // ├
+  const isTRight = id === 'connection-t-right';      // ┤
+  const isCross = id === 'connection-cross';         // ┼
+  
   return {
-    left: id.includes('horizontal') || id.includes('corner-tl') || id.includes('corner-bl') || 
-          id.includes('t-top') || id.includes('t-bottom') || id.includes('t-right') || id.includes('cross'),
-    right: id.includes('horizontal') || id.includes('corner-tr') || id.includes('corner-br') || 
-           id.includes('t-top') || id.includes('t-bottom') || id.includes('t-left') || id.includes('cross'),
-    top: id.includes('vertical') || id.includes('corner-br') || id.includes('corner-bl') || 
-         id.includes('t-left') || id.includes('t-right') || id.includes('t-bottom') || id.includes('cross'),
-    bottom: id.includes('vertical') || id.includes('corner-tr') || id.includes('corner-tl') || 
-            id.includes('t-left') || id.includes('t-right') || id.includes('t-top') || id.includes('cross')
+    left: isHorizontal || isCornerTR || isCornerBR || isTTop || isTBottom || isTRight || isCross,
+    right: isHorizontal || isCornerTL || isCornerBL || isTTop || isTBottom || isTLeft || isCross,
+    top: isVertical || isCornerBL || isCornerBR || isTBottom || isTLeft || isTRight || isCross,
+    bottom: isVertical || isCornerTL || isCornerTR || isTTop || isTLeft || isTRight || isCross
   };
 }
 
