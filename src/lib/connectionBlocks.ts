@@ -15,7 +15,7 @@ import { Component, Shape } from "@/types/schematic";
  * - Ecke unten-rechts: L-förmig von links nach oben
  */
 
-const STROKE_WIDTH = 0.04;
+const STROKE_WIDTH = 0.02;
 
 // Horizontale Linie (von links nach rechts durch die Mitte)
 const horizontalLineShape: Shape = {
