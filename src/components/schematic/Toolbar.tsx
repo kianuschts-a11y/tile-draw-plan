@@ -10,7 +10,8 @@ import {
   Move,
   FolderPlus,
   Save,
-  X
+  X,
+  Download
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
@@ -43,6 +44,7 @@ interface ToolbarProps {
   onZoomOut: () => void;
   onResetView: () => void;
   onDelete: () => void;
+  onExport: () => void;
   hasSelection: boolean;
   connectionColor: string;
   onConnectionColorChange: (color: string) => void;
@@ -61,6 +63,7 @@ export function Toolbar({
   onZoomOut,
   onResetView,
   onDelete,
+  onExport,
   hasSelection,
   connectionColor,
   onConnectionColorChange,
@@ -224,6 +227,15 @@ export function Toolbar({
         label="Ansicht zurücksetzen"
         shortcut="0"
         onClick={onResetView}
+      />
+      
+      <Separator className="my-2 w-8" />
+      
+      <ToolButton
+        icon={Download}
+        label="Zeichnung exportieren"
+        shortcut="E"
+        onClick={onExport}
       />
       
       <div className="flex-1" />
