@@ -159,10 +159,24 @@ export interface ComponentGroup {
   layoutData?: GroupLayoutData; // Positions and connections for template placement
 }
 
-// Component quantity in a project
+// Individual component description for BOM
+export interface ComponentInstanceDescription {
+  instanceIndex: number; // 0-based index for this component type
+  description: string;
+}
+
+// Component quantity in a project with descriptions
 export interface ComponentQuantity {
   componentId: string;
   quantity: number;
+  descriptions?: ComponentInstanceDescription[]; // Optional descriptions per instance
+}
+
+// Project component data including descriptions
+export interface ProjectComponentData {
+  componentId: string;
+  quantity: number;
+  descriptions: string[]; // Array of descriptions, one per instance
 }
 
 // Project - a list of components with quantities

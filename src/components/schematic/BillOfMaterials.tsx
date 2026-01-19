@@ -11,6 +11,7 @@ interface BillOfMaterialsItem {
   name: string;
   description: string;
   quantity: number;
+  instanceIndex?: number; // For individual items with descriptions
 }
 
 interface BillOfMaterialsProps {
@@ -20,6 +21,7 @@ interface BillOfMaterialsProps {
   titleBlockData: TitleBlockData;
   paperFormat: PaperFormat;
   orientation: Orientation;
+  projectDescriptions: Map<string, string[]>;
 }
 
 export function BillOfMaterials({ 
@@ -28,10 +30,11 @@ export function BillOfMaterials({
   tiles, 
   titleBlockData,
   paperFormat,
-  orientation
+  orientation,
+  projectDescriptions
 }: BillOfMaterialsProps) {
   
-  // Calculate BOM from placed tiles
+  // Calculate BOM from placed tiles with descriptions
   const bomItems: BillOfMaterialsItem[] = (() => {
     const componentCounts = new Map<string, { component: Component; count: number }>();
     
@@ -44,22 +47,43 @@ export function BillOfMaterials({
       }
     }
     
-    return Array.from(componentCounts.entries())
-      .map(([id, { component, count }], index) => ({
-        position: index + 1,
-        componentId: id,
-        name: component.name,
-        description: '', // Empty for now, can be extended later
-        quantity: count
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const items: BillOfMaterialsItem[] = [];
+    let position = 1;
+    
+    // Sort by name first
+    const sortedEntries = Array.from(componentCounts.entries())
+      .sort(([, a], [, b]) => a.component.name.localeCompare(b.component.name));
+    
+    for (const [id, { component, count }] of sortedEntries) {
+      const descriptions = projectDescriptions.get(id) || [];
+      const hasDescriptions = descriptions.some(d => d && d.trim() !== '');
+      
+      if (hasDescriptions) {
+        // Create individual items for each instance with description
+        for (let i = 0; i < count; i++) {
+          items.push({
+            position: position++,
+            componentId: id,
+            name: component.name,
+            description: descriptions[i] || '',
+            quantity: 1,
+            instanceIndex: i
+          });
+        }
+      } else {
+        // Single grouped item without descriptions
+        items.push({
+          position: position++,
+          componentId: id,
+          name: component.name,
+          description: '',
+          quantity: count
+        });
+      }
+    }
+    
+    return items;
   })();
-
-  // Renumber after sorting
-  const numberedItems = bomItems.map((item, index) => ({
-    ...item,
-    position: index + 1
-  }));
 
   const handleExport = () => {
     // Calculate paper dimensions
@@ -166,7 +190,7 @@ export function BillOfMaterials({
         vLine.setAttribute("x1", String(xPos + col.width));
         vLine.setAttribute("y1", String(tableStartY));
         vLine.setAttribute("x2", String(xPos + col.width));
-        vLine.setAttribute("y2", String(tableStartY + rowHeight + numberedItems.length * rowHeight));
+        vLine.setAttribute("y2", String(tableStartY + rowHeight + bomItems.length * rowHeight));
         vLine.setAttribute("stroke", "black");
         vLine.setAttribute("stroke-width", "1");
         svg.appendChild(vLine);
@@ -176,8 +200,8 @@ export function BillOfMaterials({
     }
 
     // Table rows
-    for (let i = 0; i < numberedItems.length; i++) {
-      const item = numberedItems[i];
+    for (let i = 0; i < bomItems.length; i++) {
+      const item = bomItems[i];
       const rowY = tableStartY + rowHeight + i * rowHeight;
 
       // Row background (alternating)
@@ -214,7 +238,7 @@ export function BillOfMaterials({
     }
 
     // Bottom border
-    const bottomY = tableStartY + rowHeight + numberedItems.length * rowHeight;
+    const bottomY = tableStartY + rowHeight + bomItems.length * rowHeight;
     const bottomLine = document.createElementNS(svgNS, "line");
     bottomLine.setAttribute("x1", String(margin));
     bottomLine.setAttribute("y1", String(bottomY));
@@ -235,7 +259,7 @@ export function BillOfMaterials({
     svg.appendChild(dateText);
 
     // Total count
-    const totalCount = numberedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalCount = bomItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalText = document.createElementNS(svgNS, "text");
     totalText.setAttribute("x", String(margin + availableWidth - 150));
     totalText.setAttribute("y", String(bottomY + 30));
@@ -278,7 +302,8 @@ export function BillOfMaterials({
     img.src = url;
   };
 
-  const totalQuantity = numberedItems.reduce((sum, item) => sum + item.quantity, 0);
+  const totalQuantity = bomItems.reduce((sum, item) => sum + item.quantity, 0);
+  const uniquePositions = new Set(bomItems.map(item => item.componentId)).size;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -313,18 +338,20 @@ export function BillOfMaterials({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {numberedItems.length === 0 ? (
+              {bomItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     Keine Komponenten platziert
                   </TableCell>
                 </TableRow>
               ) : (
-                numberedItems.map((item) => (
-                  <TableRow key={item.componentId}>
+                bomItems.map((item, index) => (
+                  <TableRow key={`${item.componentId}-${item.instanceIndex ?? index}`}>
                     <TableCell className="font-medium">{item.position}</TableCell>
                     <TableCell>{item.name}</TableCell>
-                    <TableCell className="text-muted-foreground">–</TableCell>
+                    <TableCell className={item.description ? '' : 'text-muted-foreground'}>
+                      {item.description || '–'}
+                    </TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
                   </TableRow>
                 ))
@@ -335,7 +362,7 @@ export function BillOfMaterials({
 
         <div className="flex justify-between items-center pt-2 border-t">
           <span className="text-sm text-muted-foreground">
-            {numberedItems.length} Position{numberedItems.length !== 1 ? 'en' : ''}
+            {bomItems.length} Position{bomItems.length !== 1 ? 'en' : ''} ({uniquePositions} Komponenten-Typ{uniquePositions !== 1 ? 'en' : ''})
           </span>
           <span className="font-medium">
             Gesamt: {totalQuantity} Teil{totalQuantity !== 1 ? 'e' : ''}
