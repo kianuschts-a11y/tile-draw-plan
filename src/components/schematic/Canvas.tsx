@@ -116,11 +116,15 @@ function getConnectionBlockForPath(
     if (hasLeft && hasRight) return CONNECTION_BLOCKS.find(b => b.id === 'connection-horizontal') || null;
     if (hasTop && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-vertical') || null;
     
-    // Ecken
-    if (hasRight && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tr') || null;
-    if (hasLeft && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tl') || null;
-    if (hasRight && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-br') || null;
-    if (hasLeft && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-bl') || null;
+    // Ecken - basierend auf connectionBlocks.ts:
+    // corner-tl: RIGHT + BOTTOM (von rechts zur Mitte, dann nach unten)
+    // corner-tr: LEFT + BOTTOM (von links zur Mitte, dann nach unten)
+    // corner-bl: RIGHT + TOP (von rechts zur Mitte, dann nach oben)
+    // corner-br: LEFT + TOP (von links zur Mitte, dann nach oben)
+    if (hasRight && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tl') || null;
+    if (hasLeft && hasBottom) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tr') || null;
+    if (hasRight && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-bl') || null;
+    if (hasLeft && hasTop) return CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-br') || null;
   }
   
   if (directions === 1) {
