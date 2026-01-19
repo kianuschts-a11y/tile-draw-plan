@@ -81,82 +81,91 @@ export function SchematicEditor() {
     orientation: 'portrait'
   });
 
-  // Undo/Redo History
-  const [history, setHistory] = useState<HistoryEntry[]>([{ tiles: [], connections: [] }]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  const isUndoRedoAction = useRef(false);
+  // Undo/Redo History - speichert kompletten Zustand
+  const historyRef = useRef<HistoryEntry[]>([{ tiles: [], connections: [] }]);
+  const historyIndexRef = useRef(0);
+  const [, forceUpdate] = useState(0);
+  const skipHistoryRef = useRef(false);
 
-  // Wrapper für setTiles und setConnections die History tracken
-  const pushToHistory = useCallback((newTiles: PlacedTile[], newConnections: CellConnection[]) => {
-    if (isUndoRedoAction.current) {
-      isUndoRedoAction.current = false;
+  // Snapshot des aktuellen Zustands speichern
+  const saveToHistory = useCallback(() => {
+    if (skipHistoryRef.current) {
+      skipHistoryRef.current = false;
       return;
     }
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push({ tiles: newTiles, connections: newConnections });
-      // Maximal 50 Einträge behalten
-      if (newHistory.length > 50) {
-        newHistory.shift();
-        return newHistory;
-      }
-      return newHistory;
+    
+    // Aktuellen State holen
+    setTilesInternal(currentTiles => {
+      setConnectionsInternal(currentConnections => {
+        const currentEntry = historyRef.current[historyIndexRef.current];
+        // Nur speichern wenn sich etwas geändert hat
+        if (JSON.stringify(currentEntry.tiles) !== JSON.stringify(currentTiles) ||
+            JSON.stringify(currentEntry.connections) !== JSON.stringify(currentConnections)) {
+          // Historie bis zum aktuellen Index abschneiden, neuen Eintrag hinzufügen
+          historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
+          historyRef.current.push({ 
+            tiles: JSON.parse(JSON.stringify(currentTiles)), 
+            connections: JSON.parse(JSON.stringify(currentConnections)) 
+          });
+          // Maximal 50 Einträge
+          if (historyRef.current.length > 50) {
+            historyRef.current.shift();
+          } else {
+            historyIndexRef.current++;
+          }
+          forceUpdate(n => n + 1);
+        }
+        return currentConnections;
+      });
+      return currentTiles;
     });
-    setHistoryIndex(prev => Math.min(prev + 1, 49));
-  }, [historyIndex]);
+  }, []);
 
-  // Wrapper setTiles - pusht automatisch zu History
+  // Normale setTiles - speichert nach Update zur History
   const setTiles = useCallback((newTilesOrUpdater: PlacedTile[] | ((prev: PlacedTile[]) => PlacedTile[])) => {
     setTilesInternal(prev => {
       const newTiles = typeof newTilesOrUpdater === 'function' ? newTilesOrUpdater(prev) : newTilesOrUpdater;
-      // Verzögert pushen damit connections auch aktualisiert werden können
-      setTimeout(() => {
-        setConnectionsInternal(currentConnections => {
-          pushToHistory(newTiles, currentConnections);
-          return currentConnections;
-        });
-      }, 0);
       return newTiles;
     });
-  }, [pushToHistory]);
+    // Nach dem State-Update zur History speichern
+    setTimeout(saveToHistory, 10);
+  }, [saveToHistory]);
 
-  // Wrapper setConnections - pusht automatisch zu History  
+  // Normale setConnections - speichert nach Update zur History
   const setConnections = useCallback((newConnectionsOrUpdater: CellConnection[] | ((prev: CellConnection[]) => CellConnection[])) => {
     setConnectionsInternal(prev => {
       const newConnections = typeof newConnectionsOrUpdater === 'function' ? newConnectionsOrUpdater(prev) : newConnectionsOrUpdater;
-      setTimeout(() => {
-        setTilesInternal(currentTiles => {
-          pushToHistory(currentTiles, newConnections);
-          return currentTiles;
-        });
-      }, 0);
       return newConnections;
     });
-  }, [pushToHistory]);
+    // Nach dem State-Update zur History speichern
+    setTimeout(saveToHistory, 10);
+  }, [saveToHistory]);
 
   // Undo-Funktion
   const handleUndo = useCallback(() => {
-    if (historyIndex > 0) {
-      isUndoRedoAction.current = true;
-      const prevState = history[historyIndex - 1];
-      setTilesInternal(prevState.tiles);
-      setConnectionsInternal(prevState.connections);
-      setHistoryIndex(historyIndex - 1);
+    if (historyIndexRef.current > 0) {
+      skipHistoryRef.current = true;
+      historyIndexRef.current--;
+      const prevState = historyRef.current[historyIndexRef.current];
+      setTilesInternal(JSON.parse(JSON.stringify(prevState.tiles)));
+      setConnectionsInternal(JSON.parse(JSON.stringify(prevState.connections)));
       setSelectedTileIds(new Set());
+      forceUpdate(n => n + 1);
     }
-  }, [historyIndex, history]);
+  }, []);
 
   // Redo-Funktion
   const handleRedo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      isUndoRedoAction.current = true;
-      const nextState = history[historyIndex + 1];
-      setTilesInternal(nextState.tiles);
-      setConnectionsInternal(nextState.connections);
-      setHistoryIndex(historyIndex + 1);
+    if (historyIndexRef.current < historyRef.current.length - 1) {
+      skipHistoryRef.current = true;
+      historyIndexRef.current++;
+      const nextState = historyRef.current[historyIndexRef.current];
+      setTilesInternal(JSON.parse(JSON.stringify(nextState.tiles)));
+      setConnectionsInternal(JSON.parse(JSON.stringify(nextState.connections)));
       setSelectedTileIds(new Set());
+      forceUpdate(n => n + 1);
     }
-  }, [historyIndex, history]);
+  }, []);
 
   // Keyboard-Shortcuts für Undo/Redo
   useEffect(() => {
@@ -693,8 +702,8 @@ export function SchematicEditor() {
           }}
           onUndo={handleUndo}
           onRedo={handleRedo}
-          canUndo={historyIndex > 0}
-          canRedo={historyIndex < history.length - 1}
+          canUndo={historyIndexRef.current > 0}
+          canRedo={historyIndexRef.current < historyRef.current.length - 1}
         />
 
         <div className="flex-1 overflow-hidden schematic-canvas">
