@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile } from "./Canvas";
@@ -14,6 +14,12 @@ import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu, User, Building2, Package } from "lucide-react";
+
+// History-Eintrag für Undo/Redo
+interface HistoryEntry {
+  tiles: PlacedTile[];
+  connections: CellConnection[];
+}
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,8 +58,8 @@ export function SchematicEditor() {
   const { savedPlans, savePlan, findExactMatchingPlan } = useSavedPlans();
   const { findMatchingGroups } = useProjects();
 
-  const [tiles, setTiles] = useState<PlacedTile[]>([]);
-  const [connections, setConnections] = useState<CellConnection[]>([]);
+  const [tiles, setTilesInternal] = useState<PlacedTile[]>([]);
+  const [connections, setConnectionsInternal] = useState<CellConnection[]>([]);
   const [selectedTileIds, setSelectedTileIds] = useState<Set<string>>(new Set());
   const [selectedComponentIds, setSelectedComponentIds] = useState<Set<string>>(new Set());
   const [activeTool, setActiveTool] = useState<MainToolType>('select');
@@ -74,6 +80,103 @@ export function SchematicEditor() {
     paperFormat: 'A4',
     orientation: 'portrait'
   });
+
+  // Undo/Redo History
+  const [history, setHistory] = useState<HistoryEntry[]>([{ tiles: [], connections: [] }]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const isUndoRedoAction = useRef(false);
+
+  // Wrapper für setTiles und setConnections die History tracken
+  const pushToHistory = useCallback((newTiles: PlacedTile[], newConnections: CellConnection[]) => {
+    if (isUndoRedoAction.current) {
+      isUndoRedoAction.current = false;
+      return;
+    }
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      newHistory.push({ tiles: newTiles, connections: newConnections });
+      // Maximal 50 Einträge behalten
+      if (newHistory.length > 50) {
+        newHistory.shift();
+        return newHistory;
+      }
+      return newHistory;
+    });
+    setHistoryIndex(prev => Math.min(prev + 1, 49));
+  }, [historyIndex]);
+
+  // Wrapper setTiles - pusht automatisch zu History
+  const setTiles = useCallback((newTilesOrUpdater: PlacedTile[] | ((prev: PlacedTile[]) => PlacedTile[])) => {
+    setTilesInternal(prev => {
+      const newTiles = typeof newTilesOrUpdater === 'function' ? newTilesOrUpdater(prev) : newTilesOrUpdater;
+      // Verzögert pushen damit connections auch aktualisiert werden können
+      setTimeout(() => {
+        setConnectionsInternal(currentConnections => {
+          pushToHistory(newTiles, currentConnections);
+          return currentConnections;
+        });
+      }, 0);
+      return newTiles;
+    });
+  }, [pushToHistory]);
+
+  // Wrapper setConnections - pusht automatisch zu History  
+  const setConnections = useCallback((newConnectionsOrUpdater: CellConnection[] | ((prev: CellConnection[]) => CellConnection[])) => {
+    setConnectionsInternal(prev => {
+      const newConnections = typeof newConnectionsOrUpdater === 'function' ? newConnectionsOrUpdater(prev) : newConnectionsOrUpdater;
+      setTimeout(() => {
+        setTilesInternal(currentTiles => {
+          pushToHistory(currentTiles, newConnections);
+          return currentTiles;
+        });
+      }, 0);
+      return newConnections;
+    });
+  }, [pushToHistory]);
+
+  // Undo-Funktion
+  const handleUndo = useCallback(() => {
+    if (historyIndex > 0) {
+      isUndoRedoAction.current = true;
+      const prevState = history[historyIndex - 1];
+      setTilesInternal(prevState.tiles);
+      setConnectionsInternal(prevState.connections);
+      setHistoryIndex(historyIndex - 1);
+      setSelectedTileIds(new Set());
+    }
+  }, [historyIndex, history]);
+
+  // Redo-Funktion
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      isUndoRedoAction.current = true;
+      const nextState = history[historyIndex + 1];
+      setTilesInternal(nextState.tiles);
+      setConnectionsInternal(nextState.connections);
+      setHistoryIndex(historyIndex + 1);
+      setSelectedTileIds(new Set());
+    }
+  }, [historyIndex, history]);
+
+  // Keyboard-Shortcuts für Undo/Redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
   const handleZoomIn = useCallback(() => {
     setCanvasState(prev => ({ ...prev, zoom: Math.min(prev.zoom * 1.25, 4) }));
@@ -588,6 +691,10 @@ export function SchematicEditor() {
           onCancelGroupMode={() => {
             setIsGroupMode(false);
           }}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={historyIndex > 0}
+          canRedo={historyIndex < history.length - 1}
         />
 
         <div className="flex-1 overflow-hidden schematic-canvas">
