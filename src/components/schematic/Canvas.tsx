@@ -1080,22 +1080,24 @@ export function Canvas({
           rx={2}
         />
         
-        {/* Grid overlay */}
+        {/* Grid overlay - excluded from export */}
         <rect
           x={0}
           y={0}
           width={gridCols * tileSize}
           height={gridRows * tileSize}
           fill="url(#tile-grid)"
+          data-export-ignore="true"
         />
-        {/* Right and bottom edge lines to complete the grid */}
+        {/* Right and bottom edge lines to complete the grid - excluded from export */}
         <line 
           x1={gridCols * tileSize} 
           y1={0} 
           x2={gridCols * tileSize} 
           y2={gridRows * tileSize} 
           stroke="hsl(var(--canvas-grid))" 
-          strokeWidth="1" 
+          strokeWidth="1"
+          data-export-ignore="true"
         />
         <line 
           x1={0} 
@@ -1103,7 +1105,8 @@ export function Canvas({
           x2={gridCols * tileSize} 
           y2={gridRows * tileSize} 
           stroke="hsl(var(--canvas-grid))" 
-          strokeWidth="1" 
+          strokeWidth="1"
+          data-export-ignore="true"
         />
 
         {/* Drop preview indicator */}
