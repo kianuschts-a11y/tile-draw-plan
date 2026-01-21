@@ -893,40 +893,49 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     onClose();
   };
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts - use capture phase to prevent main editor from receiving events
   useEffect(() => {
     if (!open) return;
     
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
 
+      // Stop propagation for all keyboard events to prevent main editor interference
       if (e.ctrlKey || e.metaKey) {
         switch (e.key.toLowerCase()) {
           case 'z':
             e.preventDefault();
+            e.stopPropagation();
             if (e.shiftKey) redo();
             else undo();
             break;
           case 'y':
             e.preventDefault();
+            e.stopPropagation();
             redo();
             break;
           case 'c':
             e.preventDefault();
+            e.stopPropagation();
             handleCopy();
             break;
           case 'v':
             e.preventDefault();
+            e.stopPropagation();
             handlePaste();
             break;
           case 'd':
             e.preventDefault();
+            e.stopPropagation();
             handleDuplicate();
             break;
         }
         return;
       }
 
+      // Stop propagation for tool shortcuts too
+      e.stopPropagation();
+      
       switch (e.key.toLowerCase()) {
         case 'v': setActiveTool('select'); setSelectedShapeIds([]); break;
         case 'r': setActiveTool('rectangle'); setSelectedShapeIds([]); break;
@@ -957,8 +966,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Use capture phase to intercept events before they reach the main editor
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [open, selectedShapeIds, shapes, isDrawingPolyline, snapToGrid, fillAreaMode, undo, redo]);
 
   const getCursor = () => {
