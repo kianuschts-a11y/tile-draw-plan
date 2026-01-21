@@ -1,4 +1,5 @@
 import { Component, TitleBlockData, PAPER_SIZES, PaperFormat, Orientation, MM_TO_PX } from "@/types/schematic";
+import { isConnectionBlock } from "@/lib/connectionBlocks";
 import { PlacedTile } from "./Canvas";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -39,6 +40,11 @@ export function BillOfMaterials({
     const componentCounts = new Map<string, { component: Component; count: number }>();
     
     for (const tile of tiles) {
+      // Exclude connection blocks from BOM - they are not actual components
+      if (isConnectionBlock(tile.component)) {
+        continue;
+      }
+      
       const existing = componentCounts.get(tile.component.id);
       if (existing) {
         existing.count++;
