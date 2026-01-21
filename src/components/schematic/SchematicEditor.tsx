@@ -16,6 +16,7 @@ import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu, User, Building2, Package } from "lucide-react";
+import { isConnectionBlock } from "@/lib/connectionBlocks";
 
 // History-Eintrag für Undo/Redo
 interface HistoryEntry {
@@ -505,27 +506,91 @@ export function SchematicEditor() {
     const selectedTiles = tiles.filter(t => selectedTileIds.has(t.id));
     if (selectedTiles.length < 2) return;
     
+    // Get all tile IDs that are involved in connections between selected tiles
+    // This includes connection blocks that may not be directly selected but link selected tiles
+    const selectedTileIdSet = new Set(selectedTileIds);
+    
+    // Find all connections where at least one end is a selected tile
+    const potentialConnections = connections.filter(c => 
+      selectedTileIdSet.has(c.fromTileId) || selectedTileIdSet.has(c.toTileId)
+    );
+    
+    // Build a set of all tiles we need to include (selected + intermediate connection blocks)
+    const allRelevantTileIds = new Set(selectedTileIds);
+    
+    // For each connection, if both endpoints eventually connect to selected tiles, include intermediate tiles
+    // First pass: add connection blocks that directly connect two selected tiles
+    for (const conn of potentialConnections) {
+      if (selectedTileIdSet.has(conn.fromTileId) && selectedTileIdSet.has(conn.toTileId)) {
+        allRelevantTileIds.add(conn.fromTileId);
+        allRelevantTileIds.add(conn.toTileId);
+      }
+    }
+    
+    // Second pass: find connection blocks between selected tiles
+    // A connection block is relevant if it's connected to selected tiles on both sides
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const conn of connections) {
+        const fromIncluded = allRelevantTileIds.has(conn.fromTileId);
+        const toIncluded = allRelevantTileIds.has(conn.toTileId);
+        
+        // If one end is included, check if the other end leads to a selected tile
+        if (fromIncluded && !toIncluded) {
+          const toTile = tiles.find(t => t.id === conn.toTileId);
+          if (toTile && isConnectionBlock(toTile.component)) {
+            // Check if this connection block connects to any selected tile
+            const connectedToSelected = connections.some(c2 => 
+              (c2.fromTileId === conn.toTileId && selectedTileIdSet.has(c2.toTileId)) ||
+              (c2.toTileId === conn.toTileId && selectedTileIdSet.has(c2.fromTileId))
+            );
+            if (connectedToSelected) {
+              allRelevantTileIds.add(conn.toTileId);
+              changed = true;
+            }
+          }
+        } else if (!fromIncluded && toIncluded) {
+          const fromTile = tiles.find(t => t.id === conn.fromTileId);
+          if (fromTile && isConnectionBlock(fromTile.component)) {
+            const connectedToSelected = connections.some(c2 => 
+              (c2.fromTileId === conn.fromTileId && selectedTileIdSet.has(c2.toTileId)) ||
+              (c2.toTileId === conn.fromTileId && selectedTileIdSet.has(c2.fromTileId))
+            );
+            if (connectedToSelected) {
+              allRelevantTileIds.add(conn.fromTileId);
+              changed = true;
+            }
+          }
+        }
+      }
+    }
+    
+    // Get all tiles to include in the group
+    const allTilesForGroup = tiles.filter(t => allRelevantTileIds.has(t.id));
+    if (allTilesForGroup.length < 2) return;
+    
     // Find min coordinates to calculate relative positions
-    const minX = Math.min(...selectedTiles.map(t => t.gridX));
-    const minY = Math.min(...selectedTiles.map(t => t.gridY));
+    const minX = Math.min(...allTilesForGroup.map(t => t.gridX));
+    const minY = Math.min(...allTilesForGroup.map(t => t.gridY));
     
     // Create tile data with relative positions
-    const tileData: GroupTileData[] = selectedTiles.map(tile => ({
+    const tileData: GroupTileData[] = allTilesForGroup.map(tile => ({
       componentId: tile.component.id,
       relativeX: tile.gridX - minX,
       relativeY: tile.gridY - minY
     }));
     
     // Get component IDs (unique)
-    const componentIds = [...new Set(selectedTiles.map(t => t.component.id))];
+    const componentIds = [...new Set(allTilesForGroup.map(t => t.component.id))];
     
-    // Find connections between selected tiles
+    // Find connections between all relevant tiles
     const relevantConnections = connections.filter(c => 
-      selectedTileIds.has(c.fromTileId) && selectedTileIds.has(c.toTileId)
+      allRelevantTileIds.has(c.fromTileId) && allRelevantTileIds.has(c.toTileId)
     );
     
     // Map tile IDs to indices
-    const tileIdToIndex = new Map(selectedTiles.map((t, i) => [t.id, i]));
+    const tileIdToIndex = new Map(allTilesForGroup.map((t, i) => [t.id, i]));
     
     const connectionData: GroupConnectionData[] = relevantConnections.map(conn => ({
       fromTileIndex: tileIdToIndex.get(conn.fromTileId)!,
