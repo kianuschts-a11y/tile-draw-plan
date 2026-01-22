@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileSpreadsheet } from "lucide-react";
+import * as XLSX from 'xlsx';
 
 interface BillOfMaterialsItem {
   position: number;
@@ -92,60 +93,71 @@ export function BillOfMaterials({
   })();
 
   const handleExportExcel = () => {
-    // Create CSV content for Excel
-    const headers = ['Pos.', 'Benennung', 'Beschreibung', 'Menge'];
-    const csvRows: string[] = [];
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
     
-    // Add BOM header
-    csvRows.push('Stückliste');
+    // Build the data array for the worksheet
+    const wsData: (string | number)[][] = [];
+    
+    // Title row (will be styled as header)
+    wsData.push(['STÜCKLISTE', '', '', '']);
+    wsData.push(['', '', '', '']); // Empty row
+    
+    // Project info
     if (titleBlockData.projekt) {
-      csvRows.push(`Projekt:;${titleBlockData.projekt}`);
+      wsData.push(['Projekt:', titleBlockData.projekt, '', '']);
     }
     if (titleBlockData.zeichnungsNr) {
-      csvRows.push(`Zeichnungs-Nr.:;${titleBlockData.zeichnungsNr}`);
+      wsData.push(['Zeichnungs-Nr.:', titleBlockData.zeichnungsNr, '', '']);
     }
-    csvRows.push(''); // Empty row
+    wsData.push(['Erstellt am:', new Date().toLocaleDateString('de-DE'), '', '']);
+    wsData.push(['', '', '', '']); // Empty row
     
-    // Add table headers
-    csvRows.push(headers.join(';'));
+    // Table header row
+    const headerRowIndex = wsData.length;
+    wsData.push(['Pos.', 'Benennung', 'Beschreibung', 'Menge']);
     
-    // Add data rows
+    // Data rows
     for (const item of bomItems) {
-      const row = [
-        String(item.position),
+      wsData.push([
+        item.position,
         item.name,
         item.description || '',
-        String(item.quantity)
-      ];
-      // Escape fields with semicolons or quotes
-      const escapedRow = row.map(field => {
-        if (field.includes(';') || field.includes('"') || field.includes('\n')) {
-          return `"${field.replace(/"/g, '""')}"`;
-        }
-        return field;
-      });
-      csvRows.push(escapedRow.join(';'));
+        item.quantity
+      ]);
     }
     
-    // Add totals
-    csvRows.push(''); // Empty row
+    // Empty row before totals
+    wsData.push(['', '', '', '']);
+    
+    // Totals row
     const totalCount = bomItems.reduce((sum, item) => sum + item.quantity, 0);
-    csvRows.push(`Gesamt:;;${totalCount} Teile`);
-    csvRows.push(`Erstellt am:;${new Date().toLocaleDateString('de-DE')}`);
+    const totalRowIndex = wsData.length;
+    wsData.push(['', '', 'Gesamt:', totalCount]);
     
-    // Create CSV with BOM for Excel UTF-8 compatibility
-    const BOM = '\uFEFF';
-    const csvContent = BOM + csvRows.join('\r\n');
+    // Create worksheet from data
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
     
-    // Download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 8 },   // Pos.
+      { wch: 30 },  // Benennung
+      { wch: 40 },  // Beschreibung
+      { wch: 10 },  // Menge
+    ];
+    
+    // Merge cells for title
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title row
+    ];
+    
+    // Add the worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Stückliste');
+    
+    // Generate file and download
     const projektName = titleBlockData.projekt || 'Projekt';
-    link.download = `stueckliste-${projektName}-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
+    const fileName = `stueckliste-${projektName}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
   const totalQuantity = bomItems.reduce((sum, item) => sum + item.quantity, 0);
