@@ -27,9 +27,12 @@ interface ComponentSelectorDialogProps {
   onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>) => void;
   projectQuantities: Map<string, number>;
   onProjectQuantitiesChange: (quantities: Map<string, number>) => void;
-  // New: descriptions per component instance
   projectDescriptions: Map<string, string[]>;
   onProjectDescriptionsChange: (descriptions: Map<string, string[]>) => void;
+  projectKategorien: Map<string, string>;
+  onProjectKategorienChange: (kategorien: Map<string, string>) => void;
+  projectPreise: Map<string, number>;
+  onProjectPreiseChange: (preise: Map<string, number>) => void;
 }
 
 interface GroupSuggestion {
@@ -55,16 +58,24 @@ export function ComponentSelectorDialog({
   projectQuantities,
   onProjectQuantitiesChange,
   projectDescriptions,
-  onProjectDescriptionsChange
+  onProjectDescriptionsChange,
+  projectKategorien,
+  onProjectKategorienChange,
+  projectPreise,
+  onProjectPreiseChange
 }: ComponentSelectorDialogProps) {
   // Use the passed projectQuantities as initial state, but allow local editing
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
   const [descriptions, setDescriptions] = useState<Map<string, string[]>>(new Map());
+  const [kategorien, setKategorien] = useState<Map<string, string>>(new Map());
+  const [preise, setPreise] = useState<Map<string, number>>(new Map());
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   
   // Track initial state to determine button text
   const initialQuantitiesRef = useRef<string>("");
   const initialDescriptionsRef = useRef<string>("");
+  const initialKategorienRef = useRef<string>("");
+  const initialPreiseRef = useRef<string>("");
   const [hasChanges, setHasChanges] = useState(false);
   const [wasOpened, setWasOpened] = useState(false);
 
@@ -73,25 +84,31 @@ export function ComponentSelectorDialog({
     if (open) {
       setQuantities(new Map(projectQuantities));
       setDescriptions(new Map(projectDescriptions));
+      setKategorien(new Map(projectKategorien));
+      setPreise(new Map(projectPreise));
       
-      // Store initial state for comparison
       initialQuantitiesRef.current = JSON.stringify(Array.from(projectQuantities.entries()));
       initialDescriptionsRef.current = JSON.stringify(Array.from(projectDescriptions.entries()));
+      initialKategorienRef.current = JSON.stringify(Array.from(projectKategorien.entries()));
+      initialPreiseRef.current = JSON.stringify(Array.from(projectPreise.entries()));
       
-      // Check if there was already data
       setWasOpened(projectQuantities.size > 0);
       setHasChanges(false);
     }
-  }, [open, projectQuantities, projectDescriptions]);
+  }, [open, projectQuantities, projectDescriptions, projectKategorien, projectPreise]);
 
   // Check for changes
   useEffect(() => {
     const currentQuantities = JSON.stringify(Array.from(quantities.entries()));
     const currentDescriptions = JSON.stringify(Array.from(descriptions.entries()));
+    const currentKategorien = JSON.stringify(Array.from(kategorien.entries()));
+    const currentPreise = JSON.stringify(Array.from(preise.entries()));
     const changed = currentQuantities !== initialQuantitiesRef.current || 
-                    currentDescriptions !== initialDescriptionsRef.current;
+                    currentDescriptions !== initialDescriptionsRef.current ||
+                    currentKategorien !== initialKategorienRef.current ||
+                    currentPreise !== initialPreiseRef.current;
     setHasChanges(changed);
-  }, [quantities, descriptions]);
+  }, [quantities, descriptions, kategorien, preise]);
 
   // Update both local and parent state
   const updateQuantity = (componentId: string, delta: number) => {
@@ -101,11 +118,21 @@ export function ComponentSelectorDialog({
       const newValue = Math.max(0, current + delta);
       if (newValue === 0) {
         next.delete(componentId);
-        // Also clear descriptions
+        // Also clear descriptions, kategorien, preise
         setDescriptions(d => {
           const newD = new Map(d);
           newD.delete(componentId);
           return newD;
+        });
+        setKategorien(k => {
+          const newK = new Map(k);
+          newK.delete(componentId);
+          return newK;
+        });
+        setPreise(p => {
+          const newP = new Map(p);
+          newP.delete(componentId);
+          return newP;
         });
         // Collapse
         setExpandedComponents(e => {
@@ -138,6 +165,16 @@ export function ComponentSelectorDialog({
           const newD = new Map(d);
           newD.delete(componentId);
           return newD;
+        });
+        setKategorien(k => {
+          const newK = new Map(k);
+          newK.delete(componentId);
+          return newK;
+        });
+        setPreise(p => {
+          const newP = new Map(p);
+          newP.delete(componentId);
+          return newP;
         });
         setExpandedComponents(e => {
           const newE = new Set(e);
@@ -179,6 +216,22 @@ export function ComponentSelectorDialog({
     });
   };
 
+  const updateKategorie = (componentId: string, kategorie: string) => {
+    setKategorien(prev => {
+      const next = new Map(prev);
+      next.set(componentId, kategorie);
+      return next;
+    });
+  };
+
+  const updatePreis = (componentId: string, preis: number) => {
+    setPreise(prev => {
+      const next = new Map(prev);
+      next.set(componentId, preis);
+      return next;
+    });
+  };
+
   const toggleExpanded = (componentId: string) => {
     setExpandedComponents(prev => {
       const next = new Set(prev);
@@ -194,14 +247,20 @@ export function ComponentSelectorDialog({
   const clearAll = () => {
     const empty = new Map<string, number>();
     const emptyDescs = new Map<string, string[]>();
+    const emptyKat = new Map<string, string>();
+    const emptyPreise = new Map<string, number>();
     setQuantities(empty);
     setDescriptions(emptyDescs);
+    setKategorien(emptyKat);
+    setPreise(emptyPreise);
     setExpandedComponents(new Set());
   };
 
   const handleSave = () => {
     onProjectQuantitiesChange(quantities);
     onProjectDescriptionsChange(descriptions);
+    onProjectKategorienChange(kategorien);
+    onProjectPreiseChange(preise);
     onOpenChange(false);
   };
 
@@ -401,6 +460,8 @@ export function ComponentSelectorDialog({
                   const qty = quantities.get(component.id) || 0;
                   const isExpanded = expandedComponents.has(component.id);
                   const componentDescs = descriptions.get(component.id) || [];
+                  const componentKategorie = kategorien.get(component.id) || '';
+                  const componentPreis = preise.get(component.id) || 0;
                   
                   return (
                     <div key={component.id} className="space-y-1">
@@ -453,14 +514,37 @@ export function ComponentSelectorDialog({
                         </div>
                       </div>
                       
-                      {/* Expanded descriptions for each instance */}
+                      {/* Expanded details: Kategorie, Preis, and descriptions */}
                       {qty > 0 && isExpanded && (
-                        <div className="ml-6 pl-2 border-l-2 border-primary/20 space-y-1">
+                        <div className="ml-6 pl-2 border-l-2 border-primary/20 space-y-2">
+                          {/* Kategorie und Preis */}
+                          <div className="flex items-center gap-2">
+                            <Input
+                              placeholder="Kategorie..."
+                              value={componentKategorie}
+                              onChange={(e) => updateKategorie(component.id, e.target.value)}
+                              className="h-7 text-sm flex-1"
+                            />
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Preis"
+                                value={componentPreis || ''}
+                                onChange={(e) => updatePreis(component.id, parseFloat(e.target.value) || 0)}
+                                className="h-7 text-sm w-20 text-right"
+                              />
+                              <span className="text-xs text-muted-foreground">€</span>
+                            </div>
+                          </div>
+                          
+                          {/* Descriptions for each instance */}
                           {Array.from({ length: qty }, (_, i) => (
                             <div key={i} className="flex items-center gap-2">
                               <span className="text-xs text-muted-foreground w-6">#{i + 1}</span>
                               <Input
-                                placeholder="Beschreibung..."
+                                placeholder="Beschreibung (Marke, Modell)..."
                                 value={componentDescs[i] || ''}
                                 onChange={(e) => updateDescription(component.id, i, e.target.value)}
                                 className="h-7 text-sm flex-1"
