@@ -53,6 +53,7 @@ export function useComponents() {
         width: c.width,
         height: c.height,
         tileSize: c.tile_size as TileSize,
+        category: (c as any).category || '',
         variations: (c.variations as unknown) as ComponentVariation[]
       }));
 
@@ -117,7 +118,7 @@ export function useComponents() {
     }
   }, [authLoading, user, companyId, migrateLocalStorageComponents, loadComponents]);
 
-  const saveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize): Promise<Component | null> => {
+  const saveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string): Promise<Component | null> => {
     if (!companyId) return null;
 
     const config = TILE_SIZES[tileSize];
@@ -132,6 +133,7 @@ export function useComponents() {
           width: config.cols,
           height: config.rows,
           tile_size: tileSize,
+          category: category || '',
           variations: [] as unknown as Json
         })
         .select()
@@ -149,6 +151,7 @@ export function useComponents() {
         width: data.width,
         height: data.height,
         tileSize: data.tile_size as TileSize,
+        category: (data as any).category || '',
         variations: (data.variations as unknown) as ComponentVariation[]
       };
 
@@ -160,7 +163,7 @@ export function useComponents() {
     }
   }, [companyId]);
 
-  const updateComponent = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize): Promise<boolean> => {
+  const updateComponent = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string): Promise<boolean> => {
     const config = TILE_SIZES[tileSize];
 
     try {
@@ -171,7 +174,8 @@ export function useComponents() {
           shapes: shapes as unknown as Json,
           width: config.cols,
           height: config.rows,
-          tile_size: tileSize
+          tile_size: tileSize,
+          category: category || ''
         })
         .eq('id', id);
 
@@ -181,7 +185,7 @@ export function useComponents() {
       }
 
       setComponents(prev => prev.map(c => 
-        c.id === id ? { ...c, name, shapes, width: config.cols, height: config.rows, tileSize } : c
+        c.id === id ? { ...c, name, shapes, width: config.cols, height: config.rows, tileSize, category: category || '' } : c
       ));
       
       return true;

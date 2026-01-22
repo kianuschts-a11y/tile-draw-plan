@@ -43,7 +43,7 @@ export function BillOfMaterials({
   projectPreise
 }: BillOfMaterialsProps) {
   
-  // Calculate BOM from placed tiles with descriptions
+  // Calculate BOM from placed tiles with descriptions - use component's category
   const bomItems: BillOfMaterialsItem[] = (() => {
     const componentCounts = new Map<string, { component: Component; count: number }>();
     
@@ -61,14 +61,26 @@ export function BillOfMaterials({
     }
     
     const items: BillOfMaterialsItem[] = [];
-    let position = 1;
     
+    // Sort by category first, then by name within each category
     const sortedEntries = Array.from(componentCounts.entries())
-      .sort(([, a], [, b]) => a.component.name.localeCompare(b.component.name));
+      .sort(([, a], [, b]) => {
+        const catA = a.component.category || '';
+        const catB = b.component.category || '';
+        if (catA !== catB) {
+          // Empty categories go to the end
+          if (!catA) return 1;
+          if (!catB) return -1;
+          return catA.localeCompare(catB);
+        }
+        return a.component.name.localeCompare(b.component.name);
+      });
     
+    let position = 1;
     for (const [id, { component, count }] of sortedEntries) {
       const descriptions = projectDescriptions.get(id) || [];
-      const kategorie = projectKategorien.get(id) || '';
+      // Use component's category (from component definition), fallback to projectKategorien
+      const kategorie = component.category || projectKategorien.get(id) || '';
       const preis = projectPreise.get(id) || 0;
       const hasDescriptions = descriptions.some(d => d && d.trim() !== '');
       

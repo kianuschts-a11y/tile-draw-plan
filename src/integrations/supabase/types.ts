@@ -75,6 +75,7 @@ export type Database = {
       }
       components: {
         Row: {
+          category: string | null
           company_id: string
           created_at: string
           height: number
@@ -87,6 +88,7 @@ export type Database = {
           width: number
         }
         Insert: {
+          category?: string | null
           company_id: string
           created_at?: string
           height?: number
@@ -99,6 +101,7 @@ export type Database = {
           width?: number
         }
         Update: {
+          category?: string | null
           company_id?: string
           created_at?: string
           height?: number

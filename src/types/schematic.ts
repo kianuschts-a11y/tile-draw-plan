@@ -120,6 +120,7 @@ export interface Component {
   width: number;  // Grid cells wide
   height: number; // Grid cells tall
   tileSize?: TileSize; // '1x1' or '3x2'
+  category?: string; // Component category for BOM grouping
   thumbnail?: string;
   variations?: ComponentVariation[]; // Legacy - kept for compatibility
   activeVariationId?: string; // Legacy

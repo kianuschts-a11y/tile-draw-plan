@@ -463,8 +463,8 @@ export function SchematicEditor() {
     setSelectedTileIds(new Set(newTileIds));
   }, [groups, components]);
 
-  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize) => {
-    await saveComponent(name, shapes, tileSize);
+  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string) => {
+    await saveComponent(name, shapes, tileSize, category);
   }, [saveComponent]);
 
   const handleDeleteComponent = useCallback(async (id: string) => {
@@ -480,8 +480,8 @@ export function SchematicEditor() {
     setIsEditorOpen(true);
   }, []);
 
-  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize) => {
-    await updateComponent(id, name, shapes, tileSize);
+  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string) => {
+    await updateComponent(id, name, shapes, tileSize, category);
   }, [updateComponent]);
 
   const handleUpdateComponent = useCallback(async (updatedComponent: Component) => {
@@ -876,6 +876,7 @@ export function SchematicEditor() {
         onUpdate={handleUpdateComponentShapes}
         tileSize={canvasState.gridSize}
         editingComponent={editingComponent}
+        existingCategories={[...new Set(components.map(c => c.category).filter(Boolean) as string[])]}
       />
 
       <ComponentSelectorDialog
