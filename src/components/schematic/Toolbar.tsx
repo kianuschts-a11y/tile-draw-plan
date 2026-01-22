@@ -102,7 +102,7 @@ export function Toolbar({
   };
 
   return (
-    <div className="toolbar-panel flex flex-col items-center py-3 px-1.5 border-r gap-1">
+    <div className="toolbar-panel flex flex-col items-center py-3 px-1.5 border-r gap-1 overflow-y-auto overflow-x-hidden">
       {/* Undo/Redo */}
       <ToolButton
         icon={Undo2}
