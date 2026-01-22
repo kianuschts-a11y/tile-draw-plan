@@ -102,7 +102,7 @@ export function Toolbar({
   };
 
   return (
-    <div className="toolbar-panel flex flex-col items-center py-3 px-1.5 border-r gap-1 overflow-y-auto overflow-x-hidden">
+    <div className="toolbar-panel flex flex-col items-center py-2 px-1 border-r gap-0.5 flex-shrink-0">
       {/* Undo/Redo */}
       <ToolButton
         icon={Undo2}
@@ -119,7 +119,7 @@ export function Toolbar({
         disabled={!canRedo || isGroupMode}
       />
       
-      <Separator className="my-2 w-8" />
+      <Separator className="my-1 w-8" />
       
       <ToolButton
         icon={MousePointer2}
@@ -154,7 +154,7 @@ export function Toolbar({
         disabled={isGroupMode}
       />
       
-      <Separator className="my-2 w-8" />
+      <Separator className="my-1 w-8" />
       
       {/* Create Group Button with expanded UI when active */}
       <div className="relative">
@@ -207,7 +207,7 @@ export function Toolbar({
         )}
       </div>
       
-      <Separator className="my-2 w-8" />
+      <Separator className="my-1 w-8" />
       
       {/* Connection Color Picker */}
       <Popover>
@@ -240,7 +240,7 @@ export function Toolbar({
         </PopoverContent>
       </Popover>
       
-      <Separator className="my-2 w-8" />
+      <Separator className="my-1 w-8" />
       
       <ToolButton
         icon={ZoomIn}
@@ -261,7 +261,7 @@ export function Toolbar({
         onClick={onResetView}
       />
       
-      <Separator className="my-2 w-8" />
+      <Separator className="my-1 w-8" />
       
       <ToolButton
         icon={Download}
@@ -270,7 +270,7 @@ export function Toolbar({
         onClick={onExport}
       />
       
-      <Separator className="my-2 w-8" />
+      <Separator className="my-1 w-8" />
       
       <ToolButton
         icon={FileText}
