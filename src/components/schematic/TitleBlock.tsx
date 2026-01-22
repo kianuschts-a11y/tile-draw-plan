@@ -191,28 +191,28 @@ export function TitleBlock({ data, paperWidth, paperHeight, tileSize, onDataChan
       
       {/* === EDITABLE FIELD VALUES === */}
       {/* Projekt value - right side of Projekt label */}
-      <text x={sx(2220)} y={sy(1855)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.projekt}</text>
+      <text x={sx(2220)} y={sy(1855)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="black">{data.projekt}</text>
       
       {/* Zeichnungs-Nr. value - right side of label */}
-      <text x={sx(2280)} y={sy(1918)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.zeichnungsNr}</text>
+      <text x={sx(2280)} y={sy(1918)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="black">{data.zeichnungsNr}</text>
       
       {/* Blatt-Nr. value - right of label */}
-      <text x={sx(2820)} y={sy(1835)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.blattNr}</text>
+      <text x={sx(2820)} y={sy(1835)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="black">{data.blattNr}</text>
       
       {/* Blattzahl value - right of label */}
-      <text x={sx(2820)} y={sy(1875)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="rgb(128,0,0)">{data.blattzahl}</text>
+      <text x={sx(2820)} y={sy(1875)} fontSize={fontSizeLarge * 1.1} fontWeight="bold" fill="black">{data.blattzahl}</text>
       
       {/* gez. Datum - in cell x=1760-1900, y=1850-1890 */}
-      <text x={sx(1770)} y={sy(1875)} fontSize={fontSize} fill="rgb(0,128,0)">{data.gezeichnet.datum}</text>
+      <text x={sx(1770)} y={sy(1875)} fontSize={fontSize} fill="black">{data.gezeichnet.datum}</text>
       
       {/* gez. Name - in cell x=1900-2070, y=1850-1890 */}
-      <text x={sx(1910)} y={sy(1875)} fontSize={fontSize} fill="rgb(0,128,0)">{data.gezeichnet.name}</text>
+      <text x={sx(1910)} y={sy(1875)} fontSize={fontSize} fill="black">{data.gezeichnet.name}</text>
       
       {/* gepr. Datum - in cell x=1760-1900, y=1890-1930 */}
-      <text x={sx(1770)} y={sy(1915)} fontSize={fontSize} fill="rgb(0,128,0)">{data.geprueft.datum}</text>
+      <text x={sx(1770)} y={sy(1915)} fontSize={fontSize} fill="black">{data.geprueft.datum}</text>
       
       {/* gepr. Name - in cell x=1900-2070, y=1890-1930 */}
-      <text x={sx(1910)} y={sy(1915)} fontSize={fontSize} fill="rgb(0,128,0)">{data.geprueft.name}</text>
+      <text x={sx(1910)} y={sy(1915)} fontSize={fontSize} fill="black">{data.geprueft.name}</text>
       
       {/* Änderungen value - in left section */}
       <text x={sx(70)} y={sy(1900)} fontSize={fontSize} fill="black">{data.aenderungen}</text>
