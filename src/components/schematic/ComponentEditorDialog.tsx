@@ -33,10 +33,11 @@ const AVAILABLE_FONTS = [
 interface ComponentEditorDialogProps {
   open: boolean;
   onClose: () => void;
-  onSave: (name: string, shapes: Shape[], tileSize: TileSize) => void;
-  onUpdate?: (id: string, name: string, shapes: Shape[], tileSize: TileSize) => void;
+  onSave: (name: string, shapes: Shape[], tileSize: TileSize, category?: string) => void;
+  onUpdate?: (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string) => void;
   tileSize: number;
-  editingComponent?: Component | null; // Bestehende Komponente zum Bearbeiten
+  editingComponent?: Component | null;
+  existingCategories?: string[];
 }
 
 type EditorTool = 'select' | ShapeType;
@@ -79,8 +80,9 @@ function ToolBtn({ icon: Icon, label, shortcut, isActive, onClick, disabled }: T
   );
 }
 
-export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSize, editingComponent }: ComponentEditorDialogProps) {
+export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSize, editingComponent, existingCategories = [] }: ComponentEditorDialogProps) {
   const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]);
   const [activeTool, setActiveTool] = useState<EditorTool>('rectangle');
@@ -138,15 +140,14 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   useEffect(() => {
     if (open && editingComponent) {
       setName(editingComponent.name);
+      setCategory(editingComponent.category || '');
       setComponentTileSize(editingComponent.tileSize || '1x1');
       
-      // Berechne Canvas-Größe für die zu ladende Komponente
       const loadTileConfig = TILE_SIZES[editingComponent.tileSize || '1x1'];
       const loadAspectRatio = loadTileConfig.cols / loadTileConfig.rows;
       const loadCanvasWidth = loadAspectRatio >= 1 ? baseCanvasSize * loadAspectRatio : baseCanvasSize;
       const loadCanvasHeight = loadAspectRatio < 1 ? baseCanvasSize / loadAspectRatio : baseCanvasSize;
       
-      // Denormalisiere die Formen (von 0-1 auf Canvas-Koordinaten)
       const denormalizedShapes = editingComponent.shapes.map(s => ({
         ...s,
         x: s.x * loadCanvasWidth,
@@ -164,6 +165,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       setHistoryIndex(0);
     } else if (open && !editingComponent) {
       setName("Neue Komponente");
+      setCategory('');
     }
   }, [open, editingComponent]);
 
@@ -867,9 +869,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     }));
     
     if (isEditing && editingComponent && onUpdate) {
-      onUpdate(editingComponent.id, name, normalizedShapes, componentTileSize);
+      onUpdate(editingComponent.id, name, normalizedShapes, componentTileSize, category);
     } else {
-      onSave(name, normalizedShapes, componentTileSize);
+      onSave(name, normalizedShapes, componentTileSize, category);
     }
     handleClose();
   };
@@ -879,6 +881,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     setSelectedShapeIds([]);
     setActiveTool('rectangle');
     setName("Neue Komponente");
+    setCategory("");
     setHistory([[]]);
     setHistoryIndex(0);
     setClipboard([]);
@@ -1363,6 +1366,28 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                 className="h-8 text-sm"
                 onFocus={(e) => e.target.select()}
               />
+            </div>
+
+            {/* Kategorie */}
+            <div className="space-y-1">
+              <Label htmlFor="component-category" className="text-xs">Kategorie</Label>
+              <div className="relative">
+                <Input
+                  id="component-category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="z.B. Heizung, Sanitär..."
+                  className="h-8 text-sm"
+                  list="category-suggestions"
+                />
+                {existingCategories.length > 0 && (
+                  <datalist id="category-suggestions">
+                    {existingCategories.map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                )}
+              </div>
             </div>
 
             {/* Kachelgröße */}
