@@ -11,9 +11,12 @@ interface BillOfMaterialsItem {
   position: number;
   componentId: string;
   name: string;
+  kategorie: string;
   description: string;
   quantity: number;
-  instanceIndex?: number; // For individual items with descriptions
+  preis: number;
+  gesamtkosten: number;
+  instanceIndex?: number;
 }
 
 interface BillOfMaterialsProps {
@@ -24,6 +27,8 @@ interface BillOfMaterialsProps {
   paperFormat: PaperFormat;
   orientation: Orientation;
   projectDescriptions: Map<string, string[]>;
+  projectKategorien: Map<string, string>;
+  projectPreise: Map<string, number>;
 }
 
 export function BillOfMaterials({ 
@@ -33,7 +38,9 @@ export function BillOfMaterials({
   titleBlockData,
   paperFormat,
   orientation,
-  projectDescriptions
+  projectDescriptions,
+  projectKategorien,
+  projectPreise
 }: BillOfMaterialsProps) {
   
   // Calculate BOM from placed tiles with descriptions
@@ -41,7 +48,6 @@ export function BillOfMaterials({
     const componentCounts = new Map<string, { component: Component; count: number }>();
     
     for (const tile of tiles) {
-      // Exclude connection blocks from BOM - they are not actual components
       if (isConnectionBlock(tile.component)) {
         continue;
       }
@@ -57,34 +63,39 @@ export function BillOfMaterials({
     const items: BillOfMaterialsItem[] = [];
     let position = 1;
     
-    // Sort by name first
     const sortedEntries = Array.from(componentCounts.entries())
       .sort(([, a], [, b]) => a.component.name.localeCompare(b.component.name));
     
     for (const [id, { component, count }] of sortedEntries) {
       const descriptions = projectDescriptions.get(id) || [];
+      const kategorie = projectKategorien.get(id) || '';
+      const preis = projectPreise.get(id) || 0;
       const hasDescriptions = descriptions.some(d => d && d.trim() !== '');
       
       if (hasDescriptions) {
-        // Create individual items for each instance with description
         for (let i = 0; i < count; i++) {
           items.push({
             position: position++,
             componentId: id,
             name: component.name,
+            kategorie,
             description: descriptions[i] || '',
             quantity: 1,
+            preis,
+            gesamtkosten: preis,
             instanceIndex: i
           });
         }
       } else {
-        // Single grouped item without descriptions
         items.push({
           position: position++,
           componentId: id,
           name: component.name,
+          kategorie,
           description: '',
-          quantity: count
+          quantity: count,
+          preis,
+          gesamtkosten: preis * count
         });
       }
     }
@@ -93,62 +104,81 @@ export function BillOfMaterials({
   })();
 
   const handleExportExcel = () => {
-    // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
-    
-    // Build the data array for the worksheet
     const wsData: (string | number)[][] = [];
     
-    // Title row (will be styled as header)
-    wsData.push(['STÜCKLISTE', '', '', '']);
-    wsData.push(['', '', '', '']); // Empty row
+    // Title row
+    wsData.push(['STÜCKLISTE', '', '', '', '', '', '']);
+    wsData.push(['', '', '', '', '', '', '']);
     
     // Project info
     if (titleBlockData.projekt) {
-      wsData.push(['Projekt:', titleBlockData.projekt, '', '']);
+      wsData.push(['Projekt:', titleBlockData.projekt, '', '', '', '', '']);
     }
     if (titleBlockData.zeichnungsNr) {
-      wsData.push(['Zeichnungs-Nr.:', titleBlockData.zeichnungsNr, '', '']);
+      wsData.push(['Zeichnungs-Nr.:', titleBlockData.zeichnungsNr, '', '', '', '', '']);
     }
-    wsData.push(['Erstellt am:', new Date().toLocaleDateString('de-DE'), '', '']);
-    wsData.push(['', '', '', '']); // Empty row
+    wsData.push(['Erstellt am:', new Date().toLocaleDateString('de-DE'), '', '', '', '', '']);
+    wsData.push(['', '', '', '', '', '', '']);
     
     // Table header row
     const headerRowIndex = wsData.length;
-    wsData.push(['Pos.', 'Benennung', 'Beschreibung', 'Menge']);
+    wsData.push(['Pos.', 'Benennung', 'Kategorie', 'Beschreibung', 'Menge', 'Preis (€)', 'Gesamt (€)']);
     
     // Data rows
     for (const item of bomItems) {
       wsData.push([
         item.position,
         item.name,
+        item.kategorie || '',
         item.description || '',
-        item.quantity
+        item.quantity,
+        item.preis || '',
+        item.gesamtkosten || ''
       ]);
     }
     
     // Empty row before totals
-    wsData.push(['', '', '', '']);
+    wsData.push(['', '', '', '', '', '', '']);
     
     // Totals row
     const totalCount = bomItems.reduce((sum, item) => sum + item.quantity, 0);
-    const totalRowIndex = wsData.length;
-    wsData.push(['', '', 'Gesamt:', totalCount]);
+    const totalKosten = bomItems.reduce((sum, item) => sum + item.gesamtkosten, 0);
+    wsData.push(['', '', '', 'GESAMT:', totalCount, '', totalKosten > 0 ? totalKosten : '']);
     
     // Create worksheet from data
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     
     // Set column widths
     ws['!cols'] = [
-      { wch: 8 },   // Pos.
-      { wch: 30 },  // Benennung
-      { wch: 40 },  // Beschreibung
-      { wch: 10 },  // Menge
+      { wch: 6 },   // Pos.
+      { wch: 25 },  // Benennung
+      { wch: 18 },  // Kategorie
+      { wch: 35 },  // Beschreibung
+      { wch: 8 },   // Menge
+      { wch: 12 },  // Preis
+      { wch: 12 },  // Gesamt
     ];
+    
+    // Set row heights (in points, 1 point = 1/72 inch)
+    const rowCount = wsData.length;
+    ws['!rows'] = [];
+    for (let i = 0; i < rowCount; i++) {
+      if (i === 0) {
+        // Title row - larger
+        ws['!rows'].push({ hpt: 28 });
+      } else if (i === headerRowIndex) {
+        // Header row - medium height
+        ws['!rows'].push({ hpt: 24 });
+      } else {
+        // Data rows - comfortable height
+        ws['!rows'].push({ hpt: 20 });
+      }
+    }
     
     // Merge cells for title
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } } // Merge title row
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }
     ];
     
     // Add the worksheet to workbook
@@ -161,11 +191,17 @@ export function BillOfMaterials({
   };
 
   const totalQuantity = bomItems.reduce((sum, item) => sum + item.quantity, 0);
+  const totalKosten = bomItems.reduce((sum, item) => sum + item.gesamtkosten, 0);
   const uniquePositions = new Set(bomItems.map(item => item.componentId)).size;
+
+  const formatCurrency = (value: number) => {
+    if (!value) return '–';
+    return value.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between pr-8">
             <span>Stückliste</span>
@@ -189,16 +225,19 @@ export function BillOfMaterials({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-16">Pos.</TableHead>
+                <TableHead className="w-12">Pos.</TableHead>
                 <TableHead>Benennung</TableHead>
+                <TableHead className="w-32">Kategorie</TableHead>
                 <TableHead>Beschreibung</TableHead>
-                <TableHead className="w-20 text-right">Menge</TableHead>
+                <TableHead className="w-16 text-center">Menge</TableHead>
+                <TableHead className="w-24 text-right">Preis</TableHead>
+                <TableHead className="w-24 text-right">Gesamt</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {bomItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     Keine Komponenten platziert
                   </TableCell>
                 </TableRow>
@@ -207,10 +246,19 @@ export function BillOfMaterials({
                   <TableRow key={`${item.componentId}-${item.instanceIndex ?? index}`}>
                     <TableCell className="font-medium">{item.position}</TableCell>
                     <TableCell>{item.name}</TableCell>
+                    <TableCell className={item.kategorie ? '' : 'text-muted-foreground'}>
+                      {item.kategorie || '–'}
+                    </TableCell>
                     <TableCell className={item.description ? '' : 'text-muted-foreground'}>
                       {item.description || '–'}
                     </TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
+                    <TableCell className="text-center">{item.quantity}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(item.preis)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(item.gesamtkosten)}
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -222,9 +270,16 @@ export function BillOfMaterials({
           <span className="text-sm text-muted-foreground">
             {bomItems.length} Position{bomItems.length !== 1 ? 'en' : ''} ({uniquePositions} Komponenten-Typ{uniquePositions !== 1 ? 'en' : ''})
           </span>
-          <span className="font-medium">
-            Gesamt: {totalQuantity} Teil{totalQuantity !== 1 ? 'e' : ''}
-          </span>
+          <div className="flex items-center gap-6">
+            <span className="font-medium">
+              Gesamt: {totalQuantity} Teil{totalQuantity !== 1 ? 'e' : ''}
+            </span>
+            {totalKosten > 0 && (
+              <span className="font-bold text-primary">
+                Gesamtkosten: {formatCurrency(totalKosten)}
+              </span>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
