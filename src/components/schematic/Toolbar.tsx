@@ -269,14 +269,15 @@ export function Toolbar({
         shortcut="E"
         onClick={onExport}
       />
+      
+      <Separator className="my-2 w-8" />
+      
       <ToolButton
         icon={FileText}
         label="Stückliste"
         shortcut="B"
         onClick={onOpenBOM}
       />
-      
-      <div className="flex-1" />
     </div>
   );
 }
