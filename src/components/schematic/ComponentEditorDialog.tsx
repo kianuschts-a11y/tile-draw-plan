@@ -116,14 +116,26 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
 
   const isEditing = !!editingComponent;
 
-  // Canvas size based on tile size selection
+  // Canvas size based on tile size selection - dynamisch größer für mehr Platz
   const tileSizeConfig = TILE_SIZES[componentTileSize];
-  const baseCanvasSize = 200; // Kleinere Basis für bessere Sichtbarkeit
-  const maxCanvasWidth = 800; // Maximale Breite damit es in den Dialog passt
+  const baseCanvasSize = 280; // Größere Basis für bessere Nutzung des Platzes
+  const maxCanvasWidth = 700; // Maximale Breite damit es in den Dialog passt
+  const minCanvasHeight = 200; // Mindesthöhe für kleine Formate
+  
   // Berechne Canvas-Dimensionen basierend auf dem Seitenverhältnis
   const aspectRatio = tileSizeConfig.cols / tileSizeConfig.rows;
-  let canvasWidth = aspectRatio >= 1 ? baseCanvasSize * aspectRatio : baseCanvasSize;
-  let canvasHeight = aspectRatio < 1 ? baseCanvasSize / aspectRatio : baseCanvasSize;
+  let canvasWidth: number;
+  let canvasHeight: number;
+  
+  if (aspectRatio >= 1) {
+    // Breite Formate (z.B. 5x1, 10x1)
+    canvasWidth = Math.min(maxCanvasWidth, baseCanvasSize * Math.min(aspectRatio, 3.5));
+    canvasHeight = Math.max(minCanvasHeight, canvasWidth / aspectRatio);
+  } else {
+    // Hohe Formate (z.B. 3x2)
+    canvasHeight = baseCanvasSize;
+    canvasWidth = canvasHeight * aspectRatio;
+  }
   
   // Skaliere runter wenn zu breit
   if (canvasWidth > maxCanvasWidth) {
@@ -1320,8 +1332,8 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-5xl p-4">
-        <DialogHeader className="pb-2">
+      <DialogContent className="max-w-5xl max-h-[90vh] p-4 flex flex-col overflow-hidden">
+        <DialogHeader className="pb-2 flex-shrink-0">
           <DialogTitle>{isEditing ? `"${editingComponent?.name}" bearbeiten` : 'Komponente erstellen'}</DialogTitle>
           <DialogDescription className="sr-only">
             Zeichne Formen um eine neue Komponente zu erstellen
@@ -1329,7 +1341,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
         </DialogHeader>
         
         {/* Toolbar - kompakt oben */}
-        <div className="flex items-center gap-1 p-1.5 bg-muted/50 rounded-lg flex-wrap">
+        <div className="flex items-center gap-1 p-1.5 bg-muted/50 rounded-lg flex-wrap flex-shrink-0">
           <ToolBtn icon={MousePointer2} label="Auswählen" shortcut="V" isActive={activeTool === 'select'} onClick={() => { setActiveTool('select'); setSelectedShapeIds([]); }} />
           <Separator orientation="vertical" className="h-5 mx-0.5" />
           <ToolBtn icon={Square} label="Rechteck" shortcut="R" isActive={activeTool === 'rectangle'} onClick={() => { setActiveTool('rectangle'); setSelectedShapeIds([]); }} />
@@ -1351,10 +1363,11 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
           <ToolBtn icon={Trash2} label="Löschen" shortcut="Del" onClick={handleDelete} disabled={!hasSelection} />
         </div>
 
-        {/* Hauptbereich: Optionen links, Canvas rechts */}
-        <div className="flex gap-4 mt-2">
-          {/* Linke Seite - Optionen */}
-          <div className="w-48 flex-shrink-0 space-y-3">
+        {/* Hauptbereich: Optionen links, Canvas rechts - scrollbar */}
+        <div className="flex gap-4 mt-2 flex-1 min-h-0 overflow-hidden">
+          {/* Linke Seite - Optionen mit Scroll */}
+          <ScrollArea className="w-52 flex-shrink-0">
+            <div className="space-y-3 pr-3">
             {/* Name */}
             <div className="space-y-1">
               <Label htmlFor="component-name" className="text-xs">Name</Label>
@@ -1723,10 +1736,11 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
             <div className="text-xs text-muted-foreground pt-2">
               {shapes.length} Elemente
             </div>
-          </div>
+            </div>
+          </ScrollArea>
 
           {/* Rechte Seite - Canvas */}
-          <div className="flex-1 flex justify-center items-start">
+          <div className="flex-1 flex justify-center items-start overflow-auto">
             <div className="relative">
               <svg
                 width={canvasWidth + 1}
@@ -2051,7 +2065,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
           </div>
         </div>
 
-        <DialogFooter className="pt-3 border-t mt-3">
+        <DialogFooter className="pt-3 border-t mt-3 flex-shrink-0">
           <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
           <Button onClick={handleSave} disabled={shapes.length === 0}>
             Komponente speichern
