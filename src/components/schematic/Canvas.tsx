@@ -987,16 +987,51 @@ export function Canvas({
     // Für normale Komponenten: Skaliert basierend auf Komponentengröße
     const connectionBlockStrokeWidth = tileSize * 0.03; // Muss mit renderConnectionLines übereinstimmen
     
+    // Für Verbindungsblöcke: Farben aus den zugehörigen Connections ermitteln
+    // Unterscheide zwischen horizontalen und vertikalen Verbindungen
+    let horizontalColor: string | undefined;
+    let verticalColor: string | undefined;
+    if (isConnBlock) {
+      // Finde alle Connections die diesen Block berühren
+      const tileConnections = connections.filter(c => 
+        c.fromTileId === tile.id || c.toTileId === tile.id
+      );
+      
+      for (const conn of tileConnections) {
+        // Bestimme ob diese Connection horizontal oder vertikal ist
+        const side = conn.fromTileId === tile.id ? conn.fromSide : conn.toSide;
+        if (side === 'left' || side === 'right') {
+          // Horizontale Verbindung
+          if (!horizontalColor) horizontalColor = conn.color;
+        } else {
+          // Vertikale Verbindung
+          if (!verticalColor) verticalColor = conn.color;
+        }
+      }
+    }
+    
     const libraryPreviewSize = 50;
     const scaleRatio = refScale / libraryPreviewSize;
     const defaultStrokeWidth = 1.5 * scaleRatio;
     
     return component.shapes.map((shape, idx) => {
-      // Für Verbindungsblöcke: Immer einheitliche Liniendicke
+      // Für Verbindungsblöcke: Immer einheitliche Liniendicke und Farbe
       // Für normale Komponenten: Skaliert wie bisher
       let sw: number;
+      let strokeColor: string | undefined;
       if (isConnBlock) {
         sw = connectionBlockStrokeWidth;
+        // Farbe basierend auf der Richtung der Shape zuweisen
+        // Shape-IDs enden mit -h für horizontal, -v für vertikal
+        const shapeId = shape.id || '';
+        if (shapeId.endsWith('-h')) {
+          strokeColor = horizontalColor;
+        } else if (shapeId.endsWith('-v')) {
+          strokeColor = verticalColor;
+        } else {
+          // Fallback: erste verfügbare Farbe
+          strokeColor = horizontalColor || verticalColor;
+        }
       } else {
         sw = shape.strokeWidth 
           ? shape.strokeWidth * refScale 
@@ -1010,6 +1045,8 @@ export function Canvas({
         width: shape.width * compWidth,
         height: shape.height * compHeight,
         strokeWidth: Math.max(0.5, sw),
+        // Für Verbindungsblöcke: Farbe aus Connection verwenden
+        stroke: strokeColor || shape.stroke,
         fontSize: shape.fontSize ? shape.fontSize * refScale : undefined,
         arrowSize: shape.arrowSize ? shape.arrowSize * refScale : undefined,
         // Scale curveOffset for curved lines
