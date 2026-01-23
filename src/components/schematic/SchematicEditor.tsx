@@ -228,26 +228,6 @@ export function SchematicEditor() {
     }
   }, []);
 
-  // Keyboard-Shortcuts für Undo/Redo
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          handleRedo();
-        } else {
-          handleUndo();
-        }
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-        e.preventDefault();
-        handleRedo();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
-
   const handleZoomIn = useCallback(() => {
     setCanvasState(prev => ({ ...prev, zoom: Math.min(prev.zoom * 1.25, 4) }));
   }, []);
@@ -269,6 +249,161 @@ export function SchematicEditor() {
       setSelectedTileIds(new Set());
     }
   }, [selectedTileIds]);
+
+  // Rotate selected tiles 90 degrees clockwise
+  // The connection points stay at the same absolute grid position,
+  // but the cell coordinates within the tile are recalculated
+  const handleRotate = useCallback(() => {
+    if (selectedTileIds.size === 0) return;
+    
+    // For each selected tile, rotate its shapes and update connections
+    setTiles(prev => prev.map(tile => {
+      if (!selectedTileIds.has(tile.id)) return tile;
+      
+      const width = tile.component.width || 1;
+      const height = tile.component.height || 1;
+      
+      // Rotate all shapes 90 degrees clockwise
+      const rotatedShapes = tile.component.shapes.map(shape => {
+        // Rotate around center (0.5, 0.5 in normalized coords)
+        // For 90° clockwise: (x, y) -> (y, 1-x) in normalized space
+        // But we need to account for component dimensions
+        const newX = shape.y * (height / width);
+        const newY = (1 - shape.x - shape.width) * (width / height);
+        const newWidth = shape.height * (height / width);
+        const newHeight = shape.width * (width / height);
+        
+        // Rotate line endpoints and polyline points
+        let newPoints = shape.points;
+        if (shape.points) {
+          newPoints = shape.points.map(p => ({
+            x: p.y * (height / width),
+            y: (1 - p.x) * (width / height)
+          }));
+        }
+        
+        // Rotate curve offset
+        let newCurveOffset = shape.curveOffset;
+        if (shape.curveOffset) {
+          newCurveOffset = {
+            x: shape.curveOffset.y * (height / width),
+            y: -shape.curveOffset.x * (width / height)
+          };
+        }
+        
+        return {
+          ...shape,
+          x: newX,
+          y: newY,
+          width: newWidth,
+          height: newHeight,
+          points: newPoints,
+          curveOffset: newCurveOffset,
+          rotation: ((shape.rotation || 0) + 90) % 360
+        };
+      });
+      
+      // Swap width and height for the component
+      return {
+        ...tile,
+        component: {
+          ...tile.component,
+          width: height,
+          height: width,
+          shapes: rotatedShapes
+        }
+      };
+    }));
+    
+    // Update connections - cell positions need to be rotated within each tile
+    setConnections(prev => prev.map(conn => {
+      let newConn = { ...conn };
+      
+      // Rotate "from" cell if tile is selected
+      const fromTile = tiles.find(t => t.id === conn.fromTileId);
+      if (fromTile && selectedTileIds.has(conn.fromTileId)) {
+        const oldWidth = fromTile.component.width || 1;
+        const oldHeight = fromTile.component.height || 1;
+        
+        // Rotate cell position 90° clockwise: (x, y) -> (height-1-y, x)
+        const newCellX = oldHeight - 1 - conn.fromCellY;
+        const newCellY = conn.fromCellX;
+        
+        // Rotate the side: left->top, top->right, right->bottom, bottom->left
+        const sideMap: Record<string, 'left' | 'right' | 'top' | 'bottom'> = {
+          'left': 'top',
+          'top': 'right',
+          'right': 'bottom',
+          'bottom': 'left'
+        };
+        
+        newConn = {
+          ...newConn,
+          fromCellX: newCellX,
+          fromCellY: newCellY,
+          fromSide: sideMap[conn.fromSide]
+        };
+      }
+      
+      // Rotate "to" cell if tile is selected
+      const toTile = tiles.find(t => t.id === conn.toTileId);
+      if (toTile && selectedTileIds.has(conn.toTileId)) {
+        const oldWidth = toTile.component.width || 1;
+        const oldHeight = toTile.component.height || 1;
+        
+        const newCellX = oldHeight - 1 - conn.toCellY;
+        const newCellY = conn.toCellX;
+        
+        const sideMap: Record<string, 'left' | 'right' | 'top' | 'bottom'> = {
+          'left': 'top',
+          'top': 'right',
+          'right': 'bottom',
+          'bottom': 'left'
+        };
+        
+        newConn = {
+          ...newConn,
+          toCellX: newCellX,
+          toCellY: newCellY,
+          toSide: sideMap[conn.toSide]
+        };
+      }
+      
+      return newConn;
+    }));
+  }, [selectedTileIds, tiles]);
+
+  // Keyboard-Shortcuts für Undo/Redo und Rotation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle shortcuts when typing in input fields
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        handleRedo();
+      } else if (e.key === 'r' || e.key === 'R') {
+        // R key to rotate selected tiles
+        if (selectedTileIds.size > 0 && !isGroupMode) {
+          e.preventDefault();
+          handleRotate();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo, handleRotate, selectedTileIds.size, isGroupMode]);
 
   const handleExport = useCallback(() => {
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
@@ -1011,6 +1146,8 @@ export function SchematicEditor() {
           onRedo={handleRedo}
           canUndo={historyIndexRef.current > 0}
           canRedo={historyIndexRef.current < historyRef.current.length - 1}
+          onRotate={handleRotate}
+          canRotate={selectedTileIds.size > 0}
         />
 
         <div className="flex-1 overflow-hidden schematic-canvas">
