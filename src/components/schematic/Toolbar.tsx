@@ -160,12 +160,22 @@ export function Toolbar({
         disabled={isGroupMode}
       />
       
+      <Separator className="my-1 w-8" />
+      
       <ToolButton
         icon={RotateCw}
         label="Komponente drehen (90°)"
         shortcut="R"
         onClick={onRotate}
         disabled={!canRotate || isGroupMode}
+      />
+      
+      <ToolButton
+        icon={Trash2}
+        label="Löschen"
+        shortcut="Entf"
+        onClick={onDelete}
+        disabled={!hasSelection || isGroupMode}
       />
       
       <Separator className="my-1 w-8" />
