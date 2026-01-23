@@ -686,12 +686,167 @@ export function SchematicEditor() {
     }
   }, [tiles, components, generateNewId]);
 
-  // Insert multiple groups from complementary set
+  // Insert multiple groups from complementary set - positions them next to each other
   const handleInsertMultipleGroups = useCallback((groupsWithCounts: Array<{ group: ComponentGroup; count: number }>) => {
+    if (groupsWithCounts.length === 0) return;
+    
+    // Calculate the bounding box of each group
+    const groupBounds: Array<{ group: ComponentGroup; count: number; width: number; height: number }> = [];
+    
     for (const { group, count } of groupsWithCounts) {
-      handleInsertGroupFromSelector(group, count);
+      if (!group.layoutData?.tiles) continue;
+      
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const tile of group.layoutData.tiles) {
+        const component = components.find(c => c.id === tile.componentId);
+        const tileWidth = component?.width || 1;
+        const tileHeight = component?.height || 1;
+        minX = Math.min(minX, tile.relativeX);
+        maxX = Math.max(maxX, tile.relativeX + tileWidth);
+        minY = Math.min(minY, tile.relativeY);
+        maxY = Math.max(maxY, tile.relativeY + tileHeight);
+      }
+      
+      const width = maxX === -Infinity ? 1 : maxX - minX;
+      const height = maxY === -Infinity ? 1 : maxY - minY;
+      
+      groupBounds.push({ group, count, width, height });
     }
-  }, [handleInsertGroupFromSelector]);
+    
+    if (groupBounds.length === 0) return;
+    
+    // Find starting position - center of canvas or below existing tiles
+    const maxExistingY = tiles.length > 0 
+      ? Math.max(...tiles.map(t => t.gridY + (t.component.height || 1))) + 2
+      : 2;
+    
+    // Calculate total width needed for all groups with spacing
+    const spacing = 2; // Grid cells between groups
+    const totalWidth = groupBounds.reduce((sum, g) => sum + g.width, 0) + (groupBounds.length - 1) * spacing;
+    
+    // Start position - try to center horizontally
+    let startX = Math.max(0, Math.floor((20 - totalWidth) / 2)); // Assume ~20 grid cells visible width
+    
+    // Position groups based on count
+    let currentX = startX;
+    const allNewTiles: PlacedTile[] = [];
+    const allNewConnections: CellConnection[] = [];
+    
+    // For positioning: 2 groups = left/right, 3+ = grid pattern
+    if (groupBounds.length === 2) {
+      // Side by side
+      for (const { group, count, width } of groupBounds) {
+        if (!group.layoutData) continue;
+        
+        for (let i = 0; i < count; i++) {
+          const offsetY = i * (groupBounds[0].height + spacing);
+          const newTileIds: string[] = [];
+          const newTiles: PlacedTile[] = [];
+          
+          for (const tileData of group.layoutData.tiles) {
+            const component = components.find(c => c.id === tileData.componentId);
+            if (!component) continue;
+            
+            const newTile: PlacedTile = {
+              id: generateNewId(),
+              component,
+              gridX: currentX + tileData.relativeX,
+              gridY: maxExistingY + offsetY + tileData.relativeY
+            };
+            newTiles.push(newTile);
+            newTileIds.push(newTile.id);
+          }
+          
+          // Create connections
+          for (const connData of group.layoutData.connections) {
+            if (connData.fromTileIndex < newTileIds.length && connData.toTileIndex < newTileIds.length) {
+              allNewConnections.push({
+                id: generateNewId(),
+                fromTileId: newTileIds[connData.fromTileIndex],
+                fromCellX: connData.fromCellX,
+                fromCellY: connData.fromCellY,
+                fromSide: connData.fromSide,
+                toTileId: newTileIds[connData.toTileIndex],
+                toCellX: connData.toCellX,
+                toCellY: connData.toCellY,
+                toSide: connData.toSide,
+                color: connData.color
+              });
+            }
+          }
+          
+          allNewTiles.push(...newTiles);
+        }
+        
+        currentX += width + spacing;
+      }
+    } else {
+      // Grid pattern for 3+ groups: distribute in a 2-column layout
+      let row = 0;
+      let col = 0;
+      const colWidth = Math.max(...groupBounds.map(g => g.width)) + spacing;
+      const rowHeight = Math.max(...groupBounds.map(g => g.height)) + spacing;
+      
+      for (const { group, count } of groupBounds) {
+        if (!group.layoutData) continue;
+        
+        const posX = startX + col * colWidth;
+        const posY = maxExistingY + row * rowHeight;
+        
+        for (let i = 0; i < count; i++) {
+          const newTileIds: string[] = [];
+          const newTiles: PlacedTile[] = [];
+          
+          for (const tileData of group.layoutData.tiles) {
+            const component = components.find(c => c.id === tileData.componentId);
+            if (!component) continue;
+            
+            const newTile: PlacedTile = {
+              id: generateNewId(),
+              component,
+              gridX: posX + tileData.relativeX,
+              gridY: posY + tileData.relativeY + i * rowHeight
+            };
+            newTiles.push(newTile);
+            newTileIds.push(newTile.id);
+          }
+          
+          // Create connections
+          for (const connData of group.layoutData.connections) {
+            if (connData.fromTileIndex < newTileIds.length && connData.toTileIndex < newTileIds.length) {
+              allNewConnections.push({
+                id: generateNewId(),
+                fromTileId: newTileIds[connData.fromTileIndex],
+                fromCellX: connData.fromCellX,
+                fromCellY: connData.fromCellY,
+                fromSide: connData.fromSide,
+                toTileId: newTileIds[connData.toTileIndex],
+                toCellX: connData.toCellX,
+                toCellY: connData.toCellY,
+                toSide: connData.toSide,
+                color: connData.color
+              });
+            }
+          }
+          
+          allNewTiles.push(...newTiles);
+        }
+        
+        // Move to next position
+        col++;
+        if (col >= 2) {
+          col = 0;
+          row++;
+        }
+      }
+    }
+    
+    // Add all tiles and connections at once
+    if (allNewTiles.length > 0) {
+      setTiles(prev => [...prev, ...allNewTiles]);
+      setConnections(prev => [...prev, ...allNewConnections]);
+    }
+  }, [tiles, components, generateNewId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
