@@ -119,7 +119,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   // Canvas size based on tile size selection
   const tileSizeConfig = TILE_SIZES[componentTileSize];
   const baseCanvasSize = 200; // Basis für Normalisierung (bleibt konstant)
-  const maxCanvasWidth = 800; // Maximale Breite damit es in den Dialog passt
+  const maxCanvasWidth = 700; // Maximale Breite damit es in den Dialog passt (reduziert für 5x1/10x1)
   
   // Berechne Canvas-Dimensionen basierend auf dem Seitenverhältnis
   const aspectRatio = tileSizeConfig.cols / tileSizeConfig.rows;
@@ -131,10 +131,11 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     canvasWidth = baseCanvasSize * aspectRatio;
     canvasHeight = baseCanvasSize;
     
-    // Skaliere runter wenn zu breit
-    if (canvasWidth > maxCanvasWidth) {
-      const scale = maxCanvasWidth / canvasWidth;
-      canvasWidth = maxCanvasWidth;
+    // Skaliere runter wenn zu breit - mit etwas Puffer
+    const effectiveMaxWidth = maxCanvasWidth - 20; // Zusätzlicher Puffer für Ränder
+    if (canvasWidth > effectiveMaxWidth) {
+      const scale = effectiveMaxWidth / canvasWidth;
+      canvasWidth = effectiveMaxWidth;
       canvasHeight = canvasHeight * scale;
     }
   } else {
