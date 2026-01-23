@@ -431,7 +431,9 @@ export function ComponentLibrary({
       let totalHeight = 0;
       
       tiles.forEach(tile => {
-        const comp = components.find(c => c.id === tile.componentId);
+        // Check both custom components and connection blocks
+        const comp = components.find(c => c.id === tile.componentId) 
+          || CONNECTION_BLOCKS.find(c => c.id === tile.componentId);
         if (comp) {
           const tileRight = tile.relativeX + (comp.width || 1);
           const tileBottom = tile.relativeY + (comp.height || 1);
@@ -452,7 +454,9 @@ export function ComponentLibrary({
       return (
         <svg width={svgWidth} height={svgHeight}>
           {tiles.map((tile, idx) => {
-            const comp = components.find(c => c.id === tile.componentId);
+            // Check both custom components and connection blocks
+            const comp = components.find(c => c.id === tile.componentId)
+              || CONNECTION_BLOCKS.find(c => c.id === tile.componentId);
             if (!comp) return null;
             
             const tileX = padding + tile.relativeX * scale;

@@ -7,12 +7,20 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 
 interface GroupInfoDialogProps {
   group: ComponentGroup | null;
   components: Component[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+// Helper to find component by ID, checking both custom components and connection blocks
+function findComponentById(componentId: string, components: Component[]): Component | undefined {
+  const found = components.find(c => c.id === componentId);
+  if (found) return found;
+  return CONNECTION_BLOCKS.find(c => c.id === componentId);
 }
 
 export function GroupInfoDialog({ group, components, open, onOpenChange }: GroupInfoDialogProps) {
@@ -35,7 +43,7 @@ export function GroupInfoDialog({ group, components, open, onOpenChange }: Group
   }
 
   const componentList = Array.from(componentCounts.entries()).map(([id, count]) => {
-    const component = components.find(c => c.id === id);
+    const component = findComponentById(id, components);
     return {
       id,
       name: component?.name || 'Unbekannt',
@@ -63,9 +71,9 @@ export function GroupInfoDialog({ group, components, open, onOpenChange }: Group
               {componentList.map(({ id, name, count }) => (
                 <div 
                   key={id} 
-                  className="flex items-center justify-between p-2 rounded-lg border bg-muted/30"
+                  className="flex items-center justify-center gap-3 p-2 rounded-lg border bg-muted/30"
                 >
-                  <span className="text-sm font-medium">{name}</span>
+                  <span className="text-sm font-medium flex-1">{name}</span>
                   <Badge variant="outline">{count}×</Badge>
                 </div>
               ))}
