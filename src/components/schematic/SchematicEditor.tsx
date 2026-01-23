@@ -253,12 +253,21 @@ export function SchematicEditor() {
   // Rotate selected tiles 90 degrees clockwise
   // The connection points stay at the same absolute grid position,
   // but the cell coordinates within the tile are recalculated
+  // Connection blocks are NOT rotated - they maintain their absolute orientation
   const handleRotate = useCallback(() => {
     if (selectedTileIds.size === 0) return;
     
     // For each selected tile, rotate its shapes and update connections
     setTiles(prev => prev.map(tile => {
       if (!selectedTileIds.has(tile.id)) return tile;
+      
+      // Check if this is a connection block - don't rotate these
+      const isConnBlock = isConnectionBlock(tile.component);
+      if (isConnBlock) {
+        // Connection blocks maintain their absolute orientation
+        // They are not rotated with the component
+        return tile;
+      }
       
       const width = tile.component.width || 1;
       const height = tile.component.height || 1;
