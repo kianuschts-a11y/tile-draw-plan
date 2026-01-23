@@ -129,6 +129,37 @@ export function Toolbar({
         onClick={() => onToolChange('pan')}
         disabled={isGroupMode}
       />
+      {/* Connection Color Picker - directly above Connect */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-accent transition-colors border"
+            title="Verbindungsfarbe"
+          >
+            <div 
+              className="w-5 h-5 rounded border border-border"
+              style={{ backgroundColor: connectionColor }}
+            />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent side="right" className="w-auto p-2">
+          <div className="grid grid-cols-4 gap-1">
+            {CONNECTION_COLORS.map((color) => (
+              <button
+                key={color.value}
+                className={`w-7 h-7 rounded border-2 transition-all hover:scale-110 ${
+                  connectionColor === color.value ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+                }`}
+                style={{ backgroundColor: color.value }}
+                onClick={() => onConnectionColorChange(color.value)}
+                title={color.label}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 text-center">Verbindungsfarbe</p>
+        </PopoverContent>
+      </Popover>
+      
       <ToolButton
         icon={Link2}
         label="Verbinden"
@@ -225,38 +256,6 @@ export function Toolbar({
         )}
       </div>
       
-      <Separator className="my-1 w-8" />
-      
-      {/* Connection Color Picker */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-accent transition-colors border"
-            title="Verbindungsfarbe"
-          >
-            <div 
-              className="w-5 h-5 rounded border border-border"
-              style={{ backgroundColor: connectionColor }}
-            />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent side="right" className="w-auto p-2">
-          <div className="grid grid-cols-4 gap-1">
-            {CONNECTION_COLORS.map((color) => (
-              <button
-                key={color.value}
-                className={`w-7 h-7 rounded border-2 transition-all hover:scale-110 ${
-                  connectionColor === color.value ? 'border-primary ring-2 ring-primary/30' : 'border-border'
-                }`}
-                style={{ backgroundColor: color.value }}
-                onClick={() => onConnectionColorChange(color.value)}
-                title={color.label}
-              />
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">Verbindungsfarbe</p>
-        </PopoverContent>
-      </Popover>
     </div>
   );
 }
