@@ -2,20 +2,16 @@ import { useState } from "react";
 import { 
   MousePointer2, 
   Trash2,
-  RotateCcw,
   RotateCw,
-  ZoomIn,
-  ZoomOut,
   Link2,
   Unlink2,
   Move,
   FolderPlus,
   Save,
   X,
-  Download,
-  FileText,
   Undo2,
-  Redo2
+  Redo2,
+  ArrowRight
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
@@ -27,7 +23,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-export type MainToolType = 'select' | 'pan' | 'connect' | 'disconnect';
+export type MainToolType = 'select' | 'pan' | 'connect' | 'disconnect' | 'arrow';
 
 // Predefined connection colors
 const CONNECTION_COLORS = [
@@ -44,12 +40,7 @@ const CONNECTION_COLORS = [
 interface ToolbarProps {
   activeTool: MainToolType;
   onToolChange: (tool: MainToolType) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onResetView: () => void;
   onDelete: () => void;
-  onExport: () => void;
-  onOpenBOM: () => void;
   hasSelection: boolean;
   connectionColor: string;
   onConnectionColorChange: (color: string) => void;
@@ -72,12 +63,7 @@ interface ToolbarProps {
 export function Toolbar({
   activeTool,
   onToolChange,
-  onZoomIn,
-  onZoomOut,
-  onResetView,
   onDelete,
-  onExport,
-  onOpenBOM,
   hasSelection,
   connectionColor,
   onConnectionColorChange,
@@ -157,6 +143,14 @@ export function Toolbar({
         shortcut="X"
         isActive={activeTool === 'disconnect'}
         onClick={() => onToolChange('disconnect')}
+        disabled={isGroupMode}
+      />
+      <ToolButton
+        icon={ArrowRight}
+        label="Pfeil hinzufügen/wechseln"
+        shortcut="A"
+        isActive={activeTool === 'arrow'}
+        onClick={() => onToolChange('arrow')}
         disabled={isGroupMode}
       />
       
@@ -263,45 +257,6 @@ export function Toolbar({
           <p className="text-xs text-muted-foreground mt-2 text-center">Verbindungsfarbe</p>
         </PopoverContent>
       </Popover>
-      
-      <Separator className="my-1 w-8" />
-      
-      <ToolButton
-        icon={ZoomIn}
-        label="Vergrößern"
-        shortcut="+"
-        onClick={onZoomIn}
-      />
-      <ToolButton
-        icon={ZoomOut}
-        label="Verkleinern"
-        shortcut="-"
-        onClick={onZoomOut}
-      />
-      <ToolButton
-        icon={RotateCcw}
-        label="Ansicht zurücksetzen"
-        shortcut="0"
-        onClick={onResetView}
-      />
-      
-      <Separator className="my-1 w-8" />
-      
-      <ToolButton
-        icon={Download}
-        label="Zeichnung exportieren"
-        shortcut="E"
-        onClick={onExport}
-      />
-      
-      <Separator className="my-1 w-8" />
-      
-      <ToolButton
-        icon={FileText}
-        label="Stückliste"
-        shortcut="B"
-        onClick={onOpenBOM}
-      />
     </div>
   );
 }

@@ -175,6 +175,7 @@ interface CanvasProps {
   onDropGroup?: (group: ComponentGroup, gridX: number, gridY: number) => void;
   onConnectionsChange: (connections: CellConnection[]) => void;
   onDragEnd: () => void;
+  onConnectionArrowToggle?: (connectionId: string) => void;
 }
 
 export function Canvas({
@@ -194,7 +195,8 @@ export function Canvas({
   onDropComponent,
   onDropGroup,
   onConnectionsChange,
-  onDragEnd
+  onDragEnd,
+  onConnectionArrowToggle
 }: CanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -390,6 +392,33 @@ export function Canvas({
     onConnectionsChange(newConnections);
   }, [connections, onConnectionsChange]);
 
+  // Find connection at a specific grid position
+  const findConnectionAtPosition = useCallback((gridX: number, gridY: number): CellConnection | null => {
+    // Look for connections that pass through this cell
+    for (const conn of connections) {
+      // Check "from" side
+      const fromTile = tiles.find(t => t.id === conn.fromTileId);
+      if (fromTile) {
+        const fromGridX = fromTile.gridX + conn.fromCellX;
+        const fromGridY = fromTile.gridY + conn.fromCellY;
+        if (fromGridX === gridX && fromGridY === gridY) {
+          return conn;
+        }
+      }
+      
+      // Check "to" side
+      const toTile = tiles.find(t => t.id === conn.toTileId);
+      if (toTile) {
+        const toGridX = toTile.gridX + conn.toCellX;
+        const toGridY = toTile.gridY + conn.toCellY;
+        if (toGridX === gridX && toGridY === gridY) {
+          return conn;
+        }
+      }
+    }
+    return null;
+  }, [connections, tiles]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
 
@@ -402,6 +431,15 @@ export function Canvas({
 
     const { x, y } = getCanvasPosition(e);
     const { gridX, gridY } = getGridFromCanvas(x, y);
+    
+    // Arrow tool - toggle arrow on clicked connection
+    if (activeTool === 'arrow') {
+      const conn = findConnectionAtPosition(gridX, gridY);
+      if (conn && onConnectionArrowToggle) {
+        onConnectionArrowToggle(conn.id);
+      }
+      return;
+    }
     
     if (activeTool === 'connect' || activeTool === 'disconnect') {
       // Start path drawing - add starting cell to path
@@ -417,7 +455,7 @@ export function Canvas({
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findConnectionAtPosition, onConnectionArrowToggle]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
@@ -814,6 +852,15 @@ export function Canvas({
     const cellX = gridX - tile.gridX;
     const cellY = gridY - tile.gridY;
     
+    // Arrow tool - toggle arrow on clicked connection
+    if (activeTool === 'arrow') {
+      const conn = findConnectionAtPosition(gridX, gridY);
+      if (conn && onConnectionArrowToggle) {
+        onConnectionArrowToggle(conn.id);
+      }
+      return;
+    }
+    
     if (activeTool === 'connect' || activeTool === 'disconnect') {
       // Start path drawing from this cell
       setConnectionPath([{ gridX, gridY }]);
@@ -854,7 +901,7 @@ export function Canvas({
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
       setIsDragging(true);
     }
-  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode]);
+  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, onConnectionArrowToggle]);
 
   // Track drag position for preview using draggingComponent from parent
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -944,6 +991,7 @@ export function Canvas({
     if (activeTool === 'pan') return isPanning ? 'grabbing' : 'grab';
     if (activeTool === 'connect') return 'crosshair';
     if (activeTool === 'disconnect') return 'not-allowed';
+    if (activeTool === 'arrow') return 'pointer';
     if (isDragging) return 'grabbing';
     return 'default';
   };
@@ -1220,7 +1268,7 @@ export function Canvas({
               key={tile.id}
               transform={`translate(${x}, ${y})`}
               onMouseDown={(e) => handleTileMouseDown(e, tile)}
-              style={{ cursor: activeTool === 'select' || activeTool === 'connect' || activeTool === 'disconnect' ? 'pointer' : 'inherit' }}
+              style={{ cursor: activeTool === 'select' || activeTool === 'connect' || activeTool === 'disconnect' || activeTool === 'arrow' ? 'pointer' : 'inherit' }}
             >
               {/* Tile background - not rotated */}
               <rect
@@ -1244,6 +1292,54 @@ export function Canvas({
               </g>
               {/* Connection lines - NOT rotated, stay at absolute positions */}
               {renderConnectionLines(tile)}
+            </g>
+          );
+        })}
+
+        {/* Connection arrows - rendered between tiles */}
+        {connections.filter(c => c.arrowDirection && c.arrowDirection !== 'none').map(conn => {
+          const fromTile = tiles.find(t => t.id === conn.fromTileId);
+          const toTile = tiles.find(t => t.id === conn.toTileId);
+          if (!fromTile || !toTile) return null;
+          
+          // Calculate the midpoint between the two connected cells
+          const fromGridX = fromTile.gridX + conn.fromCellX;
+          const fromGridY = fromTile.gridY + conn.fromCellY;
+          const toGridX = toTile.gridX + conn.toCellX;
+          const toGridY = toTile.gridY + conn.toCellY;
+          
+          // Calculate pixel positions (cell centers)
+          const fromCenterX = (fromGridX + 0.5) * tileSize;
+          const fromCenterY = (fromGridY + 0.5) * tileSize;
+          const toCenterX = (toGridX + 0.5) * tileSize;
+          const toCenterY = (toGridY + 0.5) * tileSize;
+          
+          // Midpoint for arrow placement
+          const midX = (fromCenterX + toCenterX) / 2;
+          const midY = (fromCenterY + toCenterY) / 2;
+          
+          // Calculate arrow direction angle
+          let angle = Math.atan2(toCenterY - fromCenterY, toCenterX - fromCenterX) * (180 / Math.PI);
+          
+          // Reverse if backward
+          if (conn.arrowDirection === 'backward') {
+            angle += 180;
+          }
+          
+          const arrowSize = tileSize * 0.25;
+          const strokeWidth = tileSize * 0.04;
+          const color = conn.color || '#000000';
+          
+          return (
+            <g key={`arrow-${conn.id}`} transform={`translate(${midX}, ${midY}) rotate(${angle})`}>
+              {/* Arrow head (triangle) */}
+              <polygon
+                points={`${arrowSize},0 ${-arrowSize * 0.5},${-arrowSize * 0.6} ${-arrowSize * 0.5},${arrowSize * 0.6}`}
+                fill={color}
+                stroke={color}
+                strokeWidth={strokeWidth}
+                strokeLinejoin="round"
+              />
             </g>
           );
         })}
