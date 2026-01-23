@@ -116,32 +116,40 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
 
   const isEditing = !!editingComponent;
 
-  // Canvas size based on tile size selection - dynamisch größer für mehr Platz
+  // Canvas size based on tile size selection
   const tileSizeConfig = TILE_SIZES[componentTileSize];
-  const baseCanvasSize = 280; // Größere Basis für bessere Nutzung des Platzes
-  const maxCanvasWidth = 700; // Maximale Breite damit es in den Dialog passt
-  const minCanvasHeight = 200; // Mindesthöhe für kleine Formate
+  const baseCanvasSize = 200; // Basis für Normalisierung (bleibt konstant)
+  const maxCanvasWidth = 800; // Maximale Breite damit es in den Dialog passt
   
   // Berechne Canvas-Dimensionen basierend auf dem Seitenverhältnis
   const aspectRatio = tileSizeConfig.cols / tileSizeConfig.rows;
   let canvasWidth: number;
   let canvasHeight: number;
   
-  if (aspectRatio >= 1) {
-    // Breite Formate (z.B. 5x1, 10x1)
-    canvasWidth = Math.min(maxCanvasWidth, baseCanvasSize * Math.min(aspectRatio, 3.5));
-    canvasHeight = Math.max(minCanvasHeight, canvasWidth / aspectRatio);
-  } else {
-    // Hohe Formate (z.B. 3x2)
+  // Für sehr breite Formate (5x1, 10x1) die ursprüngliche Logik verwenden
+  if (componentTileSize === '5x1' || componentTileSize === '10x1') {
+    canvasWidth = baseCanvasSize * aspectRatio;
     canvasHeight = baseCanvasSize;
-    canvasWidth = canvasHeight * aspectRatio;
-  }
-  
-  // Skaliere runter wenn zu breit
-  if (canvasWidth > maxCanvasWidth) {
-    const scale = maxCanvasWidth / canvasWidth;
-    canvasWidth = maxCanvasWidth;
-    canvasHeight = canvasHeight * scale;
+    
+    // Skaliere runter wenn zu breit
+    if (canvasWidth > maxCanvasWidth) {
+      const scale = maxCanvasWidth / canvasWidth;
+      canvasWidth = maxCanvasWidth;
+      canvasHeight = canvasHeight * scale;
+    }
+  } else {
+    // Für andere Formate größere Zeichenfläche
+    const displayBaseSize = 280;
+    
+    if (aspectRatio >= 1) {
+      // Breite Formate (z.B. 2x2)
+      canvasWidth = Math.min(maxCanvasWidth, displayBaseSize * aspectRatio);
+      canvasHeight = canvasWidth / aspectRatio;
+    } else {
+      // Hohe Formate (z.B. 3x2)
+      canvasHeight = displayBaseSize;
+      canvasWidth = canvasHeight * aspectRatio;
+    }
   }
   
   const gridSize = Math.min(canvasWidth, canvasHeight) / 20;
