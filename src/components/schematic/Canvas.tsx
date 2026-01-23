@@ -984,7 +984,8 @@ export function Canvas({
     // Connection lines should have UNIFORM stroke width based on tileSize, 
     // not component size. This ensures lines from 1x1 and 2x2 components match.
     // WICHTIG: Diese Berechnung muss mit renderTileShapes für Verbindungsblöcke übereinstimmen!
-    const connectionStrokeWidth = tileSize * 0.03; // = tileSize / 50 * 1.5
+    // Erhöht von 0.03 auf 0.04 für bessere Sichtbarkeit
+    const connectionStrokeWidth = tileSize * 0.04;
     
     return connectionShapeGroups.flatMap((group, groupIdx) => 
       group.shapes.map((shape, idx) => {
@@ -1036,9 +1037,9 @@ export function Canvas({
     }
     
     // WICHTIG: Alle Verbindungslinien (Connection-Blöcke UND dynamische Linien)
-    // müssen dieselbe einheitliche Strichstärke haben: tileSize * 0.03
-    // Dies entspricht der Berechnung in renderConnectionLines (Zeile 987)
-    const uniformConnectionStrokeWidth = tileSize * 0.03;
+    // müssen dieselbe einheitliche Strichstärke haben: tileSize * 0.04
+    // Dies entspricht der Berechnung in renderConnectionLines
+    const uniformConnectionStrokeWidth = tileSize * 0.04;
     
     // Für normale Komponenten: Skalierung basierend auf Vorschaugröße
     const libraryPreviewSize = 50;

@@ -385,7 +385,7 @@ export function generateSingleConnectionLine(
   tileHeight: number
 ): Shape[] {
   const shapes: Shape[] = [];
-  const strokeWidth = 0.03; // Muss mit connectionBlocks.ts übereinstimmen
+  const strokeWidth = 0.04; // Muss mit Canvas.tsx übereinstimmen (tileSize * 0.04)
 
   const cellWidthNorm = 1 / tileWidth;
   const cellHeightNorm = 1 / tileHeight;
