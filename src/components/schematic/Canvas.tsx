@@ -1012,10 +1012,6 @@ export function Canvas({
     // Prüfen ob es ein Verbindungsblock ist - dann einheitliche Liniendicke verwenden
     const isConnBlock = isConnectionBlock(component);
     
-    // Für Verbindungsblöcke: Einheitliche Liniendicke wie bei Verbindungslinien
-    // Für normale Komponenten: Skaliert basierend auf Komponentengröße
-    const connectionBlockStrokeWidth = tileSize * 0.03; // Muss mit renderConnectionLines übereinstimmen
-    
     // Für Verbindungsblöcke: Farben aus den zugehörigen Connections ermitteln
     // Unterscheide zwischen horizontalen und vertikalen Verbindungen
     let horizontalColor: string | undefined;
@@ -1039,6 +1035,12 @@ export function Canvas({
       }
     }
     
+    // WICHTIG: Alle Verbindungslinien (Connection-Blöcke UND dynamische Linien)
+    // müssen dieselbe einheitliche Strichstärke haben: tileSize * 0.03
+    // Dies entspricht der Berechnung in renderConnectionLines (Zeile 987)
+    const uniformConnectionStrokeWidth = tileSize * 0.03;
+    
+    // Für normale Komponenten: Skalierung basierend auf Vorschaugröße
     const libraryPreviewSize = 50;
     const scaleRatio = refScale / libraryPreviewSize;
     const defaultStrokeWidth = 1.5 * scaleRatio;
@@ -1049,7 +1051,7 @@ export function Canvas({
       let sw: number;
       let strokeColor: string | undefined;
       if (isConnBlock) {
-        sw = connectionBlockStrokeWidth;
+        sw = uniformConnectionStrokeWidth;
         // Farbe basierend auf der Richtung der Shape zuweisen
         // Shape-IDs enden mit -h für horizontal, -v für vertikal
         const shapeId = shape.id || '';
