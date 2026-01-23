@@ -16,7 +16,17 @@ import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu, User, Building2, Package } from "lucide-react";
-import { isConnectionBlock } from "@/lib/connectionBlocks";
+import { isConnectionBlock, CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
+
+// Helper to find component by ID, checking both custom components and connection blocks
+function findComponentById(componentId: string, components: Component[]): Component | undefined {
+  // First check custom components
+  const found = components.find(c => c.id === componentId);
+  if (found) return found;
+  
+  // Then check connection blocks
+  return CONNECTION_BLOCKS.find(c => c.id === componentId);
+}
 
 // History-Eintrag für Undo/Redo
 interface HistoryEntry {
@@ -426,7 +436,7 @@ export function SchematicEditor() {
     
     // Create tiles from layout data
     for (const tileData of group.layoutData.tiles) {
-      const component = components.find(c => c.id === tileData.componentId);
+      const component = findComponentById(tileData.componentId, components);
       if (!component) continue;
       
       const newTile: PlacedTile = {
@@ -672,7 +682,7 @@ export function SchematicEditor() {
       
       // Create tiles from layout data
       for (const tileData of group.layoutData.tiles) {
-        const component = components.find(c => c.id === tileData.componentId);
+        const component = findComponentById(tileData.componentId, components);
         if (!component) continue;
         
         const newTile: PlacedTile = {
@@ -721,7 +731,7 @@ export function SchematicEditor() {
       
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const tile of group.layoutData.tiles) {
-        const component = components.find(c => c.id === tile.componentId);
+        const component = findComponentById(tile.componentId, components);
         const tileWidth = component?.width || 1;
         const tileHeight = component?.height || 1;
         minX = Math.min(minX, tile.relativeX);
@@ -767,7 +777,7 @@ export function SchematicEditor() {
           const newTiles: PlacedTile[] = [];
           
           for (const tileData of group.layoutData.tiles) {
-            const component = components.find(c => c.id === tileData.componentId);
+            const component = findComponentById(tileData.componentId, components);
             if (!component) continue;
             
             const newTile: PlacedTile = {
@@ -821,7 +831,7 @@ export function SchematicEditor() {
           const newTiles: PlacedTile[] = [];
           
           for (const tileData of group.layoutData.tiles) {
-            const component = components.find(c => c.id === tileData.componentId);
+            const component = findComponentById(tileData.componentId, components);
             if (!component) continue;
             
             const newTile: PlacedTile = {
