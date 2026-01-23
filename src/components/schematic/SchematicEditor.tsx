@@ -251,13 +251,12 @@ export function SchematicEditor() {
   }, [selectedTileIds]);
 
   // Rotate selected tiles 90 degrees clockwise
-  // The connection points stay at the same absolute grid position,
-  // but the cell coordinates within the tile are recalculated
+  // The component is rotated visually using SVG transform, shapes stay unchanged
   // Connection blocks are NOT rotated - they maintain their absolute orientation
   const handleRotate = useCallback(() => {
     if (selectedTileIds.size === 0) return;
     
-    // For each selected tile, rotate its shapes and update connections
+    // For each selected tile, increment rotation by 90 degrees
     setTiles(prev => prev.map(tile => {
       if (!selectedTileIds.has(tile.id)) return tile;
       
@@ -265,111 +264,22 @@ export function SchematicEditor() {
       const isConnBlock = isConnectionBlock(tile.component);
       if (isConnBlock) {
         // Connection blocks maintain their absolute orientation
-        // They are not rotated with the component
         return tile;
       }
       
-      const width = tile.component.width || 1;
-      const height = tile.component.height || 1;
+      // Simply increment the rotation angle by 90 degrees
+      const currentRotation = tile.rotation || 0;
+      const newRotation = (currentRotation + 90) % 360;
       
-      // Rotate all shapes 90 degrees clockwise
-      const rotatedShapes = tile.component.shapes.map(shape => {
-        // Rotate around center (0.5, 0.5 in normalized coords)
-        // For 90° clockwise: (x, y) -> (y, 1-x) in normalized space
-        // But we need to account for component dimensions
-        const newX = shape.y * (height / width);
-        const newY = (1 - shape.x - shape.width) * (width / height);
-        const newWidth = shape.height * (height / width);
-        const newHeight = shape.width * (width / height);
-        
-        // Rotate line endpoints and polyline points
-        let newPoints = shape.points;
-        if (shape.points) {
-          newPoints = shape.points.map(p => ({
-            x: p.y * (height / width),
-            y: (1 - p.x) * (width / height)
-          }));
-        }
-        
-        // Rotate curve offset
-        let newCurveOffset = shape.curveOffset;
-        if (shape.curveOffset) {
-          newCurveOffset = {
-            x: shape.curveOffset.y * (height / width),
-            y: -shape.curveOffset.x * (width / height)
-          };
-        }
-        
-        return {
-          ...shape,
-          x: newX,
-          y: newY,
-          width: newWidth,
-          height: newHeight,
-          points: newPoints,
-          curveOffset: newCurveOffset,
-          rotation: ((shape.rotation || 0) + 90) % 360
-        };
-      });
-      
-      // Swap width and height for the component
       return {
         ...tile,
-        component: {
-          ...tile.component,
-          width: height,
-          height: width,
-          shapes: rotatedShapes
-        }
+        rotation: newRotation
       };
     }));
     
-    // Connections maintain their absolute position from the viewer's perspective
-    // The fromSide/toSide values stay the same (left stays left, right stays right, etc.)
-    // Only the cell coordinates within the rotated component need to be recalculated
-    // to point to the same absolute grid position
-    setConnections(prev => prev.map(conn => {
-      let newConn = { ...conn };
-      
-      // Check if fromTile is a non-connection-block that was rotated
-      const fromTile = tiles.find(t => t.id === conn.fromTileId);
-      if (fromTile && selectedTileIds.has(conn.fromTileId) && !isConnectionBlock(fromTile.component)) {
-        const oldHeight = fromTile.component.height || 1;
-        
-        // Rotate cell position 90° clockwise within the component: (x, y) -> (height-1-y, x)
-        // This keeps the connection at the same absolute grid position
-        const newCellX = oldHeight - 1 - conn.fromCellY;
-        const newCellY = conn.fromCellX;
-        
-        // The side stays the same from the viewer's absolute perspective
-        // (left connection stays on the left side of the grid, etc.)
-        newConn = {
-          ...newConn,
-          fromCellX: newCellX,
-          fromCellY: newCellY
-          // fromSide is NOT changed - it stays at its absolute position
-        };
-      }
-      
-      // Check if toTile is a non-connection-block that was rotated
-      const toTile = tiles.find(t => t.id === conn.toTileId);
-      if (toTile && selectedTileIds.has(conn.toTileId) && !isConnectionBlock(toTile.component)) {
-        const oldHeight = toTile.component.height || 1;
-        
-        const newCellX = oldHeight - 1 - conn.toCellY;
-        const newCellY = conn.toCellX;
-        
-        newConn = {
-          ...newConn,
-          toCellX: newCellX,
-          toCellY: newCellY
-          // toSide is NOT changed - it stays at its absolute position
-        };
-      }
-      
-      return newConn;
-    }));
-  }, [selectedTileIds, tiles]);
+    // Connections stay exactly as they are - the rotation is purely visual
+    // The connection points remain at their absolute grid positions
+  }, [selectedTileIds]);
 
   // Keyboard-Shortcuts für Undo/Redo und Rotation
   useEffect(() => {

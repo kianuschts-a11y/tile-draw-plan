@@ -154,6 +154,7 @@ export interface PlacedTile {
   component: Component;
   gridX: number; // Grid cell X position
   gridY: number; // Grid cell Y position
+  rotation?: number; // Rotation angle in degrees (0, 90, 180, 270)
 }
 
 interface CanvasProps {
@@ -1200,6 +1201,11 @@ export function Canvas({
           const compWidth = (tile.component.width || 1) * tileSize;
           const compHeight = (tile.component.height || 1) * tileSize;
           const isSelected = selectedTileIds.has(tile.id);
+          const rotation = tile.rotation || 0;
+          
+          // Calculate rotation center (center of the tile)
+          const centerX = compWidth / 2;
+          const centerY = compHeight / 2;
           
           // Check if any cell of this tile is in the connection path
           const isTileInPath = isConnecting && connectionPath.some(cell => {
@@ -1216,7 +1222,7 @@ export function Canvas({
               onMouseDown={(e) => handleTileMouseDown(e, tile)}
               style={{ cursor: activeTool === 'select' || activeTool === 'connect' || activeTool === 'disconnect' ? 'pointer' : 'inherit' }}
             >
-              {/* Tile background */}
+              {/* Tile background - not rotated */}
               <rect
                 width={compWidth}
                 height={compHeight}
@@ -1232,9 +1238,11 @@ export function Canvas({
                 }
                 strokeWidth={2}
               />
-              {/* Component shapes */}
-              {renderTileShapes(tile)}
-              {/* Connection lines */}
+              {/* Component shapes - rotated around center */}
+              <g transform={rotation !== 0 ? `rotate(${rotation}, ${centerX}, ${centerY})` : undefined}>
+                {renderTileShapes(tile)}
+              </g>
+              {/* Connection lines - NOT rotated, stay at absolute positions */}
               {renderConnectionLines(tile)}
             </g>
           );
