@@ -600,8 +600,8 @@ export function Canvas({
         // Bestehende Blöcke werden nur erweitert wenn der Pfad ÜBER sie verläuft.
         
         const tilesToRemove: Set<string> = new Set();
-        // Map von gridX,gridY -> Block für neue/aktualisierte Blöcke
-        const blockUpdates: Map<string, { component: Component; gridX: number; gridY: number }> = new Map();
+        // Map von gridX,gridY -> Block für neue/aktualisierte Blöcke (mit optionaler alter Tile-ID)
+        const blockUpdates: Map<string, { component: Component; gridX: number; gridY: number; oldTileId?: string }> = new Map();
         let updatedTiles = [...tiles];
         
         // Check each cell in the path for empty cells or existing connection blocks
@@ -631,21 +631,37 @@ export function Canvas({
             
             if (updatedBlock && updatedBlock.id !== tileInfo.tile.component.id) {
               // Block muss aktualisiert werden (z.B. Linie → T-Stück)
+              // Speichere die alte Tile-ID für spätere Connection-Aktualisierung
               tilesToRemove.add(tileInfo.tile.id);
-              blockUpdates.set(cellKey, { component: updatedBlock, gridX: cell.gridX, gridY: cell.gridY });
+              blockUpdates.set(cellKey, { 
+                component: updatedBlock, 
+                gridX: cell.gridX, 
+                gridY: cell.gridY,
+                oldTileId: tileInfo.tile.id  // Merke alte ID für Connection-Migration
+              });
             }
           }
         }
         
+        // Erstelle Mapping von alten zu neuen Tile-IDs
+        const oldToNewTileIdMap = new Map<string, string>();
+        
         // Remove tiles that need to be replaced, then add new tiles
         if (tilesToRemove.size > 0 || blockUpdates.size > 0) {
           updatedTiles = updatedTiles.filter(t => !tilesToRemove.has(t.id));
-          const newTilesToAdd: PlacedTile[] = Array.from(blockUpdates.values()).map(update => ({
-            id: generateTileId(),
-            component: update.component,
-            gridX: update.gridX,
-            gridY: update.gridY
-          }));
+          const newTilesToAdd: PlacedTile[] = Array.from(blockUpdates.values()).map(update => {
+            const newId = generateTileId();
+            // Speichere Mapping von alter zu neuer ID
+            if (update.oldTileId) {
+              oldToNewTileIdMap.set(update.oldTileId, newId);
+            }
+            return {
+              id: newId,
+              component: update.component,
+              gridX: update.gridX,
+              gridY: update.gridY
+            };
+          });
           updatedTiles = [...updatedTiles, ...newTilesToAdd];
           onTilesChange(updatedTiles);
         }
@@ -668,9 +684,22 @@ export function Canvas({
           return null;
         };
         
+        // Migriere bestehende Connections: ersetze alte Tile-IDs durch neue
+        let currentConnections = connections.map(conn => {
+          let updatedConn = { ...conn };
+          const newFromId = oldToNewTileIdMap.get(conn.fromTileId);
+          const newToId = oldToNewTileIdMap.get(conn.toTileId);
+          if (newFromId) {
+            updatedConn = { ...updatedConn, fromTileId: newFromId };
+          }
+          if (newToId) {
+            updatedConn = { ...updatedConn, toTileId: newToId };
+          }
+          return updatedConn;
+        });
+        
         // Collect all new connections to add at once
         const newConnectionsToAdd: CellConnection[] = [];
-        let currentConnections = [...connections];
         
         for (let i = 0; i < connectionPath.length - 1; i++) {
           const cell1 = connectionPath[i];
@@ -694,7 +723,7 @@ export function Canvas({
             );
             
             if (adjacency) {
-              // Remove existing connection between these cells
+              // Remove existing connection between these cells (auch mit alten IDs prüfen)
               currentConnections = currentConnections.filter(c => {
                 const matchesForward = c.fromTileId === tile1Info.tile.id && c.fromCellX === tile1Info.cellX && c.fromCellY === tile1Info.cellY &&
                                        c.toTileId === tile2Info.tile.id && c.toCellX === tile2Info.cellX && c.toCellY === tile2Info.cellY;
@@ -720,8 +749,8 @@ export function Canvas({
           }
         }
         
-        // Update connections once with all new connections
-        if (newConnectionsToAdd.length > 0) {
+        // Update connections once with all new connections + migrated old connections
+        if (newConnectionsToAdd.length > 0 || oldToNewTileIdMap.size > 0) {
           onConnectionsChange([...currentConnections, ...newConnectionsToAdd]);
         }
       } else if (activeTool === 'disconnect') {
