@@ -3,6 +3,7 @@ import {
   MousePointer2, 
   Trash2,
   RotateCcw,
+  RotateCw,
   ZoomIn,
   ZoomOut,
   Link2,
@@ -63,6 +64,9 @@ interface ToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  // Rotation
+  onRotate: () => void;
+  canRotate: boolean;
 }
 
 export function Toolbar({
@@ -85,7 +89,9 @@ export function Toolbar({
   onUndo,
   onRedo,
   canUndo,
-  canRedo
+  canRedo,
+  onRotate,
+  canRotate
 }: ToolbarProps) {
   const [groupName, setGroupName] = useState("");
 
@@ -152,6 +158,14 @@ export function Toolbar({
         isActive={activeTool === 'disconnect'}
         onClick={() => onToolChange('disconnect')}
         disabled={isGroupMode}
+      />
+      
+      <ToolButton
+        icon={RotateCw}
+        label="Komponente drehen (90°)"
+        shortcut="R"
+        onClick={onRotate}
+        disabled={!canRotate || isGroupMode}
       />
       
       <Separator className="my-1 w-8" />
