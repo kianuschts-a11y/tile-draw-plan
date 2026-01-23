@@ -508,29 +508,48 @@ export function SchematicEditor() {
     const selectedTiles = tiles.filter(t => selectedTileIds.has(t.id));
     if (selectedTiles.length < 2) return;
     
-    // Get all tile IDs that are involved in connections between selected tiles
-    // This includes connection blocks that may not be directly selected but link selected tiles
-    const selectedTileIdSet = new Set(selectedTileIds);
+    // Calculate bounding box of selected tiles
+    let minBoundX = Infinity, maxBoundX = -Infinity;
+    let minBoundY = Infinity, maxBoundY = -Infinity;
     
-    // Find all connections where at least one end is a selected tile
-    const potentialConnections = connections.filter(c => 
-      selectedTileIdSet.has(c.fromTileId) || selectedTileIdSet.has(c.toTileId)
-    );
+    for (const tile of selectedTiles) {
+      const tileWidth = tile.component.width || 1;
+      const tileHeight = tile.component.height || 1;
+      minBoundX = Math.min(minBoundX, tile.gridX);
+      maxBoundX = Math.max(maxBoundX, tile.gridX + tileWidth - 1);
+      minBoundY = Math.min(minBoundY, tile.gridY);
+      maxBoundY = Math.max(maxBoundY, tile.gridY + tileHeight - 1);
+    }
     
-    // Build a set of all tiles we need to include (selected + intermediate connection blocks)
+    // Start with all selected tiles
     const allRelevantTileIds = new Set(selectedTileIds);
     
-    // For each connection, if both endpoints eventually connect to selected tiles, include intermediate tiles
-    // First pass: add connection blocks that directly connect two selected tiles
-    for (const conn of potentialConnections) {
-      if (selectedTileIdSet.has(conn.fromTileId) && selectedTileIdSet.has(conn.toTileId)) {
-        allRelevantTileIds.add(conn.fromTileId);
-        allRelevantTileIds.add(conn.toTileId);
+    // Add all connection blocks that fall within the bounding box of selected tiles
+    // This ensures "free" connection blocks in the selection area are included
+    for (const tile of tiles) {
+      if (allRelevantTileIds.has(tile.id)) continue;
+      
+      if (isConnectionBlock(tile.component)) {
+        const tileWidth = tile.component.width || 1;
+        const tileHeight = tile.component.height || 1;
+        
+        // Check if connection block is within or overlaps the bounding box
+        const tileMinX = tile.gridX;
+        const tileMaxX = tile.gridX + tileWidth - 1;
+        const tileMinY = tile.gridY;
+        const tileMaxY = tile.gridY + tileHeight - 1;
+        
+        const overlapsX = tileMinX <= maxBoundX && tileMaxX >= minBoundX;
+        const overlapsY = tileMinY <= maxBoundY && tileMaxY >= minBoundY;
+        
+        if (overlapsX && overlapsY) {
+          allRelevantTileIds.add(tile.id);
+        }
       }
     }
     
-    // Second pass: find connection blocks between selected tiles
-    // A connection block is relevant if it's connected to selected tiles on both sides
+    // Also include connection blocks that are connected in a chain from selected tiles
+    // This handles cases where connections extend beyond the bounding box but are still part of the group
     let changed = true;
     while (changed) {
       changed = false;
@@ -538,16 +557,18 @@ export function SchematicEditor() {
         const fromIncluded = allRelevantTileIds.has(conn.fromTileId);
         const toIncluded = allRelevantTileIds.has(conn.toTileId);
         
-        // If one end is included, check if the other end leads to a selected tile
+        // If one end is included and the other is a connection block connected to another included tile
         if (fromIncluded && !toIncluded) {
           const toTile = tiles.find(t => t.id === conn.toTileId);
           if (toTile && isConnectionBlock(toTile.component)) {
-            // Check if this connection block connects to any selected tile
-            const connectedToSelected = connections.some(c2 => 
-              (c2.fromTileId === conn.toTileId && selectedTileIdSet.has(c2.toTileId)) ||
-              (c2.toTileId === conn.toTileId && selectedTileIdSet.has(c2.fromTileId))
+            // Check if this connection block connects to any already included tile
+            const connectedToIncluded = connections.some(c2 => 
+              c2 !== conn && (
+                (c2.fromTileId === conn.toTileId && allRelevantTileIds.has(c2.toTileId)) ||
+                (c2.toTileId === conn.toTileId && allRelevantTileIds.has(c2.fromTileId))
+              )
             );
-            if (connectedToSelected) {
+            if (connectedToIncluded) {
               allRelevantTileIds.add(conn.toTileId);
               changed = true;
             }
@@ -555,11 +576,13 @@ export function SchematicEditor() {
         } else if (!fromIncluded && toIncluded) {
           const fromTile = tiles.find(t => t.id === conn.fromTileId);
           if (fromTile && isConnectionBlock(fromTile.component)) {
-            const connectedToSelected = connections.some(c2 => 
-              (c2.fromTileId === conn.fromTileId && selectedTileIdSet.has(c2.toTileId)) ||
-              (c2.toTileId === conn.fromTileId && selectedTileIdSet.has(c2.fromTileId))
+            const connectedToIncluded = connections.some(c2 => 
+              c2 !== conn && (
+                (c2.fromTileId === conn.fromTileId && allRelevantTileIds.has(c2.toTileId)) ||
+                (c2.toTileId === conn.fromTileId && allRelevantTileIds.has(c2.fromTileId))
+              )
             );
-            if (connectedToSelected) {
+            if (connectedToIncluded) {
               allRelevantTileIds.add(conn.fromTileId);
               changed = true;
             }
