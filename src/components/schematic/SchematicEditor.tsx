@@ -8,6 +8,7 @@ import { PaperSettings } from "./PaperSettings";
 import { ComponentEditorDialog } from "./ComponentEditorDialog";
 import { ComponentSelectorDialog } from "./ComponentSelectorDialog";
 import { TitleBlockEditor } from "./TitleBlockEditor";
+import { HeaderActions } from "./HeaderActions";
 import { BillOfMaterials } from "./BillOfMaterials";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
@@ -924,6 +925,27 @@ export function SchematicEditor() {
     }
   }, [tiles, components, generateNewId]);
 
+  // Handle arrow direction toggle on connection
+  const handleConnectionArrowToggle = useCallback((connectionId: string) => {
+    setConnections(prev => prev.map(conn => {
+      if (conn.id !== connectionId) return conn;
+      
+      // Cycle through: none -> forward -> backward -> none
+      const currentDirection = conn.arrowDirection || 'none';
+      let newDirection: 'none' | 'forward' | 'backward';
+      
+      if (currentDirection === 'none') {
+        newDirection = 'forward';
+      } else if (currentDirection === 'forward') {
+        newDirection = 'backward';
+      } else {
+        newDirection = 'none';
+      }
+      
+      return { ...conn, arrowDirection: newDirection };
+    }));
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
@@ -931,6 +953,7 @@ export function SchematicEditor() {
         case 'v': setActiveTool('select'); break;
         case 'c': setActiveTool('connect'); break;
         case 'x': setActiveTool('disconnect'); break;
+        case 'a': setActiveTool('arrow'); break;
         case '+': case '=': handleZoomIn(); break;
         case '-': handleZoomOut(); break;
         case '0': handleResetView(); break;
@@ -978,6 +1001,13 @@ export function SchematicEditor() {
           onEditTitleBlock={() => setIsTitleBlockEditorOpen(true)}
         />
         <div className="flex-1" />
+        <HeaderActions
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onResetView={handleResetView}
+          onExport={handleExport}
+          onOpenBOM={() => setIsBOMOpen(true)}
+        />
         <div className="h-8 w-px bg-border mx-2" />
         <Button
           variant="default"
@@ -1029,12 +1059,7 @@ export function SchematicEditor() {
         <Toolbar
           activeTool={activeTool}
           onToolChange={setActiveTool}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
-          onResetView={handleResetView}
           onDelete={handleDelete}
-          onExport={handleExport}
-          onOpenBOM={() => setIsBOMOpen(true)}
           hasSelection={selectedTileIds.size > 0}
           connectionColor={connectionColor}
           onConnectionColorChange={setConnectionColor}
@@ -1077,6 +1102,7 @@ export function SchematicEditor() {
             onDropGroup={handleDropGroup}
             onConnectionsChange={setConnections}
             onDragEnd={handleDragEnd}
+            onConnectionArrowToggle={handleConnectionArrowToggle}
           />
         </div>
 

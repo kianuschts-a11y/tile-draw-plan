@@ -103,6 +103,8 @@ export interface CellConnection {
   toSide: 'left' | 'right' | 'top' | 'bottom';
   // Connection line color (default: black)
   color?: string;
+  // Arrow direction: 'none' (default), 'forward' (from->to), 'backward' (to->from)
+  arrowDirection?: 'none' | 'forward' | 'backward';
 }
 
 // Legacy - keeping for compatibility but will be phased out
