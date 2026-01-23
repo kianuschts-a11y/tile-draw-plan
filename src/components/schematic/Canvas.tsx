@@ -1326,7 +1326,7 @@ export function Canvas({
             angle += 180;
           }
           
-          const arrowSize = tileSize * 0.25;
+          const arrowSize = tileSize * 0.15;
           const strokeWidth = tileSize * 0.04;
           const color = conn.color || '#000000';
           
