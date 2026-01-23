@@ -324,57 +324,46 @@ export function SchematicEditor() {
       };
     }));
     
-    // Update connections - cell positions need to be rotated within each tile
+    // Connections maintain their absolute position from the viewer's perspective
+    // The fromSide/toSide values stay the same (left stays left, right stays right, etc.)
+    // Only the cell coordinates within the rotated component need to be recalculated
+    // to point to the same absolute grid position
     setConnections(prev => prev.map(conn => {
       let newConn = { ...conn };
       
-      // Rotate "from" cell if tile is selected
+      // Check if fromTile is a non-connection-block that was rotated
       const fromTile = tiles.find(t => t.id === conn.fromTileId);
-      if (fromTile && selectedTileIds.has(conn.fromTileId)) {
-        const oldWidth = fromTile.component.width || 1;
+      if (fromTile && selectedTileIds.has(conn.fromTileId) && !isConnectionBlock(fromTile.component)) {
         const oldHeight = fromTile.component.height || 1;
         
-        // Rotate cell position 90° clockwise: (x, y) -> (height-1-y, x)
+        // Rotate cell position 90° clockwise within the component: (x, y) -> (height-1-y, x)
+        // This keeps the connection at the same absolute grid position
         const newCellX = oldHeight - 1 - conn.fromCellY;
         const newCellY = conn.fromCellX;
         
-        // Rotate the side: left->top, top->right, right->bottom, bottom->left
-        const sideMap: Record<string, 'left' | 'right' | 'top' | 'bottom'> = {
-          'left': 'top',
-          'top': 'right',
-          'right': 'bottom',
-          'bottom': 'left'
-        };
-        
+        // The side stays the same from the viewer's absolute perspective
+        // (left connection stays on the left side of the grid, etc.)
         newConn = {
           ...newConn,
           fromCellX: newCellX,
-          fromCellY: newCellY,
-          fromSide: sideMap[conn.fromSide]
+          fromCellY: newCellY
+          // fromSide is NOT changed - it stays at its absolute position
         };
       }
       
-      // Rotate "to" cell if tile is selected
+      // Check if toTile is a non-connection-block that was rotated
       const toTile = tiles.find(t => t.id === conn.toTileId);
-      if (toTile && selectedTileIds.has(conn.toTileId)) {
-        const oldWidth = toTile.component.width || 1;
+      if (toTile && selectedTileIds.has(conn.toTileId) && !isConnectionBlock(toTile.component)) {
         const oldHeight = toTile.component.height || 1;
         
         const newCellX = oldHeight - 1 - conn.toCellY;
         const newCellY = conn.toCellX;
         
-        const sideMap: Record<string, 'left' | 'right' | 'top' | 'bottom'> = {
-          'left': 'top',
-          'top': 'right',
-          'right': 'bottom',
-          'bottom': 'left'
-        };
-        
         newConn = {
           ...newConn,
           toCellX: newCellX,
-          toCellY: newCellY,
-          toSide: sideMap[conn.toSide]
+          toCellY: newCellY
+          // toSide is NOT changed - it stays at its absolute position
         };
       }
       
