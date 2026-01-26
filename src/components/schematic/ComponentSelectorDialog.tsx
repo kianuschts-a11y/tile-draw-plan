@@ -293,7 +293,7 @@ export function ComponentSelectorDialog({
     return requirements;
   }, [isConnectionBlock]);
 
-  // Check if a group can be fulfilled with given component quantities
+  // Check if a group can be fulfilled with given component quantities (full match)
   // Uses excludeConnections=true to ignore connection blocks when matching
   const canFulfillGroup = useCallback((
     group: ComponentGroup,
@@ -321,31 +321,85 @@ export function ComponentSelectorDialog({
     return { possible: true, maxCount: maxPossible === Infinity ? 0 : maxPossible };
   }, [getGroupComponentRequirements]);
 
-  // Find all matching groups with how many times they can be used
+  // Calculate partial match percentage for a group
+  const calculateGroupMatchPercentage = useCallback((
+    group: ComponentGroup,
+    availableComponents: Map<string, number>
+  ): { matchPercent: number; matchingComponents: number; totalComponents: number } => {
+    const requirements = getGroupComponentRequirements(group, true);
+    
+    if (requirements.size === 0) {
+      return { matchPercent: 0, matchingComponents: 0, totalComponents: 0 };
+    }
+    
+    let matchingComponents = 0;
+    let totalComponents = 0;
+    
+    for (const [componentId, needed] of requirements.entries()) {
+      totalComponents += needed;
+      const available = availableComponents.get(componentId) || 0;
+      matchingComponents += Math.min(available, needed);
+    }
+    
+    return {
+      matchPercent: totalComponents > 0 ? Math.round((matchingComponents / totalComponents) * 100) : 0,
+      matchingComponents,
+      totalComponents
+    };
+  }, [getGroupComponentRequirements]);
+
+  // Find all matching groups - now shows partial matches too!
   const matchingGroups = useMemo((): GroupSuggestion[] => {
     if (quantities.size === 0) return [];
     
     const suggestions: GroupSuggestion[] = [];
     
     for (const group of groups) {
-      const { possible, maxCount } = canFulfillGroup(group, quantities);
-      if (possible && maxCount > 0) {
-        // For coverage calculation, only count non-connection components
-        const requirements = getGroupComponentRequirements(group, true);
-        const totalGroupComponents = Array.from(requirements.values()).reduce((a, b) => a + b, 0);
-        const totalProjectComponents = Array.from(quantities.values()).reduce((a, b) => a + b, 0);
-        
-        suggestions.push({
-          group,
-          possibleCount: maxCount,
-          usedComponents: requirements,
-          coveragePercent: Math.round((totalGroupComponents / totalProjectComponents) * 100)
-        });
+      const requirements = getGroupComponentRequirements(group, true);
+      
+      // Skip groups with no non-connection components
+      if (requirements.size === 0) continue;
+      
+      // Check for any overlap with selected components
+      let hasAnyOverlap = false;
+      for (const [componentId] of requirements.entries()) {
+        if ((quantities.get(componentId) || 0) > 0) {
+          hasAnyOverlap = true;
+          break;
+        }
       }
+      
+      // Only show groups that have at least one matching component
+      if (!hasAnyOverlap) continue;
+      
+      // Check if fully fulfillable
+      const { possible, maxCount } = canFulfillGroup(group, quantities);
+      
+      // Calculate match percentage
+      const { matchPercent } = calculateGroupMatchPercentage(group, quantities);
+      
+      const totalGroupComponents = Array.from(requirements.values()).reduce((a, b) => a + b, 0);
+      const totalProjectComponents = Array.from(quantities.values()).reduce((a, b) => a + b, 0);
+      
+      suggestions.push({
+        group,
+        possibleCount: possible ? maxCount : 0, // 0 if not fully fulfillable
+        usedComponents: requirements,
+        coveragePercent: possible 
+          ? Math.round((totalGroupComponents / totalProjectComponents) * 100)
+          : matchPercent // For partial matches, show how much of the group is covered
+      });
     }
     
-    return suggestions.sort((a, b) => b.coveragePercent - a.coveragePercent);
-  }, [quantities, groups, canFulfillGroup, getGroupComponentRequirements]);
+    // Sort: 100% matches first (possibleCount > 0), then by coverage percentage
+    return suggestions.sort((a, b) => {
+      // Fully fulfillable groups first
+      if (a.possibleCount > 0 && b.possibleCount === 0) return -1;
+      if (a.possibleCount === 0 && b.possibleCount > 0) return 1;
+      // Then by coverage percentage
+      return b.coveragePercent - a.coveragePercent;
+    });
+  }, [quantities, groups, canFulfillGroup, getGroupComponentRequirements, calculateGroupMatchPercentage]);
 
   // Helper to subtract group requirements from a component map
   const subtractGroupFromComponents = useCallback((
@@ -453,7 +507,8 @@ export function ComponentSelectorDialog({
     Array.from(quantities.values()).reduce((a, b) => a + b, 0)
   , [quantities]);
 
-  const hasExactMatch = matchingGroups.some(g => g.coveragePercent === 100);
+  // Check for fully fulfillable 100% matches (possibleCount > 0 means all components are available)
+  const hasExactMatch = matchingGroups.some(g => g.possibleCount > 0 && g.coveragePercent === 100);
   const hasExactCombinationMatch = complementaryGroupSets.some(s => s.totalCoverage === 100);
   
   // Split complementary sets into exact (100%) and partial
@@ -658,7 +713,7 @@ export function ComponentSelectorDialog({
                 </p>
               ) : matchingGroups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Keine passenden Gruppen gefunden. Alle Komponenten einer Gruppe müssen vorhanden sein.
+                  Keine Gruppen gefunden, die mindestens eine der gewählten Komponenten enthalten.
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -670,8 +725,8 @@ export function ComponentSelectorDialog({
                         100% Übereinstimmung
                       </div>
                       
-                      {/* Single groups with 100% */}
-                      {matchingGroups.filter(g => g.coveragePercent === 100).map(suggestion => (
+                      {/* Single groups with 100% (fully fulfillable) */}
+                      {matchingGroups.filter(g => g.possibleCount > 0 && g.coveragePercent === 100).map(suggestion => (
                         <div
                           key={suggestion.group.id}
                           className="p-2 rounded-lg border border-green-500/50 bg-green-500/10 space-y-2"
@@ -736,7 +791,7 @@ export function ComponentSelectorDialog({
                   )}
                   
                   {/* All partial matches (single groups and combinations) sorted by percentage */}
-                  {(matchingGroups.filter(g => g.coveragePercent < 100).length > 0 || partialCombinations.length > 0) && (
+                  {(matchingGroups.filter(g => !(g.possibleCount > 0 && g.coveragePercent === 100)).length > 0 || partialCombinations.length > 0) && (
                     <div className="space-y-2">
                       <div className="text-xs text-muted-foreground font-medium">
                         Teilweise Übereinstimmung
@@ -751,7 +806,8 @@ export function ComponentSelectorDialog({
                         
                         const items: DisplayItem[] = [
                           ...matchingGroups
-                            .filter(g => g.coveragePercent < 100)
+                            // Exclude 100% fully fulfillable groups (already shown above)
+                            .filter(g => !(g.possibleCount > 0 && g.coveragePercent === 100))
                             .map(g => ({ type: 'single' as const, suggestion: g, coverage: g.coveragePercent })),
                           ...partialCombinations
                             .map(s => ({ type: 'combo' as const, set: s, coverage: s.totalCoverage }))
@@ -764,6 +820,7 @@ export function ComponentSelectorDialog({
                         return items.slice(0, 10).map((item, idx) => {
                           if (item.type === 'single') {
                             const suggestion = item.suggestion;
+                            const isPartiallyFulfillable = suggestion.possibleCount > 0;
                             return (
                               <div
                                 key={`single-${suggestion.group.id}`}
@@ -779,18 +836,26 @@ export function ComponentSelectorDialog({
                                   </Badge>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">
-                                    Max: {suggestion.possibleCount}x
-                                  </span>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 text-xs ml-auto gap-1"
-                                    onClick={() => handleInsertGroup(suggestion.group, 1)}
-                                  >
-                                    <ArrowRight className="w-3 h-3" />
-                                    Einfügen
-                                  </Button>
+                                  {isPartiallyFulfillable ? (
+                                    <>
+                                      <span className="text-xs text-muted-foreground">
+                                        Verfügbar: {suggestion.possibleCount}x
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-xs ml-auto gap-1"
+                                        onClick={() => handleInsertGroup(suggestion.group, 1)}
+                                      >
+                                        <ArrowRight className="w-3 h-3" />
+                                        Einfügen
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground italic">
+                                      Komponenten fehlen
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             );
