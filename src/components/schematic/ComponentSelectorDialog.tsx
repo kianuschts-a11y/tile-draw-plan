@@ -264,29 +264,48 @@ export function ComponentSelectorDialog({
     onOpenChange(false);
   };
 
-  // Get component requirements from a group
-  const getGroupComponentRequirements = useCallback((group: ComponentGroup): Map<string, number> => {
+  // Check if a component ID is a connection block (should be ignored in matching)
+  const isConnectionBlock = useCallback((componentId: string): boolean => {
+    return componentId.startsWith('connection-');
+  }, []);
+
+  // Get component requirements from a group (excluding connection blocks for matching purposes)
+  const getGroupComponentRequirements = useCallback((group: ComponentGroup, excludeConnections: boolean = false): Map<string, number> => {
     const requirements = new Map<string, number>();
     
     if (group.layoutData?.tiles && group.layoutData.tiles.length > 0) {
       for (const tile of group.layoutData.tiles) {
+        // Skip connection blocks when matching against project components
+        if (excludeConnections && isConnectionBlock(tile.componentId)) {
+          continue;
+        }
         requirements.set(tile.componentId, (requirements.get(tile.componentId) || 0) + 1);
       }
     } else {
       for (const id of group.componentIds) {
+        if (excludeConnections && isConnectionBlock(id)) {
+          continue;
+        }
         requirements.set(id, (requirements.get(id) || 0) + 1);
       }
     }
     
     return requirements;
-  }, []);
+  }, [isConnectionBlock]);
 
   // Check if a group can be fulfilled with given component quantities
+  // Uses excludeConnections=true to ignore connection blocks when matching
   const canFulfillGroup = useCallback((
     group: ComponentGroup,
     availableComponents: Map<string, number>
   ): { possible: boolean; maxCount: number } => {
-    const requirements = getGroupComponentRequirements(group);
+    // For matching, exclude connection blocks - they are auto-included with groups
+    const requirements = getGroupComponentRequirements(group, true);
+    
+    // If the group has no non-connection components, skip it
+    if (requirements.size === 0) {
+      return { possible: false, maxCount: 0 };
+    }
     
     let maxPossible = Infinity;
     
@@ -311,7 +330,8 @@ export function ComponentSelectorDialog({
     for (const group of groups) {
       const { possible, maxCount } = canFulfillGroup(group, quantities);
       if (possible && maxCount > 0) {
-        const requirements = getGroupComponentRequirements(group);
+        // For coverage calculation, only count non-connection components
+        const requirements = getGroupComponentRequirements(group, true);
         const totalGroupComponents = Array.from(requirements.values()).reduce((a, b) => a + b, 0);
         const totalProjectComponents = Array.from(quantities.values()).reduce((a, b) => a + b, 0);
         
@@ -443,7 +463,8 @@ export function ComponentSelectorDialog({
   const handleInsertGroup = (group: ComponentGroup, count: number = 1) => {
     onInsertGroup(group, count);
     
-    const requirements = getGroupComponentRequirements(group);
+    // When updating quantities, only subtract non-connection components
+    const requirements = getGroupComponentRequirements(group, true);
     setQuantities(prev => {
       const next = new Map(prev);
       for (const [compId, needed] of requirements.entries()) {
