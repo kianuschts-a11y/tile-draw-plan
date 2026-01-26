@@ -193,15 +193,24 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
         }
       }
       
+      // refScale muss konsistent mit handleSave berechnet werden
+      const loadRefScale = Math.min(loadCanvasWidth, loadCanvasHeight);
+      
       const denormalizedShapes = editingComponent.shapes.map(s => ({
         ...s,
         x: s.x * loadCanvasWidth,
         y: s.y * loadCanvasHeight,
         width: s.width * loadCanvasWidth,
         height: s.height * loadCanvasHeight,
-        strokeWidth: s.strokeWidth ? s.strokeWidth * baseCanvasSize : 2,
-        fontSize: s.fontSize ? s.fontSize * baseCanvasSize : undefined,
-        arrowSize: s.arrowSize ? s.arrowSize * baseCanvasSize : undefined,
+        // Alle Größen mit refScale skalieren (konsistent mit handleSave)
+        strokeWidth: s.strokeWidth ? s.strokeWidth * loadRefScale : 2,
+        fontSize: s.fontSize ? s.fontSize * loadRefScale : undefined,
+        arrowSize: s.arrowSize ? s.arrowSize * loadRefScale : undefined,
+        // curveOffset mit Canvas-Größe skalieren
+        curveOffset: s.curveOffset ? {
+          x: s.curveOffset.x * loadCanvasWidth,
+          y: s.curveOffset.y * loadCanvasHeight
+        } : undefined,
         points: s.points?.map(p => ({ x: p.x * loadCanvasWidth, y: p.y * loadCanvasHeight }))
       }));
       
@@ -894,9 +903,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
 
   const handleSave = () => {
     if (shapes.length === 0) return;
-    // Normalisiere immer auf Basis der baseCanvasSize (300px), 
-    // damit alle Formen unabhängig von der Tile-Größe gleich skaliert werden
-    // Wir verwenden die tatsächliche Canvas-Größe für die Normalisierung
+    // Normalisiere alle Koordinaten und Größen auf 0-1 Bereich
+    // WICHTIG: Alle Werte müssen konsistent mit derselben Referenz (canvasWidth/canvasHeight) normalisiert werden
+    const refScale = Math.min(canvasWidth, canvasHeight);
     const normalizedShapes = shapes.map(s => ({
       ...s,
       // Normalisiere auf 0-1 Bereich relativ zur jeweiligen Achse
@@ -904,12 +913,16 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       y: s.y / canvasHeight,
       width: s.width / canvasWidth,
       height: s.height / canvasHeight,
-      // Speichere strokeWidth als Bruchteil der Canvas-Breite für proportionale Skalierung
-      strokeWidth: s.strokeWidth ? s.strokeWidth / baseCanvasSize : undefined,
-      // Speichere fontSize als Bruchteil der Canvas-Breite für proportionale Skalierung  
-      fontSize: s.fontSize ? s.fontSize / baseCanvasSize : undefined,
-      // Speichere arrowSize als Bruchteil der Canvas-Breite
-      arrowSize: s.arrowSize ? s.arrowSize / baseCanvasSize : undefined,
+      // Alle anderen Größen (strokeWidth, fontSize, arrowSize) werden mit refScale normalisiert
+      // um konsistente Skalierung bei unterschiedlichen Seitenverhältnissen zu gewährleisten
+      strokeWidth: s.strokeWidth ? s.strokeWidth / refScale : undefined,
+      fontSize: s.fontSize ? s.fontSize / refScale : undefined,
+      arrowSize: s.arrowSize ? s.arrowSize / refScale : undefined,
+      // curveOffset relativ zur Canvas-Größe speichern
+      curveOffset: s.curveOffset ? { 
+        x: s.curveOffset.x / canvasWidth, 
+        y: s.curveOffset.y / canvasHeight 
+      } : undefined,
       points: s.points?.map(p => ({ x: p.x / canvasWidth, y: p.y / canvasHeight }))
     }));
     
