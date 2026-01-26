@@ -166,8 +166,32 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       
       const loadTileConfig = TILE_SIZES[editingComponent.tileSize || '1x1'];
       const loadAspectRatio = loadTileConfig.cols / loadTileConfig.rows;
-      const loadCanvasWidth = loadAspectRatio >= 1 ? baseCanvasSize * loadAspectRatio : baseCanvasSize;
-      const loadCanvasHeight = loadAspectRatio < 1 ? baseCanvasSize / loadAspectRatio : baseCanvasSize;
+      
+      // Use the same canvas calculation logic as the display
+      // This ensures shapes load at the same positions they were saved
+      let loadCanvasWidth: number;
+      let loadCanvasHeight: number;
+      
+      const loadComponentTileSize = editingComponent.tileSize || '1x1';
+      if (loadComponentTileSize === '5x1' || loadComponentTileSize === '10x1') {
+        loadCanvasWidth = baseCanvasSize * loadAspectRatio;
+        loadCanvasHeight = baseCanvasSize;
+        const effectiveMaxWidth = maxCanvasWidth - 20;
+        if (loadCanvasWidth > effectiveMaxWidth) {
+          const scale = effectiveMaxWidth / loadCanvasWidth;
+          loadCanvasWidth = effectiveMaxWidth;
+          loadCanvasHeight = loadCanvasHeight * scale;
+        }
+      } else {
+        const displayBaseSize = 280;
+        if (loadAspectRatio >= 1) {
+          loadCanvasWidth = Math.min(maxCanvasWidth, displayBaseSize * loadAspectRatio);
+          loadCanvasHeight = loadCanvasWidth / loadAspectRatio;
+        } else {
+          loadCanvasHeight = displayBaseSize;
+          loadCanvasWidth = loadCanvasHeight * loadAspectRatio;
+        }
+      }
       
       const denormalizedShapes = editingComponent.shapes.map(s => ({
         ...s,
