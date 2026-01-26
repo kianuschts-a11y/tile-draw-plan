@@ -327,69 +327,118 @@ export function ComponentSelectorDialog({
     return suggestions.sort((a, b) => b.coveragePercent - a.coveragePercent);
   }, [quantities, groups, canFulfillGroup, getGroupComponentRequirements]);
 
-  // Find complementary group combinations that together cover more components
+  // Helper to subtract group requirements from a component map
+  const subtractGroupFromComponents = useCallback((
+    components: Map<string, number>,
+    groupRequirements: Map<string, number>
+  ): Map<string, number> => {
+    const result = new Map(components);
+    for (const [compId, needed] of groupRequirements.entries()) {
+      const current = result.get(compId) || 0;
+      if (current - needed <= 0) {
+        result.delete(compId);
+      } else {
+        result.set(compId, current - needed);
+      }
+    }
+    return result;
+  }, []);
+
+  // Calculate coverage percentage for a set of groups
+  const calculateSetCoverage = useCallback((
+    groupsInSet: GroupSuggestion[],
+    totalProjectComponents: number
+  ): number => {
+    let totalGroupComponents = 0;
+    for (const g of groupsInSet) {
+      const groupComps = Array.from(g.usedComponents.values()).reduce((a, b) => a + b, 0);
+      totalGroupComponents += groupComps * g.possibleCount;
+    }
+    return Math.min(100, Math.round((totalGroupComponents / totalProjectComponents) * 100));
+  }, []);
+
+  // Find ALL complementary group combinations (2, 3, or more groups)
   const complementaryGroupSets = useMemo((): ComplementaryGroupSet[] => {
     if (matchingGroups.length < 2) return [];
     
     const sets: ComplementaryGroupSet[] = [];
+    const totalProjectComponents = Array.from(quantities.values()).reduce((a, b) => a + b, 0);
+    if (totalProjectComponents === 0) return [];
     
-    // Try to find groups that complement each other
-    for (let i = 0; i < Math.min(matchingGroups.length, 3); i++) {
-      const firstGroup = matchingGroups[i];
-      const tempRemaining = new Map(quantities);
+    // Recursive function to find all valid combinations
+    const findCombinations = (
+      startIndex: number,
+      currentGroups: GroupSuggestion[],
+      remainingComponents: Map<string, number>,
+      depth: number
+    ) => {
+      // Limit depth to prevent combinatorial explosion (max 4 groups)
+      if (depth > 4) return;
       
-      // Subtract first group's requirements
-      for (const [compId, needed] of firstGroup.usedComponents.entries()) {
-        const current = tempRemaining.get(compId) || 0;
-        if (current - needed <= 0) {
-          tempRemaining.delete(compId);
-        } else {
-          tempRemaining.set(compId, current - needed);
-        }
-      }
-      
-      // Check if remaining components can form another group
-      for (let j = 0; j < matchingGroups.length; j++) {
-        if (i === j) continue;
-        
-        const secondGroup = matchingGroups[j];
-        const { possible, maxCount } = canFulfillGroup(secondGroup.group, tempRemaining);
+      for (let i = startIndex; i < matchingGroups.length; i++) {
+        const candidateGroup = matchingGroups[i];
+        const { possible, maxCount } = canFulfillGroup(candidateGroup.group, remainingComponents);
         
         if (possible && maxCount > 0) {
-          const totalCoverage = firstGroup.coveragePercent + secondGroup.coveragePercent;
+          // Use 1 instance of this group
+          const newRemaining = subtractGroupFromComponents(remainingComponents, candidateGroup.usedComponents);
+          const newGroups = [...currentGroups, { ...candidateGroup, possibleCount: 1 }];
           
-          const finalRemaining = new Map(tempRemaining);
-          for (const [compId, needed] of secondGroup.usedComponents.entries()) {
-            const current = finalRemaining.get(compId) || 0;
-            if (current - needed <= 0) {
-              finalRemaining.delete(compId);
-            } else {
-              finalRemaining.set(compId, current - needed);
-            }
+          const coverage = calculateSetCoverage(newGroups, totalProjectComponents);
+          
+          // Only add combinations with 2+ groups
+          if (newGroups.length >= 2) {
+            sets.push({
+              groups: newGroups,
+              totalCoverage: coverage,
+              remainingComponents: newRemaining
+            });
           }
           
-          sets.push({
-            groups: [
-              { ...firstGroup, possibleCount: 1 },
-              { ...secondGroup, possibleCount: 1 }
-            ],
-            totalCoverage: Math.min(100, totalCoverage),
-            remainingComponents: finalRemaining
-          });
+          // Continue searching for more groups (only if there are remaining components)
+          if (newRemaining.size > 0) {
+            findCombinations(i + 1, newGroups, newRemaining, depth + 1);
+          }
         }
+      }
+    };
+    
+    // Start combinations from each group
+    for (let i = 0; i < matchingGroups.length; i++) {
+      const firstGroup = matchingGroups[i];
+      const remainingAfterFirst = subtractGroupFromComponents(quantities, firstGroup.usedComponents);
+      findCombinations(i + 1, [{ ...firstGroup, possibleCount: 1 }], remainingAfterFirst, 1);
+    }
+    
+    // Remove duplicates (same groups in different order) by creating a unique key
+    const uniqueSets = new Map<string, ComplementaryGroupSet>();
+    for (const set of sets) {
+      const key = set.groups.map(g => g.group.id).sort().join('|');
+      if (!uniqueSets.has(key) || uniqueSets.get(key)!.totalCoverage < set.totalCoverage) {
+        uniqueSets.set(key, set);
       }
     }
     
-    return sets
-      .sort((a, b) => b.totalCoverage - a.totalCoverage)
-      .slice(0, 3);
-  }, [matchingGroups, quantities, canFulfillGroup]);
+    return Array.from(uniqueSets.values())
+      .sort((a, b) => {
+        // 100% matches first
+        if (a.totalCoverage === 100 && b.totalCoverage !== 100) return -1;
+        if (b.totalCoverage === 100 && a.totalCoverage !== 100) return 1;
+        // Then by coverage descending
+        return b.totalCoverage - a.totalCoverage;
+      });
+  }, [matchingGroups, quantities, canFulfillGroup, subtractGroupFromComponents, calculateSetCoverage]);
 
   const totalComponents = useMemo(() => 
     Array.from(quantities.values()).reduce((a, b) => a + b, 0)
   , [quantities]);
 
   const hasExactMatch = matchingGroups.some(g => g.coveragePercent === 100);
+  const hasExactCombinationMatch = complementaryGroupSets.some(s => s.totalCoverage === 100);
+  
+  // Split complementary sets into exact (100%) and partial
+  const exactCombinations = complementaryGroupSets.filter(s => s.totalCoverage === 100);
+  const partialCombinations = complementaryGroupSets.filter(s => s.totalCoverage < 100);
 
   const handleInsertGroup = (group: ComponentGroup, count: number = 1) => {
     onInsertGroup(group, count);
@@ -592,13 +641,15 @@ export function ComponentSelectorDialog({
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {/* Exact matches first */}
-                  {hasExactMatch && (
+                  {/* 100% matches first (single groups AND combinations) */}
+                  {(hasExactMatch || hasExactCombinationMatch) && (
                     <div className="space-y-2">
                       <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
                         <Check className="w-3 h-3" />
                         100% Übereinstimmung
                       </div>
+                      
+                      {/* Single groups with 100% */}
                       {matchingGroups.filter(g => g.coveragePercent === 100).map(suggestion => (
                         <div
                           key={suggestion.group.id}
@@ -628,77 +679,30 @@ export function ComponentSelectorDialog({
                           </div>
                         </div>
                       ))}
-                    </div>
-                  )}
-                  
-                  {/* Partial matches */}
-                  {matchingGroups.filter(g => g.coveragePercent < 100).length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-xs text-muted-foreground font-medium">
-                        Teilweise Übereinstimmung
-                      </div>
-                      {matchingGroups.filter(g => g.coveragePercent < 100).slice(0, 5).map(suggestion => (
+                      
+                      {/* Combinations with 100% */}
+                      {exactCombinations.map((set, index) => (
                         <div
-                          key={suggestion.group.id}
-                          className="p-2 rounded-lg border bg-muted/30 space-y-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Folder className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm flex-1 truncate">
-                              {suggestion.group.name}
-                            </span>
-                            <Badge variant="secondary">
-                              {suggestion.coveragePercent}%
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">
-                              Max: {suggestion.possibleCount}x
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 text-xs ml-auto gap-1"
-                              onClick={() => handleInsertGroup(suggestion.group, 1)}
-                            >
-                              <ArrowRight className="w-3 h-3" />
-                              Einfügen
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Complementary group sets */}
-                  {complementaryGroupSets.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t">
-                      <div className="text-xs text-blue-600 font-medium">
-                        Ergänzende Gruppen-Kombinationen
-                      </div>
-                      {complementaryGroupSets.map((set, index) => (
-                        <div
-                          key={index}
-                          className="p-2 rounded-lg border border-blue-500/30 bg-blue-500/5 space-y-2"
+                          key={`exact-combo-${index}`}
+                          className="p-2 rounded-lg border border-green-500/50 bg-green-500/10 space-y-2"
                         >
                           <div className="flex items-center gap-1 flex-wrap">
                             {set.groups.map((g, i) => (
                               <span key={g.group.id} className="flex items-center gap-1">
-                                {i > 0 && <span className="text-blue-600">+</span>}
-                                <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
+                                {i > 0 && <span className="text-green-600">+</span>}
+                                <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
                                   {g.group.name}
                                 </span>
                               </span>
                             ))}
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="border-blue-500/50 text-blue-600">
-                              {set.totalCoverage}% gesamt
+                            <Badge variant="default" className="bg-green-600">
+                              100%
                             </Badge>
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="h-6 text-xs ml-auto gap-1 border-blue-500/50 text-blue-600 hover:bg-blue-50"
+                              className="h-6 text-xs ml-auto gap-1"
                               onClick={() => handleInsertComplementarySet(set)}
                             >
                               <ArrowRight className="w-3 h-3" />
@@ -707,6 +711,104 @@ export function ComponentSelectorDialog({
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  
+                  {/* All partial matches (single groups and combinations) sorted by percentage */}
+                  {(matchingGroups.filter(g => g.coveragePercent < 100).length > 0 || partialCombinations.length > 0) && (
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground font-medium">
+                        Teilweise Übereinstimmung
+                      </div>
+                      
+                      {/* Merge and sort: single groups + combinations by percentage */}
+                      {(() => {
+                        // Create unified list of single groups and combinations
+                        type DisplayItem = 
+                          | { type: 'single'; suggestion: GroupSuggestion; coverage: number }
+                          | { type: 'combo'; set: ComplementaryGroupSet; coverage: number };
+                        
+                        const items: DisplayItem[] = [
+                          ...matchingGroups
+                            .filter(g => g.coveragePercent < 100)
+                            .map(g => ({ type: 'single' as const, suggestion: g, coverage: g.coveragePercent })),
+                          ...partialCombinations
+                            .map(s => ({ type: 'combo' as const, set: s, coverage: s.totalCoverage }))
+                        ];
+                        
+                        // Sort by coverage descending
+                        items.sort((a, b) => b.coverage - a.coverage);
+                        
+                        // Show top 10 items
+                        return items.slice(0, 10).map((item, idx) => {
+                          if (item.type === 'single') {
+                            const suggestion = item.suggestion;
+                            return (
+                              <div
+                                key={`single-${suggestion.group.id}`}
+                                className="p-2 rounded-lg border bg-muted/30 space-y-2"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Folder className="w-4 h-4 text-muted-foreground" />
+                                  <span className="text-sm flex-1 truncate">
+                                    {suggestion.group.name}
+                                  </span>
+                                  <Badge variant="secondary">
+                                    {suggestion.coveragePercent}%
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    Max: {suggestion.possibleCount}x
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-xs ml-auto gap-1"
+                                    onClick={() => handleInsertGroup(suggestion.group, 1)}
+                                  >
+                                    <ArrowRight className="w-3 h-3" />
+                                    Einfügen
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          } else {
+                            const set = item.set;
+                            return (
+                              <div
+                                key={`combo-${idx}`}
+                                className="p-2 rounded-lg border border-blue-500/30 bg-blue-500/5 space-y-2"
+                              >
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {set.groups.map((g, i) => (
+                                    <span key={g.group.id} className="flex items-center gap-1">
+                                      {i > 0 && <span className="text-blue-600">+</span>}
+                                      <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
+                                        {g.group.name}
+                                      </span>
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="border-blue-500/50 text-blue-600">
+                                    {set.totalCoverage}%
+                                  </Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-xs ml-auto gap-1 border-blue-500/50 text-blue-600 hover:bg-blue-50"
+                                    onClick={() => handleInsertComplementarySet(set)}
+                                  >
+                                    <ArrowRight className="w-3 h-3" />
+                                    Alle einfügen
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          }
+                        });
+                      })()}
                     </div>
                   )}
                 </div>
