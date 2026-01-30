@@ -772,6 +772,12 @@ export function SchematicEditor() {
     console.log('Edit group:', group);
   }, []);
 
+  const handleRenameGroup = useCallback(async (id: string, newName: string): Promise<boolean> => {
+    const group = groups.find(g => g.id === id);
+    if (!group) return false;
+    return await updateGroup(id, newName, group.componentIds);
+  }, [groups, updateGroup]);
+
   // Helper to generate unique ID
   const generateNewId = useCallback(() => {
     return Math.random().toString(36).substring(2, 11);
@@ -1235,6 +1241,7 @@ export function SchematicEditor() {
           hasLocalStorageComponents={hasLocalStorageComponents}
           onDeleteGroup={handleDeleteGroup}
           onEditGroup={handleEditGroup}
+          onRenameGroup={handleRenameGroup}
           activeTab={libraryTab}
           onTabChange={setLibraryTab}
           projectQuantities={projectQuantities}
