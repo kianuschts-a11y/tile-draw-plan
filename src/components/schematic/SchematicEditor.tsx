@@ -787,8 +787,11 @@ export function SchematicEditor() {
   const [excessTileIds, setExcessTileIds] = useState<Set<string>>(new Set());
 
   // Insert a group from the component selector
-  const handleInsertGroupFromSelector = useCallback((group: ComponentGroup, count: number, isPartialMatch: boolean = false) => {
+  const handleInsertGroupFromSelector = useCallback((group: ComponentGroup, count: number, isPartialMatch: boolean = false, currentQuantities?: Map<string, number>) => {
     if (!group.layoutData) return;
+    
+    // Use provided quantities (from dialog) or fall back to projectQuantities
+    const effectiveQuantities = currentQuantities || projectQuantities;
     
     // Find next available position
     const maxGridY = tiles.length > 0 ? Math.max(...tiles.map(t => t.gridY + (t.component.height || 1))) : 0;
@@ -832,7 +835,7 @@ export function SchematicEditor() {
           const alreadyPlaced = alreadyPlacedCounts.get(tileData.componentId) || 0;
           const placingNow = placingCounts.get(tileData.componentId) || 0;
           const totalPlaced = alreadyPlaced + placingNow;
-          const available = projectQuantities.get(tileData.componentId) || 0;
+          const available = effectiveQuantities.get(tileData.componentId) || 0;
           
           // Only mark as excess if total placed (including this one) exceeds available
           if (totalPlaced >= available) {
@@ -874,7 +877,7 @@ export function SchematicEditor() {
     if (newExcessTileIds.length > 0) {
       setExcessTileIds(prev => new Set([...prev, ...newExcessTileIds]));
     }
-  }, [tiles, components, generateNewId, projectQuantities]);
+  }, [tiles, components, generateNewId]);
 
   // Insert multiple groups from complementary set - positions them next to each other
   const handleInsertMultipleGroups = useCallback((groupsWithCounts: Array<{ group: ComponentGroup; count: number }>) => {
