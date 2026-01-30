@@ -517,8 +517,8 @@ export function SchematicEditor() {
     setSelectedTileIds(new Set(newTileIds));
   }, [groups, components]);
 
-  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string) => {
-    await saveComponent(name, shapes, tileSize, category);
+  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number) => {
+    await saveComponent(name, shapes, tileSize, category, labelingEnabled, labelingPriority);
   }, [saveComponent]);
 
   const handleDeleteComponent = useCallback(async (id: string) => {
@@ -534,8 +534,8 @@ export function SchematicEditor() {
     setIsEditorOpen(true);
   }, []);
 
-  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string) => {
-    await updateComponent(id, name, shapes, tileSize, category);
+  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number) => {
+    await updateComponent(id, name, shapes, tileSize, category, labelingEnabled, labelingPriority);
   }, [updateComponent]);
 
   const handleUpdateComponent = useCallback(async (updatedComponent: Component) => {

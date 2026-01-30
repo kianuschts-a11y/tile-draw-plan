@@ -80,6 +80,8 @@ export type Database = {
           created_at: string
           height: number
           id: string
+          labeling_enabled: boolean | null
+          labeling_priority: number | null
           name: string
           shapes: Json
           tile_size: string
@@ -93,6 +95,8 @@ export type Database = {
           created_at?: string
           height?: number
           id?: string
+          labeling_enabled?: boolean | null
+          labeling_priority?: number | null
           name: string
           shapes?: Json
           tile_size?: string
@@ -106,6 +110,8 @@ export type Database = {
           created_at?: string
           height?: number
           id?: string
+          labeling_enabled?: boolean | null
+          labeling_priority?: number | null
           name?: string
           shapes?: Json
           tile_size?: string
