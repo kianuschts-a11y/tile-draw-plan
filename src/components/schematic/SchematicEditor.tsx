@@ -629,14 +629,46 @@ export function SchematicEditor() {
       }
     }
     
+    // Hilfsfunktion: Berechne die tatsächlichen Körperkanten aus den Shapes einer Komponente
+    const getShapeBounds = (shapes: Shape[], tileWidth: number, tileHeight: number) => {
+      // Filtere nur sichtbare Shapes (keine Linien, Pfeile, Texte)
+      const boundaryShapes = shapes.filter(s => 
+        s.type !== 'text' && s.type !== 'line' && s.type !== 'arrow' && s.type !== 'polyline'
+      );
+      
+      if (boundaryShapes.length === 0) {
+        return { minX: 0, maxX: 1, minY: 0, maxY: 1 };
+      }
+      
+      let minX = 1, maxX = 0, minY = 1, maxY = 0;
+      for (const shape of boundaryShapes) {
+        minX = Math.min(minX, shape.x);
+        maxX = Math.max(maxX, shape.x + shape.width);
+        minY = Math.min(minY, shape.y);
+        maxY = Math.max(maxY, shape.y + shape.height);
+      }
+      
+      // Konvertiere normalisierte Koordinaten (0-1) zu Grid-Einheiten
+      return {
+        minX: minX * tileWidth,
+        maxX: maxX * tileWidth,
+        minY: minY * tileHeight,
+        maxY: maxY * tileHeight
+      };
+    };
+    
     // Für jede Auto-Connect-Komponente, erstelle orthogonale Linien zu allen beschrifteten Komponenten
     for (const autoTile of autoConnectTiles) {
       const autoWidth = autoTile.component.width || 1;
       const autoHeight = autoTile.component.height || 1;
+      const autoShapes = (autoTile.component.shapes || []) as Shape[];
       
-      // Zentrum der Quellkomponente
-      const autoCenterX = autoTile.gridX + autoWidth / 2;
-      const autoCenterY = autoTile.gridY + autoHeight / 2;
+      // Berechne tatsächliche Körperkanten der Quellkomponente
+      const autoBounds = getShapeBounds(autoShapes, autoWidth, autoHeight);
+      
+      // Tatsächliches Zentrum basierend auf Shapes
+      const autoCenterX = autoTile.gridX + (autoBounds.minX + autoBounds.maxX) / 2;
+      const autoCenterY = autoTile.gridY + (autoBounds.minY + autoBounds.maxY) / 2;
       
       // Filtere Zielkomponenten (nicht sich selbst)
       const targets = labeledTiles.filter(lt => lt.id !== autoTile.id);
@@ -645,49 +677,54 @@ export function SchematicEditor() {
       if (connectionCount === 0) continue;
       
       // Offset-Faktor für Linien-Versatz an der Quellkomponente
-      const offsetStep = 0.2; // Grid-Einheiten Versatz pro Linie
+      const offsetStep = 0.15; // Grid-Einheiten Versatz pro Linie
       
       targets.forEach((labeledTile, connectionIndex) => {
         const labelWidth = labeledTile.component.width || 1;
         const labelHeight = labeledTile.component.height || 1;
+        const labelShapes = (labeledTile.component.shapes || []) as Shape[];
         
-        // Zentrum der Zielkomponente
-        const targetCenterX = labeledTile.gridX + labelWidth / 2;
-        const targetCenterY = labeledTile.gridY + labelHeight / 2;
+        // Berechne tatsächliche Körperkanten der Zielkomponente
+        const labelBounds = getShapeBounds(labelShapes, labelWidth, labelHeight);
+        
+        // Tatsächliches Zentrum der Zielkomponente
+        const targetCenterX = labeledTile.gridX + (labelBounds.minX + labelBounds.maxX) / 2;
+        const targetCenterY = labeledTile.gridY + (labelBounds.minY + labelBounds.maxY) / 2;
         
         // Berechne die Richtung zur Zielkomponente
         const dx = targetCenterX - autoCenterX;
         const dy = targetCenterY - autoCenterY;
         
         // Berechne Versatz für Startpunkt: verteile Linien um das Zentrum
-        // Bei mehreren Linien: senkrecht zur Hauptrichtung versetzen
         const centerOffset = (connectionIndex - (connectionCount - 1) / 2) * offsetStep;
         
-        // Bestimme Startpunkt am Rand der Quellkomponente
+        // Bestimme Startpunkt am tatsächlichen Rand der Quellkomponente
         let fromX: number, fromY: number;
         
-        // Wenn hauptsächlich horizontal (erst horizontal dann vertikal)
-        // Startpunkt an der Seite der Komponente, vertikal versetzt
         if (Math.abs(dx) >= Math.abs(dy)) {
-          // Horizontal dominant: Start an linker/rechter Seite
-          fromX = dx > 0 ? autoTile.gridX + autoWidth : autoTile.gridX; // rechts oder links
-          fromY = autoCenterY + centerOffset; // vertikal versetzt
+          // Horizontal dominant: Start an linker/rechter Körperkante
+          fromX = dx > 0 
+            ? autoTile.gridX + autoBounds.maxX  // rechte Kante
+            : autoTile.gridX + autoBounds.minX; // linke Kante
+          fromY = autoCenterY + centerOffset;
         } else {
-          // Vertikal dominant: Start an oberer/unterer Seite
-          fromX = autoCenterX + centerOffset; // horizontal versetzt
-          fromY = dy > 0 ? autoTile.gridY + autoHeight : autoTile.gridY; // unten oder oben
+          // Vertikal dominant: Start an oberer/unterer Körperkante
+          fromX = autoCenterX + centerOffset;
+          fromY = dy > 0 
+            ? autoTile.gridY + autoBounds.maxY  // untere Kante
+            : autoTile.gridY + autoBounds.minY; // obere Kante
         }
         
-        // Bei orthogonaler Linienführung (horizontal dann vertikal):
-        // Die letzte Strecke ist IMMER vertikal, also Endpunkt IMMER oben/unten an der Zielkomponente
+        // Endpunkt an der tatsächlichen Körperkante der Zielkomponente
         let toX: number, toY: number;
         
-        // Endpunkt immer an oberer oder unterer Kante (weil letzte Strecke vertikal ist)
+        // Endpunkt immer an oberer oder unterer Körperkante (weil letzte Strecke vertikal ist)
         toX = targetCenterX;
-        toY = dy > 0 ? labeledTile.gridY : labeledTile.gridY + labelHeight;
+        toY = dy > 0 
+          ? labeledTile.gridY + labelBounds.minY  // obere Kante
+          : labeledTile.gridY + labelBounds.maxY; // untere Kante
         
         // Orthogonale Linienführung: erst horizontal (X), dann vertikal (Y)
-        // Der Knickpunkt hat die X-Koordinate des Ziels und die Y-Koordinate des Starts
         const midX = toX;
         const midY = fromY;
         
