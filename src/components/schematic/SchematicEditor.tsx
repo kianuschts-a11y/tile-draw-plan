@@ -718,8 +718,22 @@ export function SchematicEditor() {
         // Endpunkt an der tatsächlichen Körperkante der Zielkomponente
         let toX: number, toY: number;
         
+        // Kleiner Offset um Überlappungen mit Komponenten-Verbindungslinien zu vermeiden
+        const endpointOffset = 0.15; // Grid-Einheiten
+        
         // Endpunkt immer an oberer oder unterer Körperkante (weil letzte Strecke vertikal ist)
-        toX = targetCenterX;
+        // Mit horizontalem Offset je nach Richtung, um Überlappung mit Komponenten-Linien zu vermeiden
+        if (dx > 0) {
+          // Von links kommend: Offset nach links vom Mittelpunkt
+          toX = targetCenterX - endpointOffset;
+        } else if (dx < 0) {
+          // Von rechts kommend: Offset nach rechts vom Mittelpunkt
+          toX = targetCenterX + endpointOffset;
+        } else {
+          // Exakt vertikal: kleiner Offset nach links
+          toX = targetCenterX - endpointOffset;
+        }
+        
         toY = dy > 0 
           ? labeledTile.gridY + labelBounds.minY  // obere Kante
           : labeledTile.gridY + labelBounds.maxY; // untere Kante
