@@ -1307,10 +1307,10 @@ export function Canvas({
           const y = tile.gridY * tileSize;
           const compWidth = (tile.component.width || 1) * tileSize;
           
-          // Position label at top-right corner of tile
+          // Position label at top-right corner, extending beyond tile boundaries
           const fontSize = Math.max(10, tileSize * 0.3);
-          const labelX = x + compWidth - 4;
-          const labelY = y + fontSize + 2;
+          const labelX = x + compWidth + 2; // Extend slightly beyond right edge
+          const labelY = y + fontSize * 0.8; // Position near top edge
           
           return (
             <g key={`label-${tile.id}`}>
