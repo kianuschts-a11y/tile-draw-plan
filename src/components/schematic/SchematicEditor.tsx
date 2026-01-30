@@ -86,6 +86,7 @@ export function SchematicEditor() {
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [showComponentSelector, setShowComponentSelector] = useState(false);
   const [projectQuantities, setProjectQuantities] = useState<Map<string, number>>(new Map());
+  const [projectOriginalQuantities, setProjectOriginalQuantities] = useState<Map<string, number>>(new Map());
   const [projectDescriptions, setProjectDescriptions] = useState<Map<string, string[]>>(new Map());
   const [projectKategorien, setProjectKategorien] = useState<Map<string, string>>(new Map());
   const [projectPreise, setProjectPreise] = useState<Map<string, number>>(new Map());
@@ -1243,6 +1244,7 @@ export function SchematicEditor() {
           activeTab={libraryTab}
           onTabChange={setLibraryTab}
           projectQuantities={projectQuantities}
+          projectOriginalQuantities={projectOriginalQuantities}
           placedTiles={tiles}
         />
       </div>
@@ -1268,6 +1270,8 @@ export function SchematicEditor() {
         onInsertMultipleGroups={handleInsertMultipleGroups}
         projectQuantities={projectQuantities}
         onProjectQuantitiesChange={setProjectQuantities}
+        projectOriginalQuantities={projectOriginalQuantities}
+        onProjectOriginalQuantitiesChange={setProjectOriginalQuantities}
         projectDescriptions={projectDescriptions}
         onProjectDescriptionsChange={setProjectDescriptions}
         projectKategorien={projectKategorien}

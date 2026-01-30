@@ -28,6 +28,8 @@ interface ComponentSelectorDialogProps {
   onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>, isPartialMatch?: boolean, currentQuantities?: Map<string, number>) => void;
   projectQuantities: Map<string, number>;
   onProjectQuantitiesChange: (quantities: Map<string, number>) => void;
+  projectOriginalQuantities: Map<string, number>;
+  onProjectOriginalQuantitiesChange: (quantities: Map<string, number>) => void;
   projectDescriptions: Map<string, string[]>;
   onProjectDescriptionsChange: (descriptions: Map<string, string[]>) => void;
   projectKategorien: Map<string, string>;
@@ -58,6 +60,8 @@ export function ComponentSelectorDialog({
   onInsertMultipleGroups,
   projectQuantities,
   onProjectQuantitiesChange,
+  projectOriginalQuantities,
+  onProjectOriginalQuantitiesChange,
   projectDescriptions,
   onProjectDescriptionsChange,
   projectKategorien,
@@ -97,25 +101,20 @@ export function ComponentSelectorDialog({
       initialKategorienRef.current = JSON.stringify(Array.from(projectKategorien.entries()));
       initialPreiseRef.current = JSON.stringify(Array.from(projectPreise.entries()));
       
-      // Only set original quantities if this is a fresh start (no quantities yet)
-      // or if user adds MORE components (original should track the max they ever selected)
-      setOriginalSelectedQuantities(prev => {
-        const newOriginal = new Map(prev);
-        projectQuantities.forEach((qty, id) => {
-          const existingOriginal = prev.get(id) || 0;
-          // Always use the higher value - either what was there or what's coming in
-          // This ensures we track the total they originally selected
-          if (qty > existingOriginal) {
-            newOriginal.set(id, qty);
-          }
-        });
-        return newOriginal;
-      });
+      // Initialize originalSelectedQuantities from the passed projectOriginalQuantities
+      // This is the TRUE original that the user selected - never reduced by group insertions
+      // If projectOriginalQuantities is empty but projectQuantities has values, use projectQuantities
+      if (projectOriginalQuantities.size > 0) {
+        setOriginalSelectedQuantities(new Map(projectOriginalQuantities));
+      } else if (projectQuantities.size > 0) {
+        // First time opening - use projectQuantities as the original
+        setOriginalSelectedQuantities(new Map(projectQuantities));
+      }
       
       setWasOpened(projectQuantities.size > 0);
       setHasChanges(false);
     }
-  }, [open, projectQuantities, projectDescriptions, projectKategorien, projectPreise]);
+  }, [open, projectQuantities, projectOriginalQuantities, projectDescriptions, projectKategorien, projectPreise]);
 
   // Check for changes
   useEffect(() => {
@@ -311,6 +310,7 @@ export function ComponentSelectorDialog({
 
   const handleSave = () => {
     onProjectQuantitiesChange(quantities);
+    onProjectOriginalQuantitiesChange(originalSelectedQuantities);
     onProjectDescriptionsChange(descriptions);
     onProjectKategorienChange(kategorien);
     onProjectPreiseChange(preise);
