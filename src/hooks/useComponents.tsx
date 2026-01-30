@@ -54,7 +54,9 @@ export function useComponents() {
         height: c.height,
         tileSize: c.tile_size as TileSize,
         category: (c as any).category || '',
-        variations: (c.variations as unknown) as ComponentVariation[]
+        variations: (c.variations as unknown) as ComponentVariation[],
+        labelingEnabled: (c as any).labeling_enabled || false,
+        labelingPriority: (c as any).labeling_priority || 1
       }));
 
       setComponents(mappedComponents);
@@ -118,7 +120,7 @@ export function useComponents() {
     }
   }, [authLoading, user, companyId, migrateLocalStorageComponents, loadComponents]);
 
-  const saveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string): Promise<Component | null> => {
+  const saveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number): Promise<Component | null> => {
     if (!companyId) return null;
 
     const config = TILE_SIZES[tileSize];
@@ -134,8 +136,10 @@ export function useComponents() {
           height: config.rows,
           tile_size: tileSize,
           category: category || '',
-          variations: [] as unknown as Json
-        })
+          variations: [] as unknown as Json,
+          labeling_enabled: labelingEnabled || false,
+          labeling_priority: labelingPriority || 1
+        } as any)
         .select()
         .single();
 
@@ -152,7 +156,9 @@ export function useComponents() {
         height: data.height,
         tileSize: data.tile_size as TileSize,
         category: (data as any).category || '',
-        variations: (data.variations as unknown) as ComponentVariation[]
+        variations: (data.variations as unknown) as ComponentVariation[],
+        labelingEnabled: (data as any).labeling_enabled || false,
+        labelingPriority: (data as any).labeling_priority || 1
       };
 
       setComponents(prev => [...prev, newComponent]);
@@ -163,7 +169,7 @@ export function useComponents() {
     }
   }, [companyId]);
 
-  const updateComponent = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string): Promise<boolean> => {
+  const updateComponent = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number): Promise<boolean> => {
     const config = TILE_SIZES[tileSize];
 
     try {
@@ -175,8 +181,10 @@ export function useComponents() {
           width: config.cols,
           height: config.rows,
           tile_size: tileSize,
-          category: category || ''
-        })
+          category: category || '',
+          labeling_enabled: labelingEnabled || false,
+          labeling_priority: labelingPriority || 1
+        } as any)
         .eq('id', id);
 
       if (error) {
@@ -185,7 +193,17 @@ export function useComponents() {
       }
 
       setComponents(prev => prev.map(c => 
-        c.id === id ? { ...c, name, shapes, width: config.cols, height: config.rows, tileSize, category: category || '' } : c
+        c.id === id ? { 
+          ...c, 
+          name, 
+          shapes, 
+          width: config.cols, 
+          height: config.rows, 
+          tileSize, 
+          category: category || '',
+          labelingEnabled: labelingEnabled || false,
+          labelingPriority: labelingPriority || 1
+        } : c
       ));
       
       return true;
