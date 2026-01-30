@@ -53,6 +53,7 @@ interface ComponentLibraryProps {
   activeTab: LibraryTab;
   onTabChange: (tab: LibraryTab) => void;
   projectQuantities?: Map<string, number>;
+  projectOriginalQuantities?: Map<string, number>;
   placedTiles?: PlacedTile[];
 }
 
@@ -242,6 +243,7 @@ export function ComponentLibrary({
   activeTab,
   onTabChange,
   projectQuantities,
+  projectOriginalQuantities,
   placedTiles
 }: ComponentLibraryProps) {
   const previewSize = 50;
@@ -268,11 +270,17 @@ export function ComponentLibrary({
     return counts;
   }, [placedTiles]);
 
-  // Calculate remaining quantities (project quantity - placed count)
+  // Calculate remaining quantities based on original quantities - placed count
+  // This shows how many more components need to be placed to meet the original requirement
   const remainingQuantities = useMemo(() => {
     const remaining = new Map<string, number>();
-    if (projectQuantities) {
-      for (const [id, needed] of projectQuantities.entries()) {
+    // Use originalQuantities if available, otherwise fall back to projectQuantities
+    const targetQuantities = projectOriginalQuantities?.size 
+      ? projectOriginalQuantities 
+      : projectQuantities;
+    
+    if (targetQuantities) {
+      for (const [id, needed] of targetQuantities.entries()) {
         const placed = placedComponentCounts.get(id) || 0;
         const diff = needed - placed;
         if (diff > 0) {
@@ -281,7 +289,7 @@ export function ComponentLibrary({
       }
     }
     return remaining;
-  }, [projectQuantities, placedComponentCounts]);
+  }, [projectQuantities, projectOriginalQuantities, placedComponentCounts]);
 
   // Sort components: those with remaining quantities first
   const sortedComponents = useMemo(() => {
@@ -365,7 +373,10 @@ export function ComponentLibrary({
     // Get remaining count for this component
     const remainingCount = remainingQuantities.get(component.id) || 0;
     const hasRemaining = remainingCount > 0;
-    const projectTotal = projectQuantities?.get(component.id) || 0;
+    // Use original quantities for the total display - this shows the ORIGINAL requirement
+    const projectTotal = projectOriginalQuantities?.get(component.id) 
+      || projectQuantities?.get(component.id) 
+      || 0;
     const placedCount = placedComponentCounts.get(component.id) || 0;
     
     return (
