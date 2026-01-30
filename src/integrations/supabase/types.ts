@@ -75,6 +75,7 @@ export type Database = {
       }
       components: {
         Row: {
+          auto_connections_enabled: boolean | null
           category: string | null
           company_id: string
           created_at: string
@@ -91,6 +92,7 @@ export type Database = {
           width: number
         }
         Insert: {
+          auto_connections_enabled?: boolean | null
           category?: string | null
           company_id: string
           created_at?: string
@@ -107,6 +109,7 @@ export type Database = {
           width?: number
         }
         Update: {
+          auto_connections_enabled?: boolean | null
           category?: string | null
           company_id?: string
           created_at?: string

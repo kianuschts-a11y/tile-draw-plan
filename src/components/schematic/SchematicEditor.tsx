@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
-import { Canvas, PlacedTile } from "./Canvas";
+import { Canvas, PlacedTile, AutoConnectionLine } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
 import { StatusBar } from "./StatusBar";
 import { PaperSettings } from "./PaperSettings";
@@ -526,8 +526,8 @@ export function SchematicEditor() {
     setSelectedTileIds(new Set(newTileIds));
   }, [groups, components]);
 
-  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string) => {
-    await saveComponent(name, shapes, tileSize, category, labelingEnabled, labelingPriority, labelingColor);
+  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string, autoConnectionsEnabled?: boolean) => {
+    await saveComponent(name, shapes, tileSize, category, labelingEnabled, labelingPriority, labelingColor, autoConnectionsEnabled);
   }, [saveComponent]);
 
   const handleDeleteComponent = useCallback(async (id: string) => {
@@ -543,8 +543,8 @@ export function SchematicEditor() {
     setIsEditorOpen(true);
   }, []);
 
-  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string) => {
-    await updateComponent(id, name, shapes, tileSize, category, labelingEnabled, labelingPriority, labelingColor);
+  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string, autoConnectionsEnabled?: boolean) => {
+    await updateComponent(id, name, shapes, tileSize, category, labelingEnabled, labelingPriority, labelingColor, autoConnectionsEnabled);
   }, [updateComponent]);
 
   const handleUpdateComponent = useCallback(async (updatedComponent: Component) => {
@@ -606,6 +606,59 @@ export function SchematicEditor() {
       if (componentDef?.labelingEnabled) return true;
     }
     return false;
+  }, [tiles, components]);
+
+  // Auto-Verbindungslinien: Berechne gestrichelte Linien von Komponenten mit autoConnectionsEnabled
+  // zu allen Komponenten mit labelingEnabled
+  const autoConnectionLines = useMemo(() => {
+    const lines: { fromTileId: string; toTileId: string; fromX: number; fromY: number; toX: number; toY: number }[] = [];
+    
+    // Finde alle Tiles mit autoConnectionsEnabled
+    const autoConnectTiles: PlacedTile[] = [];
+    // Finde alle Tiles mit labelingEnabled
+    const labeledTiles: PlacedTile[] = [];
+    
+    for (const tile of tiles) {
+      if (isConnectionBlock(tile.component)) continue;
+      const componentDef = components.find(c => c.id === tile.component.id);
+      if (componentDef?.autoConnectionsEnabled) {
+        autoConnectTiles.push(tile);
+      }
+      if (componentDef?.labelingEnabled) {
+        labeledTiles.push(tile);
+      }
+    }
+    
+    // Für jede Auto-Connect-Komponente, erstelle Linien zu allen beschrifteten Komponenten
+    for (const autoTile of autoConnectTiles) {
+      const autoWidth = autoTile.component.width || 1;
+      const autoHeight = autoTile.component.height || 1;
+      // Zentrum des Auto-Connect-Tiles
+      const fromX = autoTile.gridX + autoWidth / 2;
+      const fromY = autoTile.gridY + autoHeight / 2;
+      
+      for (const labeledTile of labeledTiles) {
+        // Nicht zu sich selbst verbinden
+        if (autoTile.id === labeledTile.id) continue;
+        
+        const labelWidth = labeledTile.component.width || 1;
+        const labelHeight = labeledTile.component.height || 1;
+        // Zentrum des beschrifteten Tiles
+        const toX = labeledTile.gridX + labelWidth / 2;
+        const toY = labeledTile.gridY + labelHeight / 2;
+        
+        lines.push({
+          fromTileId: autoTile.id,
+          toTileId: labeledTile.id,
+          fromX,
+          fromY,
+          toX,
+          toY
+        });
+      }
+    }
+    
+    return lines;
   }, [tiles, components]);
 
   const handleComponentSelect = useCallback((id: string) => {
@@ -1216,6 +1269,7 @@ export function SchematicEditor() {
             titleBlockData={titleBlockData}
             tileLabels={tileLabels}
             excessTileIds={excessTileIds}
+            autoConnectionLines={autoConnectionLines}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}

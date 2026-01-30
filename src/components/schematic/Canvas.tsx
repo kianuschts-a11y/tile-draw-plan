@@ -157,6 +157,16 @@ export interface PlacedTile {
   rotation?: number; // Rotation angle in degrees (0, 90, 180, 270)
 }
 
+// Auto-Verbindungslinie (gestrichelt)
+export interface AutoConnectionLine {
+  fromTileId: string;
+  toTileId: string;
+  fromX: number; // Grid-basierte Koordinaten (Zentrum)
+  fromY: number;
+  toX: number;
+  toY: number;
+}
+
 interface CanvasProps {
   tiles: PlacedTile[];
   selectedTileIds: Set<string>;
@@ -170,6 +180,7 @@ interface CanvasProps {
   titleBlockData?: TitleBlockData;
   tileLabels?: Map<string, { label: string; color: string }>; // Auto-generated labels for tiles
   excessTileIds?: Set<string>; // Tiles that exceed project requirements (marked red)
+  autoConnectionLines?: AutoConnectionLine[]; // Gestrichelte Auto-Verbindungslinien
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
@@ -193,6 +204,7 @@ export function Canvas({
   titleBlockData,
   tileLabels = new Map(),
   excessTileIds = new Set(),
+  autoConnectionLines = [],
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
@@ -1338,6 +1350,33 @@ export function Canvas({
                 {labelData.label}
               </text>
             </g>
+          );
+        })}
+
+        {/* Auto-Verbindungslinien (gestrichelt) */}
+        {autoConnectionLines.length > 0 && autoConnectionLines.map((line, index) => {
+          // Konvertiere Grid-Koordinaten zu Pixel-Koordinaten
+          const fromX = line.fromX * tileSize;
+          const fromY = line.fromY * tileSize;
+          const toX = line.toX * tileSize;
+          const toY = line.toY * tileSize;
+          
+          const strokeWidth = tileSize * 0.02; // Dünne Linie
+          const dashArray = `${tileSize * 0.1} ${tileSize * 0.05}`; // Gestrichelt
+          
+          return (
+            <line
+              key={`auto-conn-${line.fromTileId}-${line.toTileId}-${index}`}
+              x1={fromX}
+              y1={fromY}
+              x2={toX}
+              y2={toY}
+              stroke="#666666"
+              strokeWidth={strokeWidth}
+              strokeDasharray={dashArray}
+              strokeLinecap="round"
+              opacity={0.7}
+            />
           );
         })}
 

@@ -33,8 +33,8 @@ const AVAILABLE_FONTS = [
 interface ComponentEditorDialogProps {
   open: boolean;
   onClose: () => void;
-  onSave: (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string) => void;
-  onUpdate?: (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string) => void;
+  onSave: (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string, autoConnectionsEnabled?: boolean) => void;
+  onUpdate?: (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string, autoConnectionsEnabled?: boolean) => void;
   tileSize: number;
   editingComponent?: Component | null;
   existingCategories?: string[];
@@ -118,6 +118,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   const [labelingEnabled, setLabelingEnabled] = useState(false);
   const [labelingPriority, setLabelingPriority] = useState<number>(1);
   const [labelingColor, setLabelingColor] = useState<string>('#000000');
+  
+  // Auto-Verbindungen
+  const [autoConnectionsEnabled, setAutoConnectionsEnabled] = useState(false);
 
   const isEditing = !!editingComponent;
 
@@ -171,6 +174,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       setLabelingEnabled(editingComponent.labelingEnabled || false);
       setLabelingPriority(editingComponent.labelingPriority || 1);
       setLabelingColor(editingComponent.labelingColor || '#000000');
+      setAutoConnectionsEnabled(editingComponent.autoConnectionsEnabled || false);
       
       const loadTileConfig = TILE_SIZES[editingComponent.tileSize || '1x1'];
       const loadAspectRatio = loadTileConfig.cols / loadTileConfig.rows;
@@ -231,6 +235,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       setLabelingEnabled(false);
       setLabelingPriority(1);
       setLabelingColor('#000000');
+      setAutoConnectionsEnabled(false);
     }
   }, [open, editingComponent]);
 
@@ -938,9 +943,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     }));
     
     if (isEditing && editingComponent && onUpdate) {
-      onUpdate(editingComponent.id, name, normalizedShapes, componentTileSize, category, labelingEnabled, labelingPriority, labelingColor);
+      onUpdate(editingComponent.id, name, normalizedShapes, componentTileSize, category, labelingEnabled, labelingPriority, labelingColor, autoConnectionsEnabled);
     } else {
-      onSave(name, normalizedShapes, componentTileSize, category, labelingEnabled, labelingPriority, labelingColor);
+      onSave(name, normalizedShapes, componentTileSize, category, labelingEnabled, labelingPriority, labelingColor, autoConnectionsEnabled);
     }
     handleClose();
   };
@@ -965,6 +970,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     setLabelingEnabled(false);
     setLabelingPriority(1);
     setLabelingColor('#000000');
+    setAutoConnectionsEnabled(false);
     onClose();
   };
 
@@ -1510,6 +1516,25 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
                     Komponenten mit Priorität 1 erhalten Nummern 1.1, 1.2, ..., dann Priorität 2 usw.
                   </p>
                 </div>
+              )}
+            </div>
+
+            {/* Auto-Verbindungen */}
+            <div className="space-y-2 p-2 bg-muted/30 rounded">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="auto-connections-enabled"
+                  checked={autoConnectionsEnabled}
+                  onCheckedChange={setAutoConnectionsEnabled}
+                />
+                <Label htmlFor="auto-connections-enabled" className="cursor-pointer text-xs font-medium">
+                  Auto-Verbindungen aktivieren
+                </Label>
+              </div>
+              {autoConnectionsEnabled && (
+                <p className="text-xs text-muted-foreground pl-1">
+                  Zeichnet automatisch gestrichelte Linien zu allen Komponenten mit aktivierter Beschriftung.
+                </p>
               )}
             </div>
 
