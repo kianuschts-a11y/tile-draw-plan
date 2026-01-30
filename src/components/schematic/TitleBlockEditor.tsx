@@ -13,6 +13,10 @@ interface TitleBlockEditorProps {
 }
 
 export function TitleBlockEditor({ open, data, onClose, onSave }: TitleBlockEditorProps) {
+  // Format current date as DD.MM.YYYY
+  const today = new Date();
+  const currentDate = `${today.getDate().toString().padStart(2, '0')}.${(today.getMonth() + 1).toString().padStart(2, '0')}.${today.getFullYear()}`;
+  
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -76,8 +80,8 @@ export function TitleBlockEditor({ open, data, onClose, onSave }: TitleBlockEdit
                 <Input id="gezName" name="gezName" defaultValue={data.gezeichnet.name} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gezDatum">Datum</Label>
-                <Input id="gezDatum" name="gezDatum" defaultValue={data.gezeichnet.datum} placeholder="TT.MM.JJJJ" />
+              <Label htmlFor="gezDatum">Datum</Label>
+                <Input id="gezDatum" name="gezDatum" defaultValue={data.gezeichnet.datum || currentDate} placeholder="TT.MM.JJJJ" />
               </div>
             </div>
           </div>
@@ -90,8 +94,8 @@ export function TitleBlockEditor({ open, data, onClose, onSave }: TitleBlockEdit
                 <Input id="geprName" name="geprName" defaultValue={data.geprueft.name} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="geprDatum">Datum</Label>
-                <Input id="geprDatum" name="geprDatum" defaultValue={data.geprueft.datum} placeholder="TT.MM.JJJJ" />
+              <Label htmlFor="geprDatum">Datum</Label>
+                <Input id="geprDatum" name="geprDatum" defaultValue={data.geprueft.datum || currentDate} placeholder="TT.MM.JJJJ" />
               </div>
             </div>
           </div>
