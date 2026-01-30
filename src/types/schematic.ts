@@ -131,6 +131,8 @@ export interface Component {
   labelingEnabled?: boolean; // Ob Beschriftung aktiviert ist
   labelingPriority?: number; // Priorität für Reihenfolge (1 = zuerst, 2 = danach, etc.)
   labelingColor?: string; // Farbe für die Beschriftung (z.B. "#ff0000")
+  // Auto-Verbindungen - zeichnet gestrichelte Linien zu allen beschrifteten Komponenten
+  autoConnectionsEnabled?: boolean;
 }
 
 // Tile layout data for groups - stores relative positions
