@@ -583,18 +583,25 @@ export function ComponentSelectorDialog({
             
             <ScrollArea className="flex-1 -mx-1 px-1">
               <div className="space-y-1">
-                {components.map(component => {
-                  const qty = quantities.get(component.id) || 0;
+              {components.map(component => {
+                  const remainingQty = quantities.get(component.id) || 0;
+                  const originalQty = projectQuantities.get(component.id) || 0;
+                  const placedQty = originalQty - remainingQty;
+                  // Show component if it's in original project OR if user is adding new ones
+                  const qty = remainingQty; // For backwards compatibility with controls
                   const isExpanded = expandedComponents.has(component.id);
                   const componentDescs = descriptions.get(component.id) || [];
                   const componentKategorie = kategorien.get(component.id) || '';
                   const componentPreis = preise.get(component.id) || 0;
                   
+                  // Show placed/total indicator if this component was in the original project
+                  const showPlacedIndicator = originalQty > 0;
+                  
                   return (
                     <div key={component.id} className="space-y-1">
                       <div
                         className={`flex items-center justify-between gap-2 p-2 rounded-lg border transition-colors ${
-                          qty > 0 ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-transparent'
+                          qty > 0 || originalQty > 0 ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-transparent'
                         }`}
                       >
                         {/* Expand button for descriptions */}
@@ -610,9 +617,17 @@ export function ComponentSelectorDialog({
                             )}
                           </button>
                         )}
-                        <span className={`text-sm truncate flex-1 ${qty === 0 ? 'ml-6' : ''}`}>
-                          {component.name}
-                        </span>
+                        <div className={`flex-1 min-w-0 ${qty === 0 && originalQty === 0 ? 'ml-6' : qty === 0 ? 'ml-6' : ''}`}>
+                          <span className="text-sm truncate block">
+                            {component.name}
+                          </span>
+                          {/* Show placed/total indicator */}
+                          {showPlacedIndicator && placedQty > 0 && (
+                            <span className="text-xs text-green-600">
+                              {placedQty}/{originalQty} platziert
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
