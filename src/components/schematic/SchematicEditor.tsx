@@ -796,23 +796,11 @@ export function SchematicEditor() {
     // For partial matches, we need to track which tiles should be marked as "excess"
     const newExcessTileIds: string[] = [];
     
-    // Calculate which components exceed project requirements
-    const excessComponents = new Map<string, number>();
-    if (isPartialMatch) {
-      // Get the group's component requirements (excluding connection blocks)
-      const groupRequirements = new Map<string, number>();
-      for (const tileData of group.layoutData.tiles) {
-        if (!tileData.componentId.startsWith('connection-')) {
-          groupRequirements.set(tileData.componentId, (groupRequirements.get(tileData.componentId) || 0) + 1);
-        }
-      }
-      
-      // Calculate excess for each component
-      for (const [compId, needed] of groupRequirements.entries()) {
-        const available = projectQuantities.get(compId) || 0;
-        if (needed > available) {
-          excessComponents.set(compId, needed - available);
-        }
+    // Calculate how many of each component are ALREADY placed on the canvas
+    const alreadyPlacedCounts = new Map<string, number>();
+    for (const tile of tiles) {
+      if (!tile.component.id.startsWith('connection-')) {
+        alreadyPlacedCounts.set(tile.component.id, (alreadyPlacedCounts.get(tile.component.id) || 0) + 1);
       }
     }
     
@@ -821,8 +809,8 @@ export function SchematicEditor() {
       const newTileIds: string[] = [];
       const newTiles: PlacedTile[] = [];
       
-      // Track how many of each component we've placed for excess marking
-      const placedCounts = new Map<string, number>();
+      // Track how many of each component we're placing in this group iteration
+      const placingCounts = new Map<string, number>();
       
       // Create tiles from layout data
       for (const tileData of group.layoutData.tiles) {
@@ -839,17 +827,24 @@ export function SchematicEditor() {
         newTiles.push(newTile);
         newTileIds.push(newTileId);
         
-        // Check if this tile should be marked as excess
+        // Check if this tile should be marked as excess (only for partial matches)
         if (isPartialMatch && !tileData.componentId.startsWith('connection-')) {
-          const placedCount = placedCounts.get(tileData.componentId) || 0;
+          const alreadyPlaced = alreadyPlacedCounts.get(tileData.componentId) || 0;
+          const placingNow = placingCounts.get(tileData.componentId) || 0;
+          const totalPlaced = alreadyPlaced + placingNow;
           const available = projectQuantities.get(tileData.componentId) || 0;
           
-          // If we've already placed more than available, this is excess
-          if (placedCount >= available) {
+          // Only mark as excess if total placed (including this one) exceeds available
+          if (totalPlaced >= available) {
             newExcessTileIds.push(newTileId);
           }
-          placedCounts.set(tileData.componentId, placedCount + 1);
+          placingCounts.set(tileData.componentId, placingNow + 1);
         }
+      }
+      
+      // Update already placed counts for next iteration
+      for (const [compId, cnt] of placingCounts.entries()) {
+        alreadyPlacedCounts.set(compId, (alreadyPlacedCounts.get(compId) || 0) + cnt);
       }
       
       // Create connections using the new tile IDs
