@@ -634,35 +634,65 @@ export function SchematicEditor() {
       const autoWidth = autoTile.component.width || 1;
       const autoHeight = autoTile.component.height || 1;
       
-      // Anzahl der Verbindungen für dieses Auto-Connect-Tile (für Offset-Berechnung)
-      const connectionCount = labeledTiles.filter(lt => lt.id !== autoTile.id).length;
+      // Zentrum der Quellkomponente
+      const autoCenterX = autoTile.gridX + autoWidth / 2;
+      const autoCenterY = autoTile.gridY + autoHeight / 2;
       
-      // Offset-Faktor für Linien-Versatz (kleinere Werte = weniger Versatz)
-      const offsetStep = 0.15; // Grid-Einheiten Versatz pro Linie
+      // Filtere Zielkomponenten (nicht sich selbst)
+      const targets = labeledTiles.filter(lt => lt.id !== autoTile.id);
+      const connectionCount = targets.length;
       
-      let connectionIndex = 0;
-      for (const labeledTile of labeledTiles) {
-        // Nicht zu sich selbst verbinden
-        if (autoTile.id === labeledTile.id) continue;
-        
+      if (connectionCount === 0) continue;
+      
+      // Offset-Faktor für Linien-Versatz an der Quellkomponente
+      const offsetStep = 0.2; // Grid-Einheiten Versatz pro Linie
+      
+      targets.forEach((labeledTile, connectionIndex) => {
         const labelWidth = labeledTile.component.width || 1;
         const labelHeight = labeledTile.component.height || 1;
         
-        // Berechne Versatz: verteile Linien gleichmäßig um das Zentrum
-        // Bei 3 Linien: -1, 0, +1 -> Offset: -0.15, 0, +0.15
+        // Zentrum der Zielkomponente
+        const targetCenterX = labeledTile.gridX + labelWidth / 2;
+        const targetCenterY = labeledTile.gridY + labelHeight / 2;
+        
+        // Berechne die Richtung zur Zielkomponente
+        const dx = targetCenterX - autoCenterX;
+        const dy = targetCenterY - autoCenterY;
+        
+        // Berechne Versatz für Startpunkt: verteile Linien um das Zentrum
+        // Bei mehreren Linien: senkrecht zur Hauptrichtung versetzen
         const centerOffset = (connectionIndex - (connectionCount - 1) / 2) * offsetStep;
-        connectionIndex++;
         
-        // Zentrum des Auto-Connect-Tiles mit Versatz
-        const fromX = autoTile.gridX + autoWidth / 2 + centerOffset;
-        const fromY = autoTile.gridY + autoHeight / 2;
+        // Bestimme Startpunkt am Rand der Quellkomponente
+        let fromX: number, fromY: number;
         
-        // Zentrum des beschrifteten Tiles mit passendem Versatz
-        const toX = labeledTile.gridX + labelWidth / 2 + centerOffset;
-        const toY = labeledTile.gridY + labelHeight / 2;
+        // Wenn hauptsächlich horizontal (erst horizontal dann vertikal)
+        // Startpunkt an der Seite der Komponente, vertikal versetzt
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          // Horizontal dominant: Start an linker/rechter Seite
+          fromX = dx > 0 ? autoTile.gridX + autoWidth : autoTile.gridX; // rechts oder links
+          fromY = autoCenterY + centerOffset; // vertikal versetzt
+        } else {
+          // Vertikal dominant: Start an oberer/unterer Seite
+          fromX = autoCenterX + centerOffset; // horizontal versetzt
+          fromY = dy > 0 ? autoTile.gridY + autoHeight : autoTile.gridY; // unten oder oben
+        }
+        
+        // Berechne Endpunkt an der Kante der Zielkomponente
+        let toX: number, toY: number;
+        
+        // Endpunkt auf der gegenüberliegenden Seite
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          // Horizontal dominant: Ende an der entgegengesetzten Seite
+          toX = dx > 0 ? labeledTile.gridX : labeledTile.gridX + labelWidth;
+          toY = targetCenterY;
+        } else {
+          // Vertikal dominant: Ende an oberer/unterer Kante
+          toX = targetCenterX;
+          toY = dy > 0 ? labeledTile.gridY : labeledTile.gridY + labelHeight;
+        }
         
         // Orthogonale Linienführung: erst horizontal (X), dann vertikal (Y)
-        // Eckpunkt hat die X-Koordinate des Ziels und die Y-Koordinate des Starts
         const midX = toX;
         const midY = fromY;
         
@@ -676,7 +706,7 @@ export function SchematicEditor() {
           toX,
           toY
         });
-      }
+      });
     }
     
     return lines;
