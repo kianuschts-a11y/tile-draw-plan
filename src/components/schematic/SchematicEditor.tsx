@@ -105,12 +105,12 @@ export function SchematicEditor() {
   // Auto-generated labels for tiles (tileId -> { label, color })
   const [tileLabels, setTileLabels] = useState<Map<string, { label: string; color: string }>>(new Map());
   const [canvasState, setCanvasState] = useState<CanvasState>({
-    zoom: 1,
+    zoom: 0.8,
     panX: 50,
     panY: 50,
     gridSize: 40,
     paperFormat: 'A4',
-    orientation: 'portrait'
+    orientation: 'landscape'
   });
 
   // Undo/Redo History - speichert kompletten Zustand
