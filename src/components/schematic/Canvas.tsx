@@ -168,7 +168,7 @@ interface CanvasProps {
   isGroupMode?: boolean;
   components?: Component[];
   titleBlockData?: TitleBlockData;
-  tileLabels?: Map<string, string>; // Auto-generated labels for tiles
+  tileLabels?: Map<string, { label: string; color: string }>; // Auto-generated labels for tiles
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
@@ -1300,43 +1300,31 @@ export function Canvas({
 
         {/* Auto-generated tile labels */}
         {tileLabels.size > 0 && tiles.map(tile => {
-          const label = tileLabels.get(tile.id);
-          if (!label) return null;
+          const labelData = tileLabels.get(tile.id);
+          if (!labelData) return null;
           
           const x = tile.gridX * tileSize;
           const y = tile.gridY * tileSize;
           const compWidth = (tile.component.width || 1) * tileSize;
-          const compHeight = (tile.component.height || 1) * tileSize;
           
-          // Position label at top-left corner of tile with small offset
-          const labelX = x + 4;
-          const labelY = y + 12;
-          const fontSize = Math.max(10, tileSize * 0.25);
+          // Position label at top-right corner of tile
+          const fontSize = Math.max(10, tileSize * 0.3);
+          const labelX = x + compWidth - 4;
+          const labelY = y + fontSize + 2;
           
           return (
             <g key={`label-${tile.id}`}>
-              {/* Label background for better readability */}
-              <rect
-                x={labelX - 2}
-                y={labelY - fontSize + 2}
-                width={label.length * fontSize * 0.65 + 4}
-                height={fontSize + 4}
-                fill="hsl(var(--background))"
-                stroke="hsl(var(--primary))"
-                strokeWidth={1}
-                rx={2}
-                opacity={0.9}
-              />
-              {/* Label text */}
+              {/* Label text only - no background/border */}
               <text
                 x={labelX}
                 y={labelY}
                 fontSize={fontSize}
                 fontFamily="sans-serif"
                 fontWeight="bold"
-                fill="hsl(var(--primary))"
+                fill={labelData.color}
+                textAnchor="end"
               >
-                {label}
+                {labelData.label}
               </text>
             </g>
           );

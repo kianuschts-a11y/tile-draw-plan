@@ -101,8 +101,8 @@ export function SchematicEditor() {
   });
   const [isTitleBlockEditorOpen, setIsTitleBlockEditorOpen] = useState(false);
   const [isBOMOpen, setIsBOMOpen] = useState(false);
-  // Auto-generated labels for tiles (tileId -> label like "1.1", "1.2", etc.)
-  const [tileLabels, setTileLabels] = useState<Map<string, string>>(new Map());
+  // Auto-generated labels for tiles (tileId -> { label, color })
+  const [tileLabels, setTileLabels] = useState<Map<string, { label: string; color: string }>>(new Map());
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -519,8 +519,8 @@ export function SchematicEditor() {
     setSelectedTileIds(new Set(newTileIds));
   }, [groups, components]);
 
-  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number) => {
-    await saveComponent(name, shapes, tileSize, category, labelingEnabled, labelingPriority);
+  const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string) => {
+    await saveComponent(name, shapes, tileSize, category, labelingEnabled, labelingPriority, labelingColor);
   }, [saveComponent]);
 
   const handleDeleteComponent = useCallback(async (id: string) => {
@@ -536,8 +536,8 @@ export function SchematicEditor() {
     setIsEditorOpen(true);
   }, []);
 
-  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number) => {
-    await updateComponent(id, name, shapes, tileSize, category, labelingEnabled, labelingPriority);
+  const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string) => {
+    await updateComponent(id, name, shapes, tileSize, category, labelingEnabled, labelingPriority, labelingColor);
   }, [updateComponent]);
 
   const handleUpdateComponent = useCallback(async (updatedComponent: Component) => {
@@ -547,7 +547,7 @@ export function SchematicEditor() {
   // Auto-Label: Generate labels for all tiles with labelingEnabled components
   const handleAutoLabel = useCallback(() => {
     // Find all tiles that have labeling enabled, grouped by priority
-    const tilesToLabel: { tile: PlacedTile; priority: number }[] = [];
+    const tilesToLabel: { tile: PlacedTile; priority: number; color: string }[] = [];
     
     for (const tile of tiles) {
       // Skip connection blocks
@@ -558,7 +558,8 @@ export function SchematicEditor() {
       if (componentDef?.labelingEnabled) {
         tilesToLabel.push({
           tile,
-          priority: componentDef.labelingPriority || 1
+          priority: componentDef.labelingPriority || 1,
+          color: componentDef.labelingColor || '#000000'
         });
       }
     }
@@ -573,18 +574,18 @@ export function SchematicEditor() {
     });
     
     // Generate labels: priority.index format (1.1, 1.2, 2.1, 2.2, ...)
-    const newLabels = new Map<string, string>();
+    const newLabels = new Map<string, { label: string; color: string }>();
     let currentPriority = -1;
     let indexInPriority = 0;
     
-    for (const { tile, priority } of tilesToLabel) {
+    for (const { tile, priority, color } of tilesToLabel) {
       if (priority !== currentPriority) {
         currentPriority = priority;
         indexInPriority = 1;
       } else {
         indexInPriority++;
       }
-      newLabels.set(tile.id, `${priority}.${indexInPriority}`);
+      newLabels.set(tile.id, { label: `${priority}.${indexInPriority}`, color });
     }
     
     setTileLabels(newLabels);

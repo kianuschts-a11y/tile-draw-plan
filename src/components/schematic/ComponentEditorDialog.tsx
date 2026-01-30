@@ -33,8 +33,8 @@ const AVAILABLE_FONTS = [
 interface ComponentEditorDialogProps {
   open: boolean;
   onClose: () => void;
-  onSave: (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number) => void;
-  onUpdate?: (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number) => void;
+  onSave: (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string) => void;
+  onUpdate?: (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string) => void;
   tileSize: number;
   editingComponent?: Component | null;
   existingCategories?: string[];
@@ -117,6 +117,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   // Beschriftung (Labeling)
   const [labelingEnabled, setLabelingEnabled] = useState(false);
   const [labelingPriority, setLabelingPriority] = useState<number>(1);
+  const [labelingColor, setLabelingColor] = useState<string>('#000000');
 
   const isEditing = !!editingComponent;
 
@@ -169,6 +170,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       setComponentTileSize(editingComponent.tileSize || '1x1');
       setLabelingEnabled(editingComponent.labelingEnabled || false);
       setLabelingPriority(editingComponent.labelingPriority || 1);
+      setLabelingColor(editingComponent.labelingColor || '#000000');
       
       const loadTileConfig = TILE_SIZES[editingComponent.tileSize || '1x1'];
       const loadAspectRatio = loadTileConfig.cols / loadTileConfig.rows;
@@ -228,6 +230,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
       setCategory('');
       setLabelingEnabled(false);
       setLabelingPriority(1);
+      setLabelingColor('#000000');
     }
   }, [open, editingComponent]);
 
@@ -935,9 +938,9 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     }));
     
     if (isEditing && editingComponent && onUpdate) {
-      onUpdate(editingComponent.id, name, normalizedShapes, componentTileSize, category, labelingEnabled, labelingPriority);
+      onUpdate(editingComponent.id, name, normalizedShapes, componentTileSize, category, labelingEnabled, labelingPriority, labelingColor);
     } else {
-      onSave(name, normalizedShapes, componentTileSize, category, labelingEnabled, labelingPriority);
+      onSave(name, normalizedShapes, componentTileSize, category, labelingEnabled, labelingPriority, labelingColor);
     }
     handleClose();
   };
@@ -961,6 +964,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
     setDraggingCurveControl(null);
     setLabelingEnabled(false);
     setLabelingPriority(1);
+    setLabelingColor('#000000');
     onClose();
   };
 
@@ -1473,19 +1477,35 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
               </div>
               
               {labelingEnabled && (
-                <div className="space-y-1 pl-1">
-                  <Label htmlFor="labeling-priority" className="text-xs text-muted-foreground">
-                    Priorität (1 = zuerst beschriften)
-                  </Label>
-                  <Input
-                    id="labeling-priority"
-                    type="number"
-                    min={1}
-                    max={99}
-                    value={labelingPriority}
-                    onChange={(e) => setLabelingPriority(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="h-8 text-sm w-20"
-                  />
+                <div className="space-y-2 pl-1">
+                  <div className="space-y-1">
+                    <Label htmlFor="labeling-priority" className="text-xs text-muted-foreground">
+                      Priorität (1 = zuerst beschriften)
+                    </Label>
+                    <Input
+                      id="labeling-priority"
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={labelingPriority}
+                      onChange={(e) => setLabelingPriority(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="h-8 text-sm w-20"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Schriftfarbe
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={labelingColor}
+                        onChange={(e) => setLabelingColor(e.target.value)}
+                        className="w-8 h-8 rounded border cursor-pointer"
+                      />
+                      <span className="text-xs font-mono">{labelingColor}</span>
+                    </div>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Komponenten mit Priorität 1 erhalten Nummern 1.1, 1.2, ..., dann Priorität 2 usw.
                   </p>

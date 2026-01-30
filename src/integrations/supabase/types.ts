@@ -80,6 +80,7 @@ export type Database = {
           created_at: string
           height: number
           id: string
+          labeling_color: string | null
           labeling_enabled: boolean | null
           labeling_priority: number | null
           name: string
@@ -95,6 +96,7 @@ export type Database = {
           created_at?: string
           height?: number
           id?: string
+          labeling_color?: string | null
           labeling_enabled?: boolean | null
           labeling_priority?: number | null
           name: string
@@ -110,6 +112,7 @@ export type Database = {
           created_at?: string
           height?: number
           id?: string
+          labeling_color?: string | null
           labeling_enabled?: boolean | null
           labeling_priority?: number | null
           name?: string

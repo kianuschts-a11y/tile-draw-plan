@@ -56,7 +56,8 @@ export function useComponents() {
         category: (c as any).category || '',
         variations: (c.variations as unknown) as ComponentVariation[],
         labelingEnabled: (c as any).labeling_enabled || false,
-        labelingPriority: (c as any).labeling_priority || 1
+        labelingPriority: (c as any).labeling_priority || 1,
+        labelingColor: (c as any).labeling_color || '#000000'
       }));
 
       setComponents(mappedComponents);
@@ -120,7 +121,7 @@ export function useComponents() {
     }
   }, [authLoading, user, companyId, migrateLocalStorageComponents, loadComponents]);
 
-  const saveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number): Promise<Component | null> => {
+  const saveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string): Promise<Component | null> => {
     if (!companyId) return null;
 
     const config = TILE_SIZES[tileSize];
@@ -138,7 +139,8 @@ export function useComponents() {
           category: category || '',
           variations: [] as unknown as Json,
           labeling_enabled: labelingEnabled || false,
-          labeling_priority: labelingPriority || 1
+          labeling_priority: labelingPriority || 1,
+          labeling_color: labelingColor || '#000000'
         } as any)
         .select()
         .single();
@@ -158,7 +160,8 @@ export function useComponents() {
         category: (data as any).category || '',
         variations: (data.variations as unknown) as ComponentVariation[],
         labelingEnabled: (data as any).labeling_enabled || false,
-        labelingPriority: (data as any).labeling_priority || 1
+        labelingPriority: (data as any).labeling_priority || 1,
+        labelingColor: (data as any).labeling_color || '#000000'
       };
 
       setComponents(prev => [...prev, newComponent]);
@@ -169,7 +172,7 @@ export function useComponents() {
     }
   }, [companyId]);
 
-  const updateComponent = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number): Promise<boolean> => {
+  const updateComponent = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string): Promise<boolean> => {
     const config = TILE_SIZES[tileSize];
 
     try {
@@ -183,7 +186,8 @@ export function useComponents() {
           tile_size: tileSize,
           category: category || '',
           labeling_enabled: labelingEnabled || false,
-          labeling_priority: labelingPriority || 1
+          labeling_priority: labelingPriority || 1,
+          labeling_color: labelingColor || '#000000'
         } as any)
         .eq('id', id);
 
@@ -202,7 +206,8 @@ export function useComponents() {
           tileSize, 
           category: category || '',
           labelingEnabled: labelingEnabled || false,
-          labelingPriority: labelingPriority || 1
+          labelingPriority: labelingPriority || 1,
+          labelingColor: labelingColor || '#000000'
         } : c
       ));
       
