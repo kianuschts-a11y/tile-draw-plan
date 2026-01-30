@@ -633,18 +633,32 @@ export function SchematicEditor() {
     for (const autoTile of autoConnectTiles) {
       const autoWidth = autoTile.component.width || 1;
       const autoHeight = autoTile.component.height || 1;
-      // Zentrum des Auto-Connect-Tiles
-      const fromX = autoTile.gridX + autoWidth / 2;
-      const fromY = autoTile.gridY + autoHeight / 2;
       
+      // Anzahl der Verbindungen für dieses Auto-Connect-Tile (für Offset-Berechnung)
+      const connectionCount = labeledTiles.filter(lt => lt.id !== autoTile.id).length;
+      
+      // Offset-Faktor für Linien-Versatz (kleinere Werte = weniger Versatz)
+      const offsetStep = 0.15; // Grid-Einheiten Versatz pro Linie
+      
+      let connectionIndex = 0;
       for (const labeledTile of labeledTiles) {
         // Nicht zu sich selbst verbinden
         if (autoTile.id === labeledTile.id) continue;
         
         const labelWidth = labeledTile.component.width || 1;
         const labelHeight = labeledTile.component.height || 1;
-        // Zentrum des beschrifteten Tiles
-        const toX = labeledTile.gridX + labelWidth / 2;
+        
+        // Berechne Versatz: verteile Linien gleichmäßig um das Zentrum
+        // Bei 3 Linien: -1, 0, +1 -> Offset: -0.15, 0, +0.15
+        const centerOffset = (connectionIndex - (connectionCount - 1) / 2) * offsetStep;
+        connectionIndex++;
+        
+        // Zentrum des Auto-Connect-Tiles mit Versatz
+        const fromX = autoTile.gridX + autoWidth / 2 + centerOffset;
+        const fromY = autoTile.gridY + autoHeight / 2;
+        
+        // Zentrum des beschrifteten Tiles mit passendem Versatz
+        const toX = labeledTile.gridX + labelWidth / 2 + centerOffset;
         const toY = labeledTile.gridY + labelHeight / 2;
         
         // Orthogonale Linienführung: erst horizontal (X), dann vertikal (Y)
