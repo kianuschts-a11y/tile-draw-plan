@@ -249,6 +249,12 @@ export function SchematicEditor() {
         !selectedTileIds.has(c.fromTileId) && !selectedTileIds.has(c.toTileId)
       ));
       setTiles(prev => prev.filter(t => !selectedTileIds.has(t.id)));
+      // Also remove deleted tiles from excessTileIds
+      setExcessTileIds(prev => {
+        const next = new Set(prev);
+        selectedTileIds.forEach(id => next.delete(id));
+        return next;
+      });
       setSelectedTileIds(new Set());
     }
   }, [selectedTileIds]);
@@ -771,31 +777,73 @@ export function SchematicEditor() {
     return Math.random().toString(36).substring(2, 11);
   }, []);
 
+  // Track excess tile IDs (tiles from groups that exceed project requirements)
+  const [excessTileIds, setExcessTileIds] = useState<Set<string>>(new Set());
+
   // Insert a group from the component selector
-  const handleInsertGroupFromSelector = useCallback((group: ComponentGroup, count: number) => {
+  const handleInsertGroupFromSelector = useCallback((group: ComponentGroup, count: number, isPartialMatch: boolean = false) => {
     if (!group.layoutData) return;
     
     // Find next available position
     const maxGridY = tiles.length > 0 ? Math.max(...tiles.map(t => t.gridY + (t.component.height || 1))) : 0;
+    
+    // For partial matches, we need to track which tiles should be marked as "excess"
+    const newExcessTileIds: string[] = [];
+    
+    // Calculate which components exceed project requirements
+    const excessComponents = new Map<string, number>();
+    if (isPartialMatch) {
+      // Get the group's component requirements (excluding connection blocks)
+      const groupRequirements = new Map<string, number>();
+      for (const tileData of group.layoutData.tiles) {
+        if (!tileData.componentId.startsWith('connection-')) {
+          groupRequirements.set(tileData.componentId, (groupRequirements.get(tileData.componentId) || 0) + 1);
+        }
+      }
+      
+      // Calculate excess for each component
+      for (const [compId, needed] of groupRequirements.entries()) {
+        const available = projectQuantities.get(compId) || 0;
+        if (needed > available) {
+          excessComponents.set(compId, needed - available);
+        }
+      }
+    }
     
     for (let i = 0; i < count; i++) {
       const offsetY = maxGridY + (i * 5);
       const newTileIds: string[] = [];
       const newTiles: PlacedTile[] = [];
       
+      // Track how many of each component we've placed for excess marking
+      const placedCounts = new Map<string, number>();
+      
       // Create tiles from layout data
       for (const tileData of group.layoutData.tiles) {
         const component = findComponentById(tileData.componentId, components);
         if (!component) continue;
         
+        const newTileId = generateNewId();
         const newTile: PlacedTile = {
-          id: generateNewId(),
+          id: newTileId,
           component,
           gridX: tileData.relativeX,
           gridY: offsetY + tileData.relativeY
         };
         newTiles.push(newTile);
-        newTileIds.push(newTile.id);
+        newTileIds.push(newTileId);
+        
+        // Check if this tile should be marked as excess
+        if (isPartialMatch && !tileData.componentId.startsWith('connection-')) {
+          const placedCount = placedCounts.get(tileData.componentId) || 0;
+          const available = projectQuantities.get(tileData.componentId) || 0;
+          
+          // If we've already placed more than available, this is excess
+          if (placedCount >= available) {
+            newExcessTileIds.push(newTileId);
+          }
+          placedCounts.set(tileData.componentId, placedCount + 1);
+        }
       }
       
       // Create connections using the new tile IDs
@@ -820,7 +868,12 @@ export function SchematicEditor() {
       setTiles(prev => [...prev, ...newTiles]);
       setConnections(prev => [...prev, ...newConnections]);
     }
-  }, [tiles, components, generateNewId]);
+    
+    // Update excess tile IDs
+    if (newExcessTileIds.length > 0) {
+      setExcessTileIds(prev => new Set([...prev, ...newExcessTileIds]));
+    }
+  }, [tiles, components, generateNewId, projectQuantities]);
 
   // Insert multiple groups from complementary set - positions them next to each other
   const handleInsertMultipleGroups = useCallback((groupsWithCounts: Array<{ group: ComponentGroup; count: number }>) => {
@@ -1157,6 +1210,7 @@ export function SchematicEditor() {
             components={components}
             titleBlockData={titleBlockData}
             tileLabels={tileLabels}
+            excessTileIds={excessTileIds}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
