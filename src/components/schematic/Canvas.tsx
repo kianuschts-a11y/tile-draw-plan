@@ -169,6 +169,7 @@ interface CanvasProps {
   components?: Component[];
   titleBlockData?: TitleBlockData;
   tileLabels?: Map<string, { label: string; color: string }>; // Auto-generated labels for tiles
+  excessTileIds?: Set<string>; // Tiles that exceed project requirements (marked red)
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
@@ -191,6 +192,7 @@ export function Canvas({
   components = [],
   titleBlockData,
   tileLabels = new Map(),
+  excessTileIds = new Set(),
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
@@ -1251,6 +1253,7 @@ export function Canvas({
           const compWidth = (tile.component.width || 1) * tileSize;
           const compHeight = (tile.component.height || 1) * tileSize;
           const isSelected = selectedTileIds.has(tile.id);
+          const isExcess = excessTileIds.has(tile.id);
           const rotation = tile.rotation || 0;
           
           // Calculate rotation center (center of the tile)
@@ -1264,6 +1267,15 @@ export function Canvas({
             return cell.gridX >= tile.gridX && cell.gridX < tile.gridX + tileWidth &&
                    cell.gridY >= tile.gridY && cell.gridY < tile.gridY + tileHeight;
           });
+
+          // Determine stroke color and style
+          let strokeColor = "transparent";
+          let strokeDasharray: string | undefined = undefined;
+          if (isExcess) {
+            strokeColor = "hsl(0, 84%, 50%)"; // Red for excess
+          } else if (isTileInPath || isSelected) {
+            strokeColor = "hsl(var(--primary))";
+          }
           
           return (
             <g
@@ -1279,14 +1291,13 @@ export function Canvas({
                 fill={
                   isSelected 
                     ? "hsl(var(--primary) / 0.1)" 
-                    : "hsl(var(--muted) / 0.3)"
+                    : isExcess
+                      ? "hsl(0, 84%, 50%, 0.1)"
+                      : "hsl(var(--muted) / 0.3)"
                 }
-                stroke={
-                  isTileInPath || isSelected 
-                    ? "hsl(var(--primary))" 
-                    : "transparent"
-                }
-                strokeWidth={2}
+                stroke={strokeColor}
+                strokeWidth={isExcess ? 3 : 2}
+                strokeDasharray={strokeDasharray}
               />
               {/* Component shapes - rotated around center */}
               <g transform={rotation !== 0 ? `rotate(${rotation}, ${centerX}, ${centerY})` : undefined}>

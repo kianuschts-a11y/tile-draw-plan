@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal } from "lucide-react";
+import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal, AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,14 +17,15 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { GroupPreview } from "./GroupPreview";
 
 interface ComponentSelectorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   components: Component[];
   groups: ComponentGroup[];
-  onInsertGroup: (group: ComponentGroup, count: number) => void;
-  onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>) => void;
+  onInsertGroup: (group: ComponentGroup, count: number, isPartialMatch?: boolean) => void;
+  onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>, isPartialMatch?: boolean) => void;
   projectQuantities: Map<string, number>;
   onProjectQuantitiesChange: (quantities: Map<string, number>) => void;
   projectDescriptions: Map<string, string[]>;
@@ -515,8 +516,8 @@ export function ComponentSelectorDialog({
   const exactCombinations = complementaryGroupSets.filter(s => s.totalCoverage === 100);
   const partialCombinations = complementaryGroupSets.filter(s => s.totalCoverage < 100);
 
-  const handleInsertGroup = (group: ComponentGroup, count: number = 1) => {
-    onInsertGroup(group, count);
+  const handleInsertGroup = (group: ComponentGroup, count: number = 1, isPartialMatch: boolean = false) => {
+    onInsertGroup(group, count, isPartialMatch);
     
     // When updating quantities, only subtract non-connection components
     const requirements = getGroupComponentRequirements(group, true);
@@ -731,28 +732,32 @@ export function ComponentSelectorDialog({
                           key={suggestion.group.id}
                           className="p-2 rounded-lg border border-green-500/50 bg-green-500/10 space-y-2"
                         >
-                          <div className="flex items-center gap-2">
-                            <Folder className="w-4 h-4 text-green-600" />
-                            <span className="text-sm font-medium flex-1 truncate">
-                              {suggestion.group.name}
-                            </span>
-                            <Badge variant="default" className="bg-green-600">
-                              100%
-                            </Badge>
+                          <div className="flex items-start gap-2">
+                            <div className="flex-shrink-0">
+                              <GroupPreview group={suggestion.group} components={components} maxSize={50} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium truncate block">
+                                {suggestion.group.name}
+                              </span>
+                              <div className="flex items-center gap-1 mt-1">
+                                <Badge variant="default" className="bg-green-600 h-5 text-[10px]">
+                                  100%
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  {suggestion.possibleCount}x
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">
-                              Verfügbar: {suggestion.possibleCount}x
-                            </span>
-                            <Button
-                              size="sm"
-                              className="h-6 text-xs ml-auto gap-1"
-                              onClick={() => handleInsertGroup(suggestion.group, 1)}
-                            >
-                              <ArrowRight className="w-3 h-3" />
-                              Einfügen
-                            </Button>
-                          </div>
+                          <Button
+                            size="sm"
+                            className="h-6 text-xs w-full gap-1"
+                            onClick={() => handleInsertGroup(suggestion.group, 1, false)}
+                          >
+                            <ArrowRight className="w-3 h-3" />
+                            Einfügen
+                          </Button>
                         </div>
                       ))}
                       
@@ -826,37 +831,37 @@ export function ComponentSelectorDialog({
                                 key={`single-${suggestion.group.id}`}
                                 className="p-2 rounded-lg border bg-muted/30 space-y-2"
                               >
-                                <div className="flex items-center gap-2">
-                                  <Folder className="w-4 h-4 text-muted-foreground" />
-                                  <span className="text-sm flex-1 truncate">
-                                    {suggestion.group.name}
-                                  </span>
-                                  <Badge variant="secondary">
-                                    {suggestion.coveragePercent}%
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {isPartiallyFulfillable ? (
-                                    <>
-                                      <span className="text-xs text-muted-foreground">
-                                        Verfügbar: {suggestion.possibleCount}x
-                                      </span>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-6 text-xs ml-auto gap-1"
-                                        onClick={() => handleInsertGroup(suggestion.group, 1)}
-                                      >
-                                        <ArrowRight className="w-3 h-3" />
-                                        Einfügen
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground italic">
-                                      Komponenten fehlen
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-shrink-0">
+                                    <GroupPreview group={suggestion.group} components={components} maxSize={50} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm truncate block">
+                                      {suggestion.group.name}
                                     </span>
-                                  )}
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <Badge variant="secondary" className="h-5 text-[10px]">
+                                        {suggestion.coveragePercent}%
+                                      </Badge>
+                                      {!isPartiallyFulfillable && (
+                                        <span className="text-[10px] text-orange-600 flex items-center gap-0.5">
+                                          <AlertTriangle className="w-3 h-3" />
+                                          fehlen
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
+                                {/* Always show insert button - for partial matches, mark excess components */}
+                                <Button
+                                  size="sm"
+                                  variant={isPartiallyFulfillable ? "outline" : "secondary"}
+                                  className="h-6 text-xs w-full gap-1"
+                                  onClick={() => handleInsertGroup(suggestion.group, 1, !isPartiallyFulfillable)}
+                                >
+                                  <ArrowRight className="w-3 h-3" />
+                                  {isPartiallyFulfillable ? 'Einfügen' : 'Trotzdem einfügen'}
+                                </Button>
                               </div>
                             );
                           } else {
