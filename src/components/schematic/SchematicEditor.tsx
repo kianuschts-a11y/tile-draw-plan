@@ -101,6 +101,8 @@ export function SchematicEditor() {
   });
   const [isTitleBlockEditorOpen, setIsTitleBlockEditorOpen] = useState(false);
   const [isBOMOpen, setIsBOMOpen] = useState(false);
+  // Auto-generated labels for tiles (tileId -> label like "1.1", "1.2", etc.)
+  const [tileLabels, setTileLabels] = useState<Map<string, string>>(new Map());
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 1,
     panX: 50,
@@ -541,6 +543,62 @@ export function SchematicEditor() {
   const handleUpdateComponent = useCallback(async (updatedComponent: Component) => {
     await updateComponentFull(updatedComponent);
   }, [updateComponentFull]);
+
+  // Auto-Label: Generate labels for all tiles with labelingEnabled components
+  const handleAutoLabel = useCallback(() => {
+    // Find all tiles that have labeling enabled, grouped by priority
+    const tilesToLabel: { tile: PlacedTile; priority: number }[] = [];
+    
+    for (const tile of tiles) {
+      // Skip connection blocks
+      if (isConnectionBlock(tile.component)) continue;
+      
+      // Find the component definition to check labelingEnabled
+      const componentDef = components.find(c => c.id === tile.component.id);
+      if (componentDef?.labelingEnabled) {
+        tilesToLabel.push({
+          tile,
+          priority: componentDef.labelingPriority || 1
+        });
+      }
+    }
+    
+    if (tilesToLabel.length === 0) return;
+    
+    // Sort by priority, then by position (top-to-bottom, left-to-right)
+    tilesToLabel.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.tile.gridY !== b.tile.gridY) return a.tile.gridY - b.tile.gridY;
+      return a.tile.gridX - b.tile.gridX;
+    });
+    
+    // Generate labels: priority.index format (1.1, 1.2, 2.1, 2.2, ...)
+    const newLabels = new Map<string, string>();
+    let currentPriority = -1;
+    let indexInPriority = 0;
+    
+    for (const { tile, priority } of tilesToLabel) {
+      if (priority !== currentPriority) {
+        currentPriority = priority;
+        indexInPriority = 1;
+      } else {
+        indexInPriority++;
+      }
+      newLabels.set(tile.id, `${priority}.${indexInPriority}`);
+    }
+    
+    setTileLabels(newLabels);
+  }, [tiles, components]);
+
+  // Check if there are any tiles with labelable components
+  const hasLabelableComponents = useMemo(() => {
+    for (const tile of tiles) {
+      if (isConnectionBlock(tile.component)) continue;
+      const componentDef = components.find(c => c.id === tile.component.id);
+      if (componentDef?.labelingEnabled) return true;
+    }
+    return false;
+  }, [tiles, components]);
 
   const handleComponentSelect = useCallback((id: string) => {
     // Toggle selection for the component
@@ -1081,6 +1139,8 @@ export function SchematicEditor() {
           canRedo={historyIndexRef.current < historyRef.current.length - 1}
           onRotate={handleRotate}
           canRotate={selectedTileIds.size > 0}
+          onAutoLabel={handleAutoLabel}
+          hasLabelableComponents={hasLabelableComponents}
         />
 
         <div className="flex-1 overflow-hidden schematic-canvas">
@@ -1095,6 +1155,7 @@ export function SchematicEditor() {
             isGroupMode={isGroupMode}
             components={components}
             titleBlockData={titleBlockData}
+            tileLabels={tileLabels}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
