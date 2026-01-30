@@ -611,7 +611,7 @@ export function SchematicEditor() {
   // Auto-Verbindungslinien: Berechne gestrichelte Linien von Komponenten mit autoConnectionsEnabled
   // zu allen Komponenten mit labelingEnabled
   const autoConnectionLines = useMemo(() => {
-    const lines: { fromTileId: string; toTileId: string; fromX: number; fromY: number; toX: number; toY: number }[] = [];
+    const lines: { fromTileId: string; toTileId: string; fromX: number; fromY: number; midX: number; midY: number; toX: number; toY: number }[] = [];
     
     // Finde alle Tiles mit autoConnectionsEnabled
     const autoConnectTiles: PlacedTile[] = [];
@@ -629,7 +629,7 @@ export function SchematicEditor() {
       }
     }
     
-    // Für jede Auto-Connect-Komponente, erstelle Linien zu allen beschrifteten Komponenten
+    // Für jede Auto-Connect-Komponente, erstelle orthogonale Linien zu allen beschrifteten Komponenten
     for (const autoTile of autoConnectTiles) {
       const autoWidth = autoTile.component.width || 1;
       const autoHeight = autoTile.component.height || 1;
@@ -647,11 +647,18 @@ export function SchematicEditor() {
         const toX = labeledTile.gridX + labelWidth / 2;
         const toY = labeledTile.gridY + labelHeight / 2;
         
+        // Orthogonale Linienführung: erst horizontal (X), dann vertikal (Y)
+        // Eckpunkt hat die X-Koordinate des Ziels und die Y-Koordinate des Starts
+        const midX = toX;
+        const midY = fromY;
+        
         lines.push({
           fromTileId: autoTile.id,
           toTileId: labeledTile.id,
           fromX,
           fromY,
+          midX,
+          midY,
           toX,
           toY
         });

@@ -157,12 +157,14 @@ export interface PlacedTile {
   rotation?: number; // Rotation angle in degrees (0, 90, 180, 270)
 }
 
-// Auto-Verbindungslinie (gestrichelt)
+// Auto-Verbindungslinie (gestrichelt) - orthogonal (horizontal + vertikal)
 export interface AutoConnectionLine {
   fromTileId: string;
   toTileId: string;
   fromX: number; // Grid-basierte Koordinaten (Zentrum)
   fromY: number;
+  midX: number;  // Eckpunkt für orthogonale Linienführung
+  midY: number;
   toX: number;
   toY: number;
 }
@@ -1353,28 +1355,32 @@ export function Canvas({
           );
         })}
 
-        {/* Auto-Verbindungslinien (gestrichelt) */}
+        {/* Auto-Verbindungslinien (gestrichelt, orthogonal) */}
         {autoConnectionLines.length > 0 && autoConnectionLines.map((line, index) => {
           // Konvertiere Grid-Koordinaten zu Pixel-Koordinaten
           const fromX = line.fromX * tileSize;
           const fromY = line.fromY * tileSize;
+          const midX = line.midX * tileSize;
+          const midY = line.midY * tileSize;
           const toX = line.toX * tileSize;
           const toY = line.toY * tileSize;
           
           const strokeWidth = tileSize * 0.02; // Dünne Linie
           const dashArray = `${tileSize * 0.1} ${tileSize * 0.05}`; // Gestrichelt
           
+          // Orthogonale Linie: erst horizontal, dann vertikal (oder direkt wenn auf einer Achse)
+          const points = `${fromX},${fromY} ${midX},${midY} ${toX},${toY}`;
+          
           return (
-            <line
+            <polyline
               key={`auto-conn-${line.fromTileId}-${line.toTileId}-${index}`}
-              x1={fromX}
-              y1={fromY}
-              x2={toX}
-              y2={toY}
+              points={points}
+              fill="none"
               stroke="#666666"
               strokeWidth={strokeWidth}
               strokeDasharray={dashArray}
               strokeLinecap="round"
+              strokeLinejoin="round"
               opacity={0.7}
             />
           );
