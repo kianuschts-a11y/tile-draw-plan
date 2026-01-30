@@ -24,8 +24,8 @@ interface ComponentSelectorDialogProps {
   onOpenChange: (open: boolean) => void;
   components: Component[];
   groups: ComponentGroup[];
-  onInsertGroup: (group: ComponentGroup, count: number, isPartialMatch?: boolean) => void;
-  onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>, isPartialMatch?: boolean) => void;
+  onInsertGroup: (group: ComponentGroup, count: number, isPartialMatch?: boolean, currentQuantities?: Map<string, number>) => void;
+  onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>, isPartialMatch?: boolean, currentQuantities?: Map<string, number>) => void;
   projectQuantities: Map<string, number>;
   onProjectQuantitiesChange: (quantities: Map<string, number>) => void;
   projectDescriptions: Map<string, string[]>;
@@ -517,7 +517,8 @@ export function ComponentSelectorDialog({
   const partialCombinations = complementaryGroupSets.filter(s => s.totalCoverage < 100);
 
   const handleInsertGroup = (group: ComponentGroup, count: number = 1, isPartialMatch: boolean = false) => {
-    onInsertGroup(group, count, isPartialMatch);
+    // Pass current quantities to enable accurate excess calculation
+    onInsertGroup(group, count, isPartialMatch, quantities);
     
     // When updating quantities, only subtract non-connection components
     const requirements = getGroupComponentRequirements(group, true);
@@ -537,7 +538,7 @@ export function ComponentSelectorDialog({
   };
 
   const handleInsertComplementarySet = (set: ComplementaryGroupSet) => {
-    onInsertMultipleGroups(set.groups.map(g => ({ group: g.group, count: g.possibleCount })));
+    onInsertMultipleGroups(set.groups.map(g => ({ group: g.group, count: g.possibleCount })), false, quantities);
     setQuantities(set.remainingComponents);
   };
 
