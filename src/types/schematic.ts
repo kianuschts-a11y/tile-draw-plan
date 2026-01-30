@@ -127,6 +127,9 @@ export interface Component {
   thumbnail?: string;
   variations?: ComponentVariation[]; // Legacy - kept for compatibility
   activeVariationId?: string; // Legacy
+  // Beschriftung (Labeling) - automatische Nummerierung wie 1.1, 1.2, 1.3...
+  labelingEnabled?: boolean; // Ob Beschriftung aktiviert ist
+  labelingPriority?: number; // Priorität für Reihenfolge (1 = zuerst, 2 = danach, etc.)
 }
 
 // Tile layout data for groups - stores relative positions
