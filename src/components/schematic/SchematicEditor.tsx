@@ -678,21 +678,16 @@ export function SchematicEditor() {
           fromY = dy > 0 ? autoTile.gridY + autoHeight : autoTile.gridY; // unten oder oben
         }
         
-        // Berechne Endpunkt an der Kante der Zielkomponente
+        // Bei orthogonaler Linienführung (horizontal dann vertikal):
+        // Die letzte Strecke ist IMMER vertikal, also Endpunkt IMMER oben/unten an der Zielkomponente
         let toX: number, toY: number;
         
-        // Endpunkt auf der gegenüberliegenden Seite
-        if (Math.abs(dx) >= Math.abs(dy)) {
-          // Horizontal dominant: Ende an der entgegengesetzten Seite
-          toX = dx > 0 ? labeledTile.gridX : labeledTile.gridX + labelWidth;
-          toY = targetCenterY;
-        } else {
-          // Vertikal dominant: Ende an oberer/unterer Kante
-          toX = targetCenterX;
-          toY = dy > 0 ? labeledTile.gridY : labeledTile.gridY + labelHeight;
-        }
+        // Endpunkt immer an oberer oder unterer Kante (weil letzte Strecke vertikal ist)
+        toX = targetCenterX;
+        toY = dy > 0 ? labeledTile.gridY : labeledTile.gridY + labelHeight;
         
         // Orthogonale Linienführung: erst horizontal (X), dann vertikal (Y)
+        // Der Knickpunkt hat die X-Koordinate des Ziels und die Y-Koordinate des Starts
         const midX = toX;
         const midY = fromY;
         
