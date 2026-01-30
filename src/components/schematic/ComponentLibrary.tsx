@@ -3,6 +3,8 @@ import { Component, Shape, ComponentGroup } from "@/types/schematic";
 import { PlacedTile } from "./Canvas";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Pencil, Upload, Folder, Info } from "lucide-react";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,6 +49,7 @@ interface ComponentLibraryProps {
   hasLocalStorageComponents?: boolean;
   onDeleteGroup: (id: string) => void;
   onEditGroup: (group: ComponentGroup) => void;
+  onRenameGroup: (id: string, newName: string) => Promise<boolean>;
   activeTab: LibraryTab;
   onTabChange: (tab: LibraryTab) => void;
   projectQuantities?: Map<string, number>;
@@ -235,6 +238,7 @@ export function ComponentLibrary({
   hasLocalStorageComponents,
   onDeleteGroup,
   onEditGroup,
+  onRenameGroup,
   activeTab,
   onTabChange,
   projectQuantities,
@@ -248,6 +252,9 @@ export function ComponentLibrary({
   const [deleteGroupConfirmOpen, setDeleteGroupConfirmOpen] = useState(false);
   const [infoGroup, setInfoGroup] = useState<ComponentGroup | null>(null);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [renameGroup, setRenameGroup] = useState<ComponentGroup | null>(null);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
 
   // Calculate how many of each component are already placed on canvas
   const placedComponentCounts = useMemo(() => {
@@ -325,6 +332,21 @@ export function ComponentLibrary({
     }
     setDeleteGroupConfirmOpen(false);
     setGroupToDelete(null);
+  };
+
+  const handleRenameGroupClick = (group: ComponentGroup) => {
+    setRenameGroup(group);
+    setNewGroupName(group.name);
+    setRenameDialogOpen(true);
+  };
+
+  const confirmRenameGroup = async () => {
+    if (renameGroup && newGroupName.trim()) {
+      await onRenameGroup(renameGroup.id, newGroupName.trim());
+    }
+    setRenameDialogOpen(false);
+    setRenameGroup(null);
+    setNewGroupName("");
   };
 
   const renderComponentItem = (component: Component) => {
@@ -533,9 +555,9 @@ export function ComponentLibrary({
             Informationen
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={() => onEditGroup(group)}>
+          <ContextMenuItem onClick={() => handleRenameGroupClick(group)}>
             <Pencil className="w-4 h-4 mr-2" />
-            Bearbeiten
+            Umbenennen
           </ContextMenuItem>
           <ContextMenuItem 
             onClick={() => handleDeleteGroupClick(group)}
@@ -698,6 +720,39 @@ export function ComponentLibrary({
         open={infoDialogOpen}
         onOpenChange={setInfoDialogOpen}
       />
+
+      {/* Rename Group Dialog */}
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gruppe umbenennen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="group-name">Name</Label>
+              <Input
+                id="group-name"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Gruppenname eingeben"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    confirmRenameGroup();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={confirmRenameGroup} disabled={!newGroupName.trim()}>
+              Speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
