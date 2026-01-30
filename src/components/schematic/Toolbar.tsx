@@ -11,7 +11,8 @@ import {
   X,
   Undo2,
   Redo2,
-  ArrowRight
+  ArrowRight,
+  Tag
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
@@ -58,6 +59,9 @@ interface ToolbarProps {
   // Rotation
   onRotate: () => void;
   canRotate: boolean;
+  // Auto-labeling
+  onAutoLabel: () => void;
+  hasLabelableComponents: boolean;
 }
 
 export function Toolbar({
@@ -77,7 +81,9 @@ export function Toolbar({
   canUndo,
   canRedo,
   onRotate,
-  canRotate
+  canRotate,
+  onAutoLabel,
+  hasLabelableComponents
 }: ToolbarProps) {
   const [groupName, setGroupName] = useState("");
 
@@ -255,6 +261,14 @@ export function Toolbar({
           </div>
         )}
       </div>
+      
+      {/* Auto-Label Button */}
+      <ToolButton
+        icon={Tag}
+        label="Beschriftungen einfügen"
+        onClick={onAutoLabel}
+        disabled={!hasLabelableComponents || isGroupMode}
+      />
       
     </div>
   );
