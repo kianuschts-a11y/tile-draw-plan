@@ -130,6 +130,7 @@ export interface Component {
   // Beschriftung (Labeling) - automatische Nummerierung wie 1.1, 1.2, 1.3...
   labelingEnabled?: boolean; // Ob Beschriftung aktiviert ist
   labelingPriority?: number; // Priorität für Reihenfolge (1 = zuerst, 2 = danach, etc.)
+  labelingColor?: string; // Farbe für die Beschriftung (z.B. "#ff0000")
 }
 
 // Tile layout data for groups - stores relative positions
