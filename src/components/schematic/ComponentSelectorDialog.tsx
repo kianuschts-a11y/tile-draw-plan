@@ -72,6 +72,10 @@ export function ComponentSelectorDialog({
   const [preise, setPreise] = useState<Map<string, number>>(new Map());
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   
+  // Track the ORIGINAL quantities selected by user (before any group insertions)
+  // This never changes during the session - it's what the user originally picked
+  const [originalSelectedQuantities, setOriginalSelectedQuantities] = useState<Map<string, number>>(new Map());
+  
   // Track initial state to determine button text
   const initialQuantitiesRef = useRef<string>("");
   const initialDescriptionsRef = useRef<string>("");
@@ -92,6 +96,21 @@ export function ComponentSelectorDialog({
       initialDescriptionsRef.current = JSON.stringify(Array.from(projectDescriptions.entries()));
       initialKategorienRef.current = JSON.stringify(Array.from(projectKategorien.entries()));
       initialPreiseRef.current = JSON.stringify(Array.from(projectPreise.entries()));
+      
+      // Only set original quantities if this is a fresh start (no quantities yet)
+      // or if user adds MORE components (original should track the max they ever selected)
+      setOriginalSelectedQuantities(prev => {
+        const newOriginal = new Map(prev);
+        projectQuantities.forEach((qty, id) => {
+          const existingOriginal = prev.get(id) || 0;
+          // Always use the higher value - either what was there or what's coming in
+          // This ensures we track the total they originally selected
+          if (qty > existingOriginal) {
+            newOriginal.set(id, qty);
+          }
+        });
+        return newOriginal;
+      });
       
       setWasOpened(projectQuantities.size > 0);
       setHasChanges(false);
@@ -141,6 +160,12 @@ export function ComponentSelectorDialog({
           newE.delete(componentId);
           return newE;
         });
+        // Also reset original selected quantities for this component
+        setOriginalSelectedQuantities(o => {
+          const newO = new Map(o);
+          newO.delete(componentId);
+          return newO;
+        });
       } else {
         next.set(componentId, newValue);
         // Adjust descriptions array
@@ -151,6 +176,16 @@ export function ComponentSelectorDialog({
           const newDescs = Array.from({ length: newValue }, (_, i) => currentDescs[i] || '');
           newD.set(componentId, newDescs);
           return newD;
+        });
+        // Update original selected quantities if we're adding more
+        setOriginalSelectedQuantities(o => {
+          const newO = new Map(o);
+          const currentOriginal = o.get(componentId) || 0;
+          // If new value exceeds what was originally selected, update it
+          if (newValue > currentOriginal) {
+            newO.set(componentId, newValue);
+          }
+          return newO;
         });
       }
       return next;
@@ -182,6 +217,12 @@ export function ComponentSelectorDialog({
           newE.delete(componentId);
           return newE;
         });
+        // Also reset original selected quantities for this component
+        setOriginalSelectedQuantities(o => {
+          const newO = new Map(o);
+          newO.delete(componentId);
+          return newO;
+        });
       } else {
         next.set(componentId, value);
         setDescriptions(d => {
@@ -190,6 +231,15 @@ export function ComponentSelectorDialog({
           const newDescs = Array.from({ length: value }, (_, i) => currentDescs[i] || '');
           newD.set(componentId, newDescs);
           return newD;
+        });
+        // Update original selected quantities if we're adding more
+        setOriginalSelectedQuantities(o => {
+          const newO = new Map(o);
+          const currentOriginal = o.get(componentId) || 0;
+          if (value > currentOriginal) {
+            newO.set(componentId, value);
+          }
+          return newO;
         });
       }
       return next;
@@ -255,6 +305,8 @@ export function ComponentSelectorDialog({
     setKategorien(emptyKat);
     setPreise(emptyPreise);
     setExpandedComponents(new Set());
+    // Also reset original selected quantities
+    setOriginalSelectedQuantities(new Map());
   };
 
   const handleSave = () => {
@@ -585,7 +637,8 @@ export function ComponentSelectorDialog({
               <div className="space-y-1">
               {components.map(component => {
                   const remainingQty = quantities.get(component.id) || 0;
-                  const originalQty = projectQuantities.get(component.id) || 0;
+                  // Use the ORIGINAL quantities the user selected (not the reduced projectQuantities)
+                  const originalQty = originalSelectedQuantities.get(component.id) || 0;
                   const placedQty = originalQty - remainingQty;
                   // Show component if it's in original project OR if user is adding new ones
                   const qty = remainingQty; // For backwards compatibility with controls
