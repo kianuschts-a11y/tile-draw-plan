@@ -42,13 +42,41 @@ interface ComponentImportDialogProps {
   }) => void;
 }
 
+const STORAGE_KEY = 'component-import-column-mappings';
+
+// Load saved mappings from localStorage
+const loadSavedMappings = (): ColumnMapping[] => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load saved column mappings:', e);
+  }
+  return DEFAULT_COLUMN_MAPPINGS;
+};
+
 export function ComponentImportDialog({
   open,
   onOpenChange,
   components,
   onImport
 }: ComponentImportDialogProps) {
-  const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>(DEFAULT_COLUMN_MAPPINGS);
+  const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>(loadSavedMappings);
+
+  // Save mappings to localStorage whenever they change
+  const handleColumnMappingsChange = (mappings: ColumnMapping[]) => {
+    setColumnMappings(mappings);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mappings));
+    } catch (e) {
+      console.error('Failed to save column mappings:', e);
+    }
+  };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importedRows, setImportedRows] = useState<ImportedRow[]>([]);
   const [fileName, setFileName] = useState<string>("");
@@ -458,7 +486,7 @@ export function ComponentImportDialog({
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         columnMappings={columnMappings}
-        onColumnMappingsChange={setColumnMappings}
+        onColumnMappingsChange={handleColumnMappingsChange}
       />
     </>
   );
