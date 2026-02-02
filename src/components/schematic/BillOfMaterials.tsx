@@ -12,11 +12,11 @@ interface BillOfMaterialsItem {
   componentId: string;
   name: string;
   kategorie: string;
-  description: string;
+  marke: string;
+  modell: string;
   quantity: number;
   preis: number;
   gesamtkosten: number;
-  instanceIndex?: number;
 }
 
 interface BillOfMaterialsProps {
@@ -29,6 +29,8 @@ interface BillOfMaterialsProps {
   projectDescriptions: Map<string, string[]>;
   projectKategorien: Map<string, string>;
   projectPreise: Map<string, number>;
+  projectMarken: Map<string, string>;
+  projectModelle: Map<string, string>;
 }
 
 export function BillOfMaterials({ 
@@ -40,10 +42,12 @@ export function BillOfMaterials({
   orientation,
   projectDescriptions,
   projectKategorien,
-  projectPreise
+  projectPreise,
+  projectMarken,
+  projectModelle
 }: BillOfMaterialsProps) {
   
-  // Calculate BOM from placed tiles with descriptions - use component's category
+  // Calculate BOM from placed tiles - group by component, marke, modell combination
   const bomItems: BillOfMaterialsItem[] = (() => {
     const componentCounts = new Map<string, { component: Component; count: number }>();
     
@@ -68,7 +72,6 @@ export function BillOfMaterials({
         const catA = a.component.category || '';
         const catB = b.component.category || '';
         if (catA !== catB) {
-          // Empty categories go to the end
           if (!catA) return 1;
           if (!catB) return -1;
           return catA.localeCompare(catB);
@@ -78,38 +81,23 @@ export function BillOfMaterials({
     
     let position = 1;
     for (const [id, { component, count }] of sortedEntries) {
-      const descriptions = projectDescriptions.get(id) || [];
-      // Use component's category (from component definition), fallback to projectKategorien
       const kategorie = component.category || projectKategorien.get(id) || '';
+      const marke = projectMarken.get(id) || '';
+      const modell = projectModelle.get(id) || '';
       const preis = projectPreise.get(id) || 0;
-      const hasDescriptions = descriptions.some(d => d && d.trim() !== '');
       
-      if (hasDescriptions) {
-        for (let i = 0; i < count; i++) {
-          items.push({
-            position: position++,
-            componentId: id,
-            name: component.name,
-            kategorie,
-            description: descriptions[i] || '',
-            quantity: 1,
-            preis,
-            gesamtkosten: preis,
-            instanceIndex: i
-          });
-        }
-      } else {
-        items.push({
-          position: position++,
-          componentId: id,
-          name: component.name,
-          kategorie,
-          description: '',
-          quantity: count,
-          preis,
-          gesamtkosten: preis * count
-        });
-      }
+      // Always group by component - no separate rows for duplicates
+      items.push({
+        position: position++,
+        componentId: id,
+        name: component.name,
+        kategorie,
+        marke,
+        modell,
+        quantity: count,
+        preis,
+        gesamtkosten: preis * count
+      });
     }
     
     return items;
@@ -120,22 +108,22 @@ export function BillOfMaterials({
     const wsData: (string | number)[][] = [];
     
     // Title row
-    wsData.push(['STÜCKLISTE', '', '', '', '', '', '']);
-    wsData.push(['', '', '', '', '', '', '']);
+    wsData.push(['STÜCKLISTE', '', '', '', '', '', '', '']);
+    wsData.push(['', '', '', '', '', '', '', '']);
     
     // Project info
     if (titleBlockData.projekt) {
-      wsData.push(['Projekt:', titleBlockData.projekt, '', '', '', '', '']);
+      wsData.push(['Projekt:', titleBlockData.projekt, '', '', '', '', '', '']);
     }
     if (titleBlockData.zeichnungsNr) {
-      wsData.push(['Zeichnungs-Nr.:', titleBlockData.zeichnungsNr, '', '', '', '', '']);
+      wsData.push(['Zeichnungs-Nr.:', titleBlockData.zeichnungsNr, '', '', '', '', '', '']);
     }
-    wsData.push(['Erstellt am:', new Date().toLocaleDateString('de-DE'), '', '', '', '', '']);
-    wsData.push(['', '', '', '', '', '', '']);
+    wsData.push(['Erstellt am:', new Date().toLocaleDateString('de-DE'), '', '', '', '', '', '']);
+    wsData.push(['', '', '', '', '', '', '', '']);
     
     // Table header row
     const headerRowIndex = wsData.length;
-    wsData.push(['Pos.', 'Benennung', 'Kategorie', 'Beschreibung', 'Menge', 'Preis (€)', 'Gesamt (€)']);
+    wsData.push(['Pos.', 'Komponente', 'Kategorie', 'Marke', 'Modell', 'Menge', 'Preis (€)', 'Gesamt (€)']);
     
     // Data rows
     for (const item of bomItems) {
@@ -143,7 +131,8 @@ export function BillOfMaterials({
         item.position,
         item.name,
         item.kategorie || '',
-        item.description || '',
+        item.marke || '',
+        item.modell || '',
         item.quantity,
         item.preis || '',
         item.gesamtkosten || ''
@@ -151,12 +140,12 @@ export function BillOfMaterials({
     }
     
     // Empty row before totals
-    wsData.push(['', '', '', '', '', '', '']);
+    wsData.push(['', '', '', '', '', '', '', '']);
     
     // Totals row
     const totalCount = bomItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalKosten = bomItems.reduce((sum, item) => sum + item.gesamtkosten, 0);
-    wsData.push(['', '', '', 'GESAMT:', totalCount, '', totalKosten > 0 ? totalKosten : '']);
+    wsData.push(['', '', '', '', 'GESAMT:', totalCount, '', totalKosten > 0 ? totalKosten : '']);
     
     // Create worksheet from data
     const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -164,9 +153,10 @@ export function BillOfMaterials({
     // Set column widths
     ws['!cols'] = [
       { wch: 6 },   // Pos.
-      { wch: 25 },  // Benennung
+      { wch: 20 },  // Komponente
       { wch: 18 },  // Kategorie
-      { wch: 35 },  // Beschreibung
+      { wch: 15 },  // Marke
+      { wch: 20 },  // Modell
       { wch: 8 },   // Menge
       { wch: 12 },  // Preis
       { wch: 12 },  // Gesamt
@@ -190,7 +180,7 @@ export function BillOfMaterials({
     
     // Merge cells for title
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }
     ];
     
     // Add the worksheet to workbook
@@ -238,9 +228,10 @@ export function BillOfMaterials({
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="w-12">Pos.</TableHead>
-                <TableHead>Benennung</TableHead>
+                <TableHead>Komponente</TableHead>
                 <TableHead className="w-32">Kategorie</TableHead>
-                <TableHead>Beschreibung</TableHead>
+                <TableHead className="w-28">Marke</TableHead>
+                <TableHead>Modell</TableHead>
                 <TableHead className="w-16 text-center">Menge</TableHead>
                 <TableHead className="w-24 text-right">Preis</TableHead>
                 <TableHead className="w-24 text-right">Gesamt</TableHead>
@@ -249,20 +240,23 @@ export function BillOfMaterials({
             <TableBody>
               {bomItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     Keine Komponenten platziert
                   </TableCell>
                 </TableRow>
               ) : (
                 bomItems.map((item, index) => (
-                  <TableRow key={`${item.componentId}-${item.instanceIndex ?? index}`}>
+                  <TableRow key={`${item.componentId}-${index}`}>
                     <TableCell className="font-medium">{item.position}</TableCell>
                     <TableCell>{item.name}</TableCell>
                     <TableCell className={item.kategorie ? '' : 'text-muted-foreground'}>
                       {item.kategorie || '–'}
                     </TableCell>
-                    <TableCell className={item.description ? '' : 'text-muted-foreground'}>
-                      {item.description || '–'}
+                    <TableCell className={item.marke ? '' : 'text-muted-foreground'}>
+                      {item.marke || '–'}
+                    </TableCell>
+                    <TableCell className={item.modell ? '' : 'text-muted-foreground'}>
+                      {item.modell || '–'}
                     </TableCell>
                     <TableCell className="text-center">{item.quantity}</TableCell>
                     <TableCell className="text-right">

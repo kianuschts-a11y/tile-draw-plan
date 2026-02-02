@@ -90,6 +90,8 @@ export function SchematicEditor() {
   const [projectDescriptions, setProjectDescriptions] = useState<Map<string, string[]>>(new Map());
   const [projectKategorien, setProjectKategorien] = useState<Map<string, string>>(new Map());
   const [projectPreise, setProjectPreise] = useState<Map<string, number>>(new Map());
+  const [projectMarken, setProjectMarken] = useState<Map<string, string>>(new Map());
+  const [projectModelle, setProjectModelle] = useState<Map<string, string>>(new Map());
   const [titleBlockData, setTitleBlockData] = useState<TitleBlockData>({
     enabled: false,
     projekt: '',
@@ -1448,6 +1450,8 @@ export function SchematicEditor() {
         projectDescriptions={projectDescriptions}
         projectKategorien={projectKategorien}
         projectPreise={projectPreise}
+        projectMarken={projectMarken}
+        projectModelle={projectModelle}
       />
     </div>
   );
