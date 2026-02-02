@@ -17,7 +17,8 @@ const DEFAULT_COLUMN_MAPPINGS: ColumnMapping[] = [
   { id: 'komponente', label: 'Komponente', columnName: 'Objektbezeichnung1', required: true },
   { id: 'kategorie', label: 'Kategorie', columnName: 'Kategorie', required: false },
   { id: 'preis', label: 'Preis', columnName: 'Preis', required: false },
-  { id: 'beschreibung', label: 'Beschreibung', columnName: 'Beschreibung', required: false },
+  { id: 'marke', label: 'Marke', columnName: 'Marke', required: false },
+  { id: 'modell', label: 'Modell', columnName: 'Modell', required: false },
 ];
 
 export interface ColumnMapping {
@@ -81,7 +82,7 @@ export function ImportSettingsDialog({
   };
 
   const isDefaultMapping = (id: string) => {
-    return ['komponente', 'kategorie', 'preis', 'beschreibung'].includes(id);
+    return ['komponente', 'kategorie', 'preis', 'marke', 'modell'].includes(id);
   };
 
   return (
@@ -145,8 +146,12 @@ export function ImportSettingsDialog({
           <Button
             variant="outline"
             size="sm"
-            className="w-full gap-1 flex-shrink-0"
-            onClick={addCustomMapping}
+            className="w-full gap-2 flex-shrink-0"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              addCustomMapping();
+            }}
             type="button"
           >
             <Plus className="w-4 h-4" />

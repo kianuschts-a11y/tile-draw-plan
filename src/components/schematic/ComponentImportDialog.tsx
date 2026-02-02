@@ -22,7 +22,8 @@ interface ImportedRow {
   menge: number;
   kategorie?: string;
   preis?: number;
-  beschreibung?: string;
+  marke?: string;
+  modell?: string;
   customFields: Record<string, string | number>;
   // Key used for grouping identical rows
   groupKey: string;
@@ -100,10 +101,11 @@ export function ComponentImportDialog({
       const komponenteCol = columnMappings.find(m => m.id === 'komponente')?.columnName || 'Komponente';
       const kategorieCol = columnMappings.find(m => m.id === 'kategorie')?.columnName || 'Kategorie';
       const preisCol = columnMappings.find(m => m.id === 'preis')?.columnName || 'Preis';
-      const beschreibungCol = columnMappings.find(m => m.id === 'beschreibung')?.columnName || 'Beschreibung';
+      const markeCol = columnMappings.find(m => m.id === 'marke')?.columnName || 'Marke';
+      const modellCol = columnMappings.find(m => m.id === 'modell')?.columnName || 'Modell';
 
       // Get custom column names
-      const customMappings = columnMappings.filter(m => !['komponente', 'kategorie', 'preis', 'beschreibung'].includes(m.id));
+      const customMappings = columnMappings.filter(m => !['komponente', 'kategorie', 'preis', 'marke', 'modell'].includes(m.id));
 
       // First pass: create rows with group keys
       const rawRows = jsonData
@@ -130,7 +132,8 @@ export function ComponentImportDialog({
             menge: 1, // Will be updated after grouping
             kategorie: row[kategorieCol] ? String(row[kategorieCol]) : undefined,
             preis,
-            beschreibung: row[beschreibungCol] ? String(row[beschreibungCol]) : undefined,
+            marke: row[markeCol] ? String(row[markeCol]) : undefined,
+            modell: row[modellCol] ? String(row[modellCol]) : undefined,
             customFields,
             groupKey
           };
@@ -202,10 +205,11 @@ export function ComponentImportDialog({
         preise.set(compId, row.preis);
       }
 
-      // Add descriptions
+      // Add descriptions (combine marke and modell)
       const currentDescs = descriptions.get(compId) || [];
+      const description = [row.marke, row.modell].filter(Boolean).join(' ');
       for (let i = 0; i < row.menge; i++) {
-        currentDescs.push(row.beschreibung || '');
+        currentDescs.push(description);
       }
       descriptions.set(compId, currentDescs);
 
@@ -310,7 +314,8 @@ export function ComponentImportDialog({
                         <th className="text-left p-2">Status</th>
                         <th className="text-left p-2">Komponente</th>
                         <th className="text-right p-2">Menge</th>
-                        <th className="text-left p-2">Kategorie</th>
+                        <th className="text-left p-2">Marke</th>
+                        <th className="text-left p-2">Modell</th>
                         <th className="text-right p-2">Preis</th>
                       </tr>
                     </thead>
@@ -337,7 +342,8 @@ export function ComponentImportDialog({
                             </div>
                           </td>
                           <td className="p-2 text-right">{row.menge}</td>
-                          <td className="p-2 text-muted-foreground">{row.kategorie || '-'}</td>
+                          <td className="p-2 text-muted-foreground">{row.marke || '-'}</td>
+                          <td className="p-2 text-muted-foreground">{row.modell || '-'}</td>
                           <td className="p-2 text-right">
                             {row.preis !== undefined ? `${row.preis.toFixed(2)} €` : '-'}
                           </td>
