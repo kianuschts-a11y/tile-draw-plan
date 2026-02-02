@@ -36,6 +36,12 @@ interface ComponentSelectorDialogProps {
   onProjectKategorienChange: (kategorien: Map<string, string>) => void;
   projectPreise: Map<string, number>;
   onProjectPreiseChange: (preise: Map<string, number>) => void;
+  projectMarken: Map<string, string>;
+  onProjectMarkenChange: (marken: Map<string, string>) => void;
+  projectModelle: Map<string, string>;
+  onProjectModelleChange: (modelle: Map<string, string>) => void;
+  projectCustomFields: Map<string, Record<string, string | number>>;
+  onProjectCustomFieldsChange: (customFields: Map<string, Record<string, string | number>>) => void;
 }
 
 interface GroupSuggestion {
@@ -67,13 +73,22 @@ export function ComponentSelectorDialog({
   projectKategorien,
   onProjectKategorienChange,
   projectPreise,
-  onProjectPreiseChange
+  onProjectPreiseChange,
+  projectMarken,
+  onProjectMarkenChange,
+  projectModelle,
+  onProjectModelleChange,
+  projectCustomFields,
+  onProjectCustomFieldsChange
 }: ComponentSelectorDialogProps) {
   // Use the passed projectQuantities as initial state, but allow local editing
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
   const [descriptions, setDescriptions] = useState<Map<string, string[]>>(new Map());
   const [kategorien, setKategorien] = useState<Map<string, string>>(new Map());
   const [preise, setPreise] = useState<Map<string, number>>(new Map());
+  const [marken, setMarken] = useState<Map<string, string>>(new Map());
+  const [modelle, setModelle] = useState<Map<string, string>>(new Map());
+  const [customFields, setCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   
   // Track the ORIGINAL quantities selected by user (before any group insertions)
@@ -98,6 +113,9 @@ export function ComponentSelectorDialog({
       setDescriptions(new Map(projectDescriptions));
       setKategorien(new Map(projectKategorien));
       setPreise(new Map(projectPreise));
+      setMarken(new Map(projectMarken));
+      setModelle(new Map(projectModelle));
+      setCustomFields(new Map(projectCustomFields));
       
       initialQuantitiesRef.current = JSON.stringify(Array.from(projectQuantities.entries()));
       initialDescriptionsRef.current = JSON.stringify(Array.from(projectDescriptions.entries()));
@@ -117,7 +135,7 @@ export function ComponentSelectorDialog({
       setWasOpened(projectQuantities.size > 0);
       setHasChanges(false);
     }
-  }, [open, projectQuantities, projectOriginalQuantities, projectDescriptions, projectKategorien, projectPreise]);
+  }, [open, projectQuantities, projectOriginalQuantities, projectDescriptions, projectKategorien, projectPreise, projectMarken, projectModelle, projectCustomFields]);
 
   // Check for changes
   useEffect(() => {
@@ -317,6 +335,9 @@ export function ComponentSelectorDialog({
     onProjectDescriptionsChange(descriptions);
     onProjectKategorienChange(kategorien);
     onProjectPreiseChange(preise);
+    onProjectMarkenChange(marken);
+    onProjectModelleChange(modelle);
+    onProjectCustomFieldsChange(customFields);
     onOpenChange(false);
   };
 
@@ -325,7 +346,8 @@ export function ComponentSelectorDialog({
     quantities: Map<string, number>;
     kategorien: Map<string, string>;
     preise: Map<string, number>;
-    descriptions: Map<string, string[]>;
+    marken: Map<string, string>;
+    modelle: Map<string, string>;
     customFields: Map<string, Record<string, string | number>>;
   }) => {
     // Merge imported data with existing data
@@ -357,11 +379,30 @@ export function ComponentSelectorDialog({
       return next;
     });
 
-    setDescriptions(prev => {
+    setMarken(prev => {
       const next = new Map(prev);
-      for (const [compId, descs] of data.descriptions) {
-        const existing = next.get(compId) || [];
-        next.set(compId, [...existing, ...descs]);
+      for (const [compId, marke] of data.marken) {
+        if (!next.has(compId)) {
+          next.set(compId, marke);
+        }
+      }
+      return next;
+    });
+
+    setModelle(prev => {
+      const next = new Map(prev);
+      for (const [compId, modell] of data.modelle) {
+        if (!next.has(compId)) {
+          next.set(compId, modell);
+        }
+      }
+      return next;
+    });
+
+    setCustomFields(prev => {
+      const next = new Map(prev);
+      for (const [compId, fields] of data.customFields) {
+        next.set(compId, { ...next.get(compId), ...fields });
       }
       return next;
     });

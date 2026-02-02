@@ -92,6 +92,7 @@ export function SchematicEditor() {
   const [projectPreise, setProjectPreise] = useState<Map<string, number>>(new Map());
   const [projectMarken, setProjectMarken] = useState<Map<string, string>>(new Map());
   const [projectModelle, setProjectModelle] = useState<Map<string, string>>(new Map());
+  const [projectCustomFields, setProjectCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [titleBlockData, setTitleBlockData] = useState<TitleBlockData>({
     enabled: false,
     projekt: '',
@@ -1431,6 +1432,12 @@ export function SchematicEditor() {
         onProjectKategorienChange={setProjectKategorien}
         projectPreise={projectPreise}
         onProjectPreiseChange={setProjectPreise}
+        projectMarken={projectMarken}
+        onProjectMarkenChange={setProjectMarken}
+        projectModelle={projectModelle}
+        onProjectModelleChange={setProjectModelle}
+        projectCustomFields={projectCustomFields}
+        onProjectCustomFieldsChange={setProjectCustomFields}
       />
 
       <TitleBlockEditor
@@ -1452,6 +1459,7 @@ export function SchematicEditor() {
         projectPreise={projectPreise}
         projectMarken={projectMarken}
         projectModelle={projectModelle}
+        projectCustomFields={projectCustomFields}
       />
     </div>
   );

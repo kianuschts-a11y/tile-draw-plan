@@ -37,7 +37,8 @@ interface ComponentImportDialogProps {
     quantities: Map<string, number>;
     kategorien: Map<string, string>;
     preise: Map<string, number>;
-    descriptions: Map<string, string[]>;
+    marken: Map<string, string>;
+    modelle: Map<string, string>;
     customFields: Map<string, Record<string, string | number>>;
   }) => void;
 }
@@ -273,7 +274,8 @@ export function ComponentImportDialog({
     const quantities = new Map<string, number>();
     const kategorien = new Map<string, string>();
     const preise = new Map<string, number>();
-    const descriptions = new Map<string, string[]>();
+    const marken = new Map<string, string>();
+    const modelle = new Map<string, string>();
     const customFields = new Map<string, Record<string, string | number>>();
 
     for (const row of importedRows) {
@@ -291,13 +293,13 @@ export function ComponentImportDialog({
         preise.set(compId, row.preis);
       }
 
-      // Add descriptions (combine marke and modell)
-      const currentDescs = descriptions.get(compId) || [];
-      const description = [row.marke, row.modell].filter(Boolean).join(' ');
-      for (let i = 0; i < row.menge; i++) {
-        currentDescs.push(description);
+      if (row.marke) {
+        marken.set(compId, row.marke);
       }
-      descriptions.set(compId, currentDescs);
+
+      if (row.modell) {
+        modelle.set(compId, row.modell);
+      }
 
       // Merge custom fields
       if (Object.keys(row.customFields).length > 0) {
@@ -305,7 +307,7 @@ export function ComponentImportDialog({
       }
     }
 
-    onImport({ quantities, kategorien, preise, descriptions, customFields });
+    onImport({ quantities, kategorien, preise, marken, modelle, customFields });
     handleClose();
   };
 
