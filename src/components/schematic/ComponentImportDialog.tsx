@@ -24,6 +24,8 @@ interface ImportedRow {
   preis?: number;
   beschreibung?: string;
   customFields: Record<string, string | number>;
+  // Key used for grouping identical rows
+  groupKey: string;
 }
 
 interface ComponentImportDialogProps {
@@ -68,6 +70,17 @@ export function ComponentImportDialog({
     return partialMatch || null;
   }, [components]);
 
+  // Create a key for grouping identical rows based on all mapped column values
+  const createGroupKey = useCallback((row: Record<string, string | number>, mappings: ColumnMapping[]): string => {
+    const values: string[] = [];
+    for (const mapping of mappings) {
+      if (mapping.columnName && row[mapping.columnName] !== undefined) {
+        values.push(`${mapping.id}:${String(row[mapping.columnName]).trim()}`);
+      }
+    }
+    return values.sort().join('|');
+  }, []);
+
   const parseFile = useCallback(async (file: File) => {
     setError("");
     setFileName(file.name);
@@ -85,44 +98,59 @@ export function ComponentImportDialog({
 
       // Get column names from mappings
       const komponenteCol = columnMappings.find(m => m.id === 'komponente')?.columnName || 'Komponente';
-      const mengeCol = columnMappings.find(m => m.id === 'menge')?.columnName || 'Menge';
       const kategorieCol = columnMappings.find(m => m.id === 'kategorie')?.columnName || 'Kategorie';
       const preisCol = columnMappings.find(m => m.id === 'preis')?.columnName || 'Preis';
       const beschreibungCol = columnMappings.find(m => m.id === 'beschreibung')?.columnName || 'Beschreibung';
 
       // Get custom column names
-      const customMappings = columnMappings.filter(m => !['komponente', 'menge', 'kategorie', 'preis', 'beschreibung'].includes(m.id));
+      const customMappings = columnMappings.filter(m => !['komponente', 'kategorie', 'preis', 'beschreibung'].includes(m.id));
 
-      const rows: ImportedRow[] = jsonData.map(row => {
-        const komponente = String(row[komponenteCol] || '');
-        const mengeValue = row[mengeCol];
-        const menge = typeof mengeValue === 'number' ? mengeValue : parseInt(String(mengeValue) || '0', 10) || 0;
-        
-        const preisValue = row[preisCol];
-        const preis = typeof preisValue === 'number' ? preisValue : parseFloat(String(preisValue) || '0') || undefined;
+      // First pass: create rows with group keys
+      const rawRows = jsonData
+        .filter(row => row[komponenteCol])
+        .map(row => {
+          const komponente = String(row[komponenteCol] || '');
+          const groupKey = createGroupKey(row, columnMappings);
+          
+          const preisValue = row[preisCol];
+          const preis = typeof preisValue === 'number' ? preisValue : parseFloat(String(preisValue) || '0') || undefined;
 
-        // Collect custom fields
-        const customFields: Record<string, string | number> = {};
-        for (const mapping of customMappings) {
-          if (mapping.columnName && row[mapping.columnName] !== undefined) {
-            customFields[mapping.label] = row[mapping.columnName];
+          // Collect custom fields
+          const customFields: Record<string, string | number> = {};
+          for (const mapping of customMappings) {
+            if (mapping.columnName && row[mapping.columnName] !== undefined) {
+              customFields[mapping.label] = row[mapping.columnName];
+            }
           }
-        }
 
-        return {
-          rawData: row,
-          komponente,
-          matchedComponent: findMatchingComponent(komponente),
-          menge,
-          kategorie: row[kategorieCol] ? String(row[kategorieCol]) : undefined,
-          preis,
-          beschreibung: row[beschreibungCol] ? String(row[beschreibungCol]) : undefined,
-          customFields
-        };
-      }).filter(row => row.komponente && row.menge > 0);
+          return {
+            rawData: row,
+            komponente,
+            matchedComponent: findMatchingComponent(komponente),
+            menge: 1, // Will be updated after grouping
+            kategorie: row[kategorieCol] ? String(row[kategorieCol]) : undefined,
+            preis,
+            beschreibung: row[beschreibungCol] ? String(row[beschreibungCol]) : undefined,
+            customFields,
+            groupKey
+          };
+        });
+
+      // Second pass: group identical rows and count
+      const groupedMap = new Map<string, ImportedRow>();
+      for (const row of rawRows) {
+        const existing = groupedMap.get(row.groupKey);
+        if (existing) {
+          existing.menge += 1;
+        } else {
+          groupedMap.set(row.groupKey, { ...row });
+        }
+      }
+
+      const rows = Array.from(groupedMap.values());
 
       if (rows.length === 0) {
-        setError(`Keine gültigen Zeilen gefunden. Stellen Sie sicher, dass die Spalten "${komponenteCol}" und "${mengeCol}" vorhanden sind.`);
+        setError(`Keine gültigen Zeilen gefunden. Stellen Sie sicher, dass die Spalte "${komponenteCol}" vorhanden ist.`);
         return;
       }
 
@@ -131,7 +159,7 @@ export function ComponentImportDialog({
       setError("Fehler beim Lesen der Datei. Bitte prüfen Sie das Format.");
       console.error("Import error:", err);
     }
-  }, [columnMappings, findMatchingComponent]);
+  }, [columnMappings, findMatchingComponent, createGroupKey]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
