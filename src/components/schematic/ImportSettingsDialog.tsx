@@ -87,7 +87,7 @@ export function ImportSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-md max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5" />
@@ -95,58 +95,58 @@ export function ImportSettingsDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground flex-shrink-0">
-            Konfigurieren Sie, welche Spalten aus der Import-Datei gelesen werden sollen. 
-            Die Menge wird automatisch durch Zählen identischer Zeilen berechnet.
-          </p>
+        <p className="text-sm text-muted-foreground flex-shrink-0">
+          Konfigurieren Sie, welche Spalten aus der Import-Datei gelesen werden sollen. 
+          Die Menge wird automatisch durch Zählen identischer Zeilen berechnet.
+        </p>
 
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4 pb-2">
-              {localMappings.map((mapping) => (
-                <div key={mapping.id} className="flex items-end gap-2">
-                  <div className="flex-1 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground">
-                        {isDefaultMapping(mapping.id) ? mapping.label : (
-                          <Input
-                            value={mapping.label}
-                            onChange={(e) => updateMapping(mapping.id, 'label', e.target.value)}
-                            placeholder="Feldname..."
-                            className="h-6 text-xs px-2"
-                          />
-                        )}
-                      </Label>
-                      {mapping.id === 'komponente' && (
-                        <span className="text-xs text-destructive">*</span>
+        <ScrollArea className="flex-1 min-h-0 max-h-[40vh]">
+          <div className="space-y-4 pr-4 pb-2">
+            {localMappings.map((mapping) => (
+              <div key={mapping.id} className="flex items-end gap-2">
+                <div className="flex-1 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">
+                      {isDefaultMapping(mapping.id) ? mapping.label : (
+                        <Input
+                          value={mapping.label}
+                          onChange={(e) => updateMapping(mapping.id, 'label', e.target.value)}
+                          placeholder="Feldname..."
+                          className="h-6 text-xs px-2"
+                        />
                       )}
-                    </div>
-                    <Input
-                      value={mapping.columnName}
-                      onChange={(e) => updateMapping(mapping.id, 'columnName', e.target.value)}
-                      placeholder="Spaltenname in Datei..."
-                      className="h-9 text-sm"
-                    />
+                    </Label>
+                    {mapping.id === 'komponente' && (
+                      <span className="text-xs text-destructive">*</span>
+                    )}
                   </div>
-                  {!isDefaultMapping(mapping.id) && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-9 w-9 p-0 flex-shrink-0"
-                      onClick={() => removeMapping(mapping.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  )}
+                  <Input
+                    value={mapping.columnName}
+                    onChange={(e) => updateMapping(mapping.id, 'columnName', e.target.value)}
+                    placeholder="Spaltenname in Datei..."
+                    className="h-9 text-sm"
+                  />
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
+                {!isDefaultMapping(mapping.id) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-9 w-9 p-0 flex-shrink-0"
+                    onClick={() => removeMapping(mapping.id)}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
 
+        <div className="flex-shrink-0 space-y-3 pt-2">
           <Button
             variant="outline"
             size="sm"
-            className="w-full gap-2 flex-shrink-0"
+            className="w-full gap-2"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -158,13 +158,13 @@ export function ImportSettingsDialog({
             Eigene Spalte hinzufügen
           </Button>
 
-          <p className="text-xs text-muted-foreground flex-shrink-0">
+          <p className="text-xs text-muted-foreground">
             * Pflichtfeld. Komponente wird gegen vorhandene Komponenten abgeglichen.
             Identische Zeilen werden zusammengefasst und als Menge gezählt.
           </p>
         </div>
 
-        <DialogFooter className="gap-2 flex-shrink-0">
+        <DialogFooter className="gap-2 flex-shrink-0 pt-2">
           <Button variant="outline" onClick={handleReset} type="button">
             Zurücksetzen
           </Button>
