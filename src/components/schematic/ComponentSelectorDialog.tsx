@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal, AlertTriangle } from "lucide-react";
+import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal, AlertTriangle, Upload } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { GroupPreview } from "./GroupPreview";
-
+import { ComponentImportDialog } from "./ComponentImportDialog";
 interface ComponentSelectorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -87,6 +87,9 @@ export function ComponentSelectorDialog({
   const initialPreiseRef = useRef<string>("");
   const [hasChanges, setHasChanges] = useState(false);
   const [wasOpened, setWasOpened] = useState(false);
+  
+  // Import dialog state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   // Sync local state with projectQuantities when dialog opens
   useEffect(() => {
@@ -315,6 +318,62 @@ export function ComponentSelectorDialog({
     onProjectKategorienChange(kategorien);
     onProjectPreiseChange(preise);
     onOpenChange(false);
+  };
+
+  // Handle import from file
+  const handleImport = (data: {
+    quantities: Map<string, number>;
+    kategorien: Map<string, string>;
+    preise: Map<string, number>;
+    descriptions: Map<string, string[]>;
+    customFields: Map<string, Record<string, string | number>>;
+  }) => {
+    // Merge imported data with existing data
+    setQuantities(prev => {
+      const next = new Map(prev);
+      for (const [compId, qty] of data.quantities) {
+        next.set(compId, (next.get(compId) || 0) + qty);
+      }
+      return next;
+    });
+
+    setKategorien(prev => {
+      const next = new Map(prev);
+      for (const [compId, kat] of data.kategorien) {
+        if (!next.has(compId)) {
+          next.set(compId, kat);
+        }
+      }
+      return next;
+    });
+
+    setPreise(prev => {
+      const next = new Map(prev);
+      for (const [compId, preis] of data.preise) {
+        if (!next.has(compId)) {
+          next.set(compId, preis);
+        }
+      }
+      return next;
+    });
+
+    setDescriptions(prev => {
+      const next = new Map(prev);
+      for (const [compId, descs] of data.descriptions) {
+        const existing = next.get(compId) || [];
+        next.set(compId, [...existing, ...descs]);
+      }
+      return next;
+    });
+
+    // Update original selected quantities
+    setOriginalSelectedQuantities(prev => {
+      const next = new Map(prev);
+      for (const [compId, qty] of data.quantities) {
+        next.set(compId, (next.get(compId) || 0) + qty);
+      }
+      return next;
+    });
   };
 
   // Check if a component ID is a connection block (should be ignored in matching)
@@ -620,17 +679,28 @@ export function ComponentSelectorDialog({
           <div className="flex-1 flex flex-col min-w-0">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium">Verfügbare Komponenten</h4>
-              {quantities.size > 0 && (
+              <div className="flex items-center gap-1">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-6 text-xs text-destructive"
-                  onClick={clearAll}
+                  variant="outline"
+                  className="h-6 text-xs gap-1"
+                  onClick={() => setImportDialogOpen(true)}
                 >
-                  <X className="w-3 h-3 mr-1" />
-                  Zurücksetzen
+                  <Upload className="w-3 h-3" />
+                  Import
                 </Button>
-              )}
+                {quantities.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-xs text-destructive"
+                    onClick={clearAll}
+                  >
+                    <X className="w-3 h-3 mr-1" />
+                    Zurücksetzen
+                  </Button>
+                )}
+              </div>
             </div>
             
             <ScrollArea className="flex-1 -mx-1 px-1">
@@ -983,6 +1053,14 @@ export function ComponentSelectorDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Import Dialog */}
+      <ComponentImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        components={components}
+        onImport={handleImport}
+      />
     </Dialog>
   );
 }
