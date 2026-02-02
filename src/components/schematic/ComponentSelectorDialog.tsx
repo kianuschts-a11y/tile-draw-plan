@@ -746,7 +746,14 @@ export function ComponentSelectorDialog({
             
             <ScrollArea className="flex-1 -mx-1 px-1">
               <div className="space-y-1">
-              {components.map(component => {
+              {[...components].sort((a, b) => {
+                // Sort components with quantity > 0 to the top
+                const qtyA = quantities.get(a.id) || 0;
+                const qtyB = quantities.get(b.id) || 0;
+                if (qtyA > 0 && qtyB === 0) return -1;
+                if (qtyA === 0 && qtyB > 0) return 1;
+                return 0; // Keep original order otherwise
+              }).map(component => {
                   const remainingQty = quantities.get(component.id) || 0;
                   // Use the ORIGINAL quantities the user selected (not the reduced projectQuantities)
                   const originalQty = originalSelectedQuantities.get(component.id) || 0;
