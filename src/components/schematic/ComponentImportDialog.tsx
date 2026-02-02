@@ -71,16 +71,59 @@ export function ComponentImportDialog({
     return partialMatch || null;
   }, [components]);
 
+  // Normalize column name for comparison (lowercase, no accents, normalized whitespace)
+  const normalizeColumnName = useCallback((name: string): string => {
+    return name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove accents
+      .replace(/[_\s]+/g, " ") // Normalize whitespace
+      .trim();
+  }, []);
+
+  // Find the actual column name in the row that matches the configured column name
+  const findMatchingColumn = useCallback((row: Record<string, string | number>, targetColumnName: string): string | null => {
+    const normalizedTarget = normalizeColumnName(targetColumnName);
+    const rowKeys = Object.keys(row);
+    
+    // Priority 1: Exact match
+    const exactMatch = rowKeys.find(key => key === targetColumnName);
+    if (exactMatch) return exactMatch;
+    
+    // Priority 2: Case-insensitive match
+    const caseInsensitiveMatch = rowKeys.find(key => normalizeColumnName(key) === normalizedTarget);
+    if (caseInsensitiveMatch) return caseInsensitiveMatch;
+    
+    // Priority 3: Starts with
+    const startsWithMatch = rowKeys.find(key => normalizeColumnName(key).startsWith(normalizedTarget));
+    if (startsWithMatch) return startsWithMatch;
+    
+    // Priority 4: Contains
+    const containsMatch = rowKeys.find(key => normalizeColumnName(key).includes(normalizedTarget));
+    if (containsMatch) return containsMatch;
+    
+    return null;
+  }, [normalizeColumnName]);
+
+  // Get value from row using flexible column matching
+  const getRowValue = useCallback((row: Record<string, string | number>, columnName: string): string | number | undefined => {
+    const matchedColumn = findMatchingColumn(row, columnName);
+    return matchedColumn ? row[matchedColumn] : undefined;
+  }, [findMatchingColumn]);
+
   // Create a key for grouping identical rows based on all mapped column values
   const createGroupKey = useCallback((row: Record<string, string | number>, mappings: ColumnMapping[]): string => {
     const values: string[] = [];
     for (const mapping of mappings) {
-      if (mapping.columnName && row[mapping.columnName] !== undefined) {
-        values.push(`${mapping.id}:${String(row[mapping.columnName]).trim()}`);
+      if (mapping.columnName) {
+        const value = getRowValue(row, mapping.columnName);
+        if (value !== undefined) {
+          values.push(`${mapping.id}:${String(value).trim()}`);
+        }
       }
     }
     return values.sort().join('|');
-  }, []);
+  }, [getRowValue]);
 
   const parseFile = useCallback(async (file: File) => {
     setError("");
@@ -109,31 +152,46 @@ export function ComponentImportDialog({
 
       // First pass: create rows with group keys
       const rawRows = jsonData
-        .filter(row => row[komponenteCol])
+        .filter(row => getRowValue(row, komponenteCol) !== undefined)
         .map(row => {
-          const komponente = String(row[komponenteCol] || '');
+          const komponente = String(getRowValue(row, komponenteCol) || '');
           const groupKey = createGroupKey(row, columnMappings);
           
-          const preisValue = row[preisCol];
-          const preis = typeof preisValue === 'number' ? preisValue : parseFloat(String(preisValue) || '0') || undefined;
+          const preisValue = getRowValue(row, preisCol);
+          let preis: number | undefined;
+          if (typeof preisValue === 'number') {
+            preis = preisValue;
+          } else if (preisValue !== undefined) {
+            // Handle German number format (comma as decimal separator)
+            const cleanedValue = String(preisValue).replace(/[^\d,.-]/g, '').replace(',', '.');
+            const parsed = parseFloat(cleanedValue);
+            preis = isNaN(parsed) ? undefined : parsed;
+          }
 
           // Collect custom fields
           const customFields: Record<string, string | number> = {};
           for (const mapping of customMappings) {
-            if (mapping.columnName && row[mapping.columnName] !== undefined) {
-              customFields[mapping.label] = row[mapping.columnName];
+            if (mapping.columnName) {
+              const value = getRowValue(row, mapping.columnName);
+              if (value !== undefined) {
+                customFields[mapping.label] = value;
+              }
             }
           }
+
+          const kategorieValue = getRowValue(row, kategorieCol);
+          const markeValue = getRowValue(row, markeCol);
+          const modellValue = getRowValue(row, modellCol);
 
           return {
             rawData: row,
             komponente,
             matchedComponent: findMatchingComponent(komponente),
             menge: 1, // Will be updated after grouping
-            kategorie: row[kategorieCol] ? String(row[kategorieCol]) : undefined,
+            kategorie: kategorieValue ? String(kategorieValue) : undefined,
             preis,
-            marke: row[markeCol] ? String(row[markeCol]) : undefined,
-            modell: row[modellCol] ? String(row[modellCol]) : undefined,
+            marke: markeValue ? String(markeValue) : undefined,
+            modell: modellValue ? String(modellValue) : undefined,
             customFields,
             groupKey
           };
@@ -162,7 +220,7 @@ export function ComponentImportDialog({
       setError("Fehler beim Lesen der Datei. Bitte prüfen Sie das Format.");
       console.error("Import error:", err);
     }
-  }, [columnMappings, findMatchingComponent, createGroupKey]);
+  }, [columnMappings, findMatchingComponent, createGroupKey, getRowValue]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
