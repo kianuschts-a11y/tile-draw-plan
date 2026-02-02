@@ -823,15 +823,14 @@ export function ComponentSelectorDialog({
                       {/* Expanded details: Kategorie, Preis, and descriptions */}
                       {qty > 0 && isExpanded && (
                         <div className="ml-6 pl-2 border-l-2 border-primary/20 space-y-2">
-                          {/* Kategorie und Preis */}
+                          {/* Kategorie (readonly) und Preis */}
                           <div className="flex items-center gap-2">
-                            <Input
-                              placeholder="Kategorie..."
-                              value={componentKategorie}
-                              onChange={(e) => updateKategorie(component.id, e.target.value)}
-                              className="h-7 text-sm flex-1"
-                            />
-                            <div className="flex items-center gap-1">
+                            {component.category && (
+                              <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded">
+                                {component.category}
+                              </span>
+                            )}
+                            <div className="flex items-center gap-1 ml-auto">
                               <Input
                                 type="number"
                                 min="0"
