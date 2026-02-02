@@ -87,7 +87,7 @@ export function ImportSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-md h-[80vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5" />
@@ -95,13 +95,13 @@ export function ImportSettingsDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <p className="text-sm text-muted-foreground flex-shrink-0">
+        <p className="text-sm text-muted-foreground flex-shrink-0 pb-2">
           Konfigurieren Sie, welche Spalten aus der Import-Datei gelesen werden sollen. 
           Die Menge wird automatisch durch Zählen identischer Zeilen berechnet.
         </p>
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[40vh]">
-          <div className="space-y-4 pr-4 pb-2">
+        <div className="flex-1 min-h-0 overflow-y-auto border rounded-md p-3 bg-muted/30">
+          <div className="space-y-4">
             {localMappings.map((mapping) => (
               <div key={mapping.id} className="flex items-end gap-2">
                 <div className="flex-1 space-y-1.5">
@@ -140,9 +140,9 @@ export function ImportSettingsDialog({
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
 
-        <div className="flex-shrink-0 space-y-3 pt-2">
+        <div className="flex-shrink-0 space-y-3 pt-3">
           <Button
             variant="outline"
             size="sm"
