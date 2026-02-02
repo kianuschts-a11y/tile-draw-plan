@@ -845,29 +845,29 @@ export function ComponentSelectorDialog({
                             </div>
                           </div>
                           
-                          {/* Descriptions for each instance */}
-                          {Array.from({ length: qty }, (_, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground w-6">#{i + 1}</span>
-                              <Input
-                                placeholder="Beschreibung (Marke, Modell)..."
-                                value={componentDescs[i] || ''}
-                                onChange={(e) => updateDescription(component.id, i, e.target.value)}
-                                className="h-7 text-sm flex-1"
-                              />
-                              {qty > 1 && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => copyDescriptionToAll(component.id, i)}
-                                  title="Beschreibung auf alle kopieren"
-                                >
-                                  <Equal className="w-3 h-3" />
-                                </Button>
-                              )}
-                            </div>
-                          ))}
+                          {/* Marke und Modell für die Komponente */}
+                          <div className="flex items-center gap-2">
+                            <Input
+                              placeholder="Marke..."
+                              value={marken.get(component.id) || ''}
+                              onChange={(e) => setMarken(prev => {
+                                const next = new Map(prev);
+                                next.set(component.id, e.target.value);
+                                return next;
+                              })}
+                              className="h-7 text-sm flex-1"
+                            />
+                            <Input
+                              placeholder="Modell..."
+                              value={modelle.get(component.id) || ''}
+                              onChange={(e) => setModelle(prev => {
+                                const next = new Map(prev);
+                                next.set(component.id, e.target.value);
+                                return next;
+                              })}
+                              className="h-7 text-sm flex-1"
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
