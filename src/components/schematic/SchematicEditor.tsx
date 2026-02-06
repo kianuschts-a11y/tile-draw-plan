@@ -959,6 +959,305 @@ export function SchematicEditor() {
     await createGroup(name, componentIds, layoutData);
   }, [tiles, connections, createGroup]);
 
+  // PDF Export
+  const handleExportPdf = useCallback(() => {
+    const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
+    if (!svgElement) return;
+
+    // Dynamischer Import von jsPDF
+    import('jspdf').then(({ default: jsPDF }) => {
+      import('jspdf-autotable').then(({ default: autoTable }) => {
+        const paperSize = PAPER_SIZES[canvasState.paperFormat];
+        const paperWidthMM = canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width;
+        const paperHeightMM = canvasState.orientation === 'landscape' ? paperSize.width : paperSize.height;
+        const paperWidthPx = paperWidthMM * MM_TO_PX;
+        const paperHeightPx = paperHeightMM * MM_TO_PX;
+        const tileSize = canvasState.gridSize;
+        const gridCols = Math.floor(paperWidthPx / tileSize);
+        const gridRows = Math.floor(paperHeightPx / tileSize);
+        const canvasWidth = gridCols * tileSize;
+        const canvasHeight = gridRows * tileSize;
+
+        // Clone SVG (same as image export)
+        const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
+        clonedSvg.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
+        clonedSvg.setAttribute('width', String(canvasWidth));
+        clonedSvg.setAttribute('height', String(canvasHeight));
+
+        const transformGroup = clonedSvg.querySelector('g[transform]');
+        if (transformGroup) {
+          transformGroup.setAttribute('transform', 'translate(0, 0) scale(1)');
+        }
+
+        // CSS variable replacements
+        const cssVarReplacements: Record<string, string> = {
+          'hsl(var(--primary) / 0.1)': 'rgba(37, 99, 235, 0.1)',
+          'hsl(var(--primary) / 0.15)': 'rgba(37, 99, 235, 0.15)',
+          'hsl(var(--primary) / 0.3)': 'rgba(37, 99, 235, 0.3)',
+          'hsl(var(--primary) / 0.4)': 'rgba(37, 99, 235, 0.4)',
+          'hsl(var(--primary) / 0.5)': 'rgba(37, 99, 235, 0.5)',
+          'hsl(var(--primary))': '#2563eb',
+          'hsl(var(--muted) / 0.3)': 'rgba(241, 245, 249, 0.3)',
+          'hsl(var(--muted-foreground))': '#64748b',
+          'hsl(var(--foreground) / 0.1)': 'rgba(15, 23, 42, 0.1)',
+          'hsl(var(--border))': '#e2e8f0',
+          'hsl(var(--canvas-grid))': '#cbd5e1',
+          'hsl(var(--destructive) / 0.3)': 'rgba(239, 68, 68, 0.3)',
+          'hsl(var(--destructive))': '#ef4444',
+        };
+
+        const allElements = clonedSvg.querySelectorAll('*');
+        allElements.forEach(el => {
+          const element = el as SVGElement;
+          ['fill', 'stroke', 'style'].forEach(attr => {
+            const value = element.getAttribute(attr);
+            if (value) {
+              let newValue = value;
+              Object.entries(cssVarReplacements).forEach(([cssVar, replacement]) => {
+                newValue = newValue.replace(new RegExp(cssVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replacement);
+              });
+              element.setAttribute(attr, newValue);
+            }
+          });
+          if (element.style) {
+            Object.entries(cssVarReplacements).forEach(([, replacement]) => {
+              if (element.style.fill?.includes('var(')) element.style.fill = replacement;
+              if (element.style.stroke?.includes('var(')) element.style.stroke = replacement;
+            });
+          }
+        });
+
+        // Remove UI elements
+        clonedSvg.querySelectorAll('[data-export-ignore]').forEach(el => el.remove());
+        clonedSvg.querySelectorAll('text').forEach(text => {
+          const content = text.textContent || '';
+          if (content.includes('Kacheln') || content.includes('×')) text.remove();
+        });
+
+        // Render SVG to canvas
+        const canvas = document.createElement('canvas');
+        const scale = 2;
+        canvas.width = canvasWidth * scale;
+        canvas.height = canvasHeight * scale;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const svgData = new XMLSerializer().serializeToString(clonedSvg);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+
+        const img = new window.Image();
+        img.onload = () => {
+          ctx.fillStyle = 'white';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+
+          // Create PDF
+          const orientation = canvasState.orientation === 'landscape' ? 'landscape' : 'portrait';
+          const doc = new jsPDF({
+            orientation,
+            unit: 'mm',
+            format: canvasState.paperFormat.toLowerCase()
+          });
+
+          const pdfWidth = doc.internal.pageSize.getWidth();
+          const pdfHeight = doc.internal.pageSize.getHeight();
+
+          // Add drawing image to page 1
+          const imgData = canvas.toDataURL('image/png');
+          doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+          // Collect BOM data and build position map
+          const nonConnectionTiles = tiles.filter(t => !isConnectionBlock(t.component));
+          const componentCounts = new Map<string, { component: Component; count: number; tilePositions: { gridX: number; gridY: number; width: number; height: number }[] }>();
+
+          for (const tile of nonConnectionTiles) {
+            const existing = componentCounts.get(tile.component.id);
+            const tilePos = {
+              gridX: tile.gridX,
+              gridY: tile.gridY,
+              width: tile.component.width || 1,
+              height: tile.component.height || 1
+            };
+            if (existing) {
+              existing.count++;
+              existing.tilePositions.push(tilePos);
+            } else {
+              componentCounts.set(tile.component.id, {
+                component: tile.component,
+                count: 1,
+                tilePositions: [tilePos]
+              });
+            }
+          }
+
+          // Build BOM items sorted by category then name
+          const bomItems: Array<{
+            position: number;
+            componentId: string;
+            name: string;
+            kategorie: string;
+            marke: string;
+            modell: string;
+            quantity: number;
+            preis: number;
+            gesamtkosten: number;
+            tilePositions: { gridX: number; gridY: number; width: number; height: number }[];
+          }> = [];
+
+          const sortedEntries = Array.from(componentCounts.entries())
+            .sort(([, a], [, b]) => {
+              const catA = a.component.category || '';
+              const catB = b.component.category || '';
+              if (catA !== catB) {
+                if (!catA) return 1;
+                if (!catB) return -1;
+                return catA.localeCompare(catB);
+              }
+              return a.component.name.localeCompare(b.component.name);
+            });
+
+          let pos = 1;
+          for (const [id, { component, count, tilePositions }] of sortedEntries) {
+            const kategorie = component.category || projectKategorien.get(id) || '';
+            const marke = projectMarken.get(id) || '';
+            const modell = projectModelle.get(id) || '';
+            const preis = projectPreise.get(id) || 0;
+
+            bomItems.push({
+              position: pos++,
+              componentId: id,
+              name: component.name,
+              kategorie,
+              marke,
+              modell,
+              quantity: count,
+              preis,
+              gesamtkosten: preis * count,
+              tilePositions
+            });
+          }
+
+          // Add invisible clickable links over each component on page 1
+          // Map from componentId to BOM position for linking
+          const componentToBomPos = new Map(bomItems.map(item => [item.componentId, item.position]));
+
+          for (const tile of nonConnectionTiles) {
+            const bomPos = componentToBomPos.get(tile.component.id);
+            if (bomPos === undefined) continue;
+
+            // Convert grid position to PDF coordinates
+            const tileX = (tile.gridX / gridCols) * pdfWidth;
+            const tileY = (tile.gridY / gridRows) * pdfHeight;
+            const tileW = ((tile.component.width || 1) / gridCols) * pdfWidth;
+            const tileH = ((tile.component.height || 1) / gridRows) * pdfHeight;
+
+            // Add internal link to BOM page
+            doc.link(tileX, tileY, tileW, tileH, { pageNumber: 2 });
+          }
+
+          // Page 2: BOM Table
+          doc.addPage();
+
+          // Header
+          doc.setFontSize(18);
+          doc.setFont('helvetica', 'bold');
+          doc.text('STÜCKLISTE', 14, 20);
+
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          let infoY = 28;
+          if (titleBlockData.projekt) {
+            doc.text(`Projekt: ${titleBlockData.projekt}`, 14, infoY);
+            infoY += 5;
+          }
+          if (titleBlockData.zeichnungsNr) {
+            doc.text(`Zeichnungs-Nr.: ${titleBlockData.zeichnungsNr}`, 14, infoY);
+            infoY += 5;
+          }
+          doc.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')}`, 14, infoY);
+          infoY += 8;
+
+          const formatCurrency = (value: number) => {
+            if (!value) return '–';
+            return value.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+          };
+
+          // Build table data
+          const tableHead = [['Pos.', 'Komponente', 'Kategorie', 'Marke', 'Modell', 'Menge', 'Preis (€)', 'Gesamt (€)']];
+          const tableBody = bomItems.map(item => [
+            String(item.position),
+            item.name,
+            item.kategorie || '–',
+            item.marke || '–',
+            item.modell || '–',
+            String(item.quantity),
+            formatCurrency(item.preis),
+            formatCurrency(item.gesamtkosten)
+          ]);
+
+          // Totals row
+          const totalQuantity = bomItems.reduce((sum, item) => sum + item.quantity, 0);
+          const totalKosten = bomItems.reduce((sum, item) => sum + item.gesamtkosten, 0);
+          tableBody.push([
+            '', '', '', '', 'GESAMT:',
+            String(totalQuantity),
+            '',
+            totalKosten > 0 ? formatCurrency(totalKosten) : '–'
+          ]);
+
+          autoTable(doc, {
+            startY: infoY,
+            head: tableHead,
+            body: tableBody,
+            theme: 'grid',
+            headStyles: {
+              fillColor: [37, 99, 235],
+              textColor: [255, 255, 255],
+              fontStyle: 'bold',
+              fontSize: 9
+            },
+            bodyStyles: {
+              fontSize: 8.5
+            },
+            alternateRowStyles: {
+              fillColor: [245, 247, 250]
+            },
+            columnStyles: {
+              0: { cellWidth: 12, halign: 'center' },
+              1: { cellWidth: 'auto' },
+              2: { cellWidth: 28 },
+              3: { cellWidth: 25 },
+              4: { cellWidth: 30 },
+              5: { cellWidth: 14, halign: 'center' },
+              6: { cellWidth: 22, halign: 'right' },
+              7: { cellWidth: 22, halign: 'right' }
+            },
+            // Style last row (totals) bold
+            didParseCell: (data: any) => {
+              if (data.row.index === tableBody.length - 1) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = [224, 231, 243];
+              }
+            },
+            margin: { left: 14, right: 14 }
+          });
+
+          // Save PDF
+          const projektName = titleBlockData.projekt || 'Zeichnung';
+          const fileName = `${projektName}-${new Date().toISOString().slice(0, 10)}.pdf`;
+          doc.save(fileName);
+        };
+        img.onerror = (err) => {
+          console.error('PDF export failed:', err);
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      });
+    });
+  }, [canvasState, tiles, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise]);
+
   // Handle export button click - show dialog first
   const handleExportClick = useCallback(() => {
     const nonConnectionTiles = tiles.filter(t => !isConnectionBlock(t.component));
@@ -970,18 +1269,31 @@ export function SchematicEditor() {
     }
   }, [tiles, handleExport]);
 
-  // Handle save group + export from dialog
-  const handleSaveGroupAndExport = useCallback(async (groupName: string) => {
+  // Handle save group + export image from dialog
+  const handleSaveGroupAndExportImage = useCallback(async (groupName: string) => {
     await handleCreateGroupFromAllTiles(groupName);
     setIsExportDialogOpen(false);
     handleExport();
   }, [handleCreateGroupFromAllTiles, handleExport]);
 
-  // Handle export only from dialog
-  const handleExportOnly = useCallback(() => {
+  // Handle save group + export PDF from dialog
+  const handleSaveGroupAndExportPdf = useCallback(async (groupName: string) => {
+    await handleCreateGroupFromAllTiles(groupName);
+    setIsExportDialogOpen(false);
+    handleExportPdf();
+  }, [handleCreateGroupFromAllTiles, handleExportPdf]);
+
+  // Handle export image only from dialog
+  const handleExportImageOnly = useCallback(() => {
     setIsExportDialogOpen(false);
     handleExport();
   }, [handleExport]);
+
+  // Handle export PDF only from dialog
+  const handleExportPdfOnly = useCallback(() => {
+    setIsExportDialogOpen(false);
+    handleExportPdf();
+  }, [handleExportPdf]);
 
   const handleCreateGroup = useCallback(async (name: string, componentIds: string[]) => {
     await createGroup(name, componentIds);
@@ -1538,8 +1850,10 @@ export function SchematicEditor() {
       <ExportGroupDialog
         open={isExportDialogOpen}
         onClose={() => setIsExportDialogOpen(false)}
-        onExportOnly={handleExportOnly}
-        onSaveGroupAndExport={handleSaveGroupAndExport}
+        onExportImage={handleExportImageOnly}
+        onExportPdf={handleExportPdfOnly}
+        onSaveGroupAndExportImage={handleSaveGroupAndExportImage}
+        onSaveGroupAndExportPdf={handleSaveGroupAndExportPdf}
         hasTiles={tiles.filter(t => !isConnectionBlock(t.component)).length >= 2}
       />
     </div>
