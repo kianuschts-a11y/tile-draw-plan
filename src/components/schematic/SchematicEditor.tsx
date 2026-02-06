@@ -10,6 +10,7 @@ import { ComponentSelectorDialog } from "./ComponentSelectorDialog";
 import { TitleBlockEditor } from "./TitleBlockEditor";
 import { HeaderActions } from "./HeaderActions";
 import { BillOfMaterials } from "./BillOfMaterials";
+import { Messkonzept } from "./Messkonzept";
 import { ExportGroupDialog } from "./ExportGroupDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
@@ -106,6 +107,7 @@ export function SchematicEditor() {
   });
   const [isTitleBlockEditorOpen, setIsTitleBlockEditorOpen] = useState(false);
   const [isBOMOpen, setIsBOMOpen] = useState(false);
+  const [isMesskonzeptOpen, setIsMesskonzeptOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   // Auto-generated labels for tiles (tileId -> { label, color })
   const [tileLabels, setTileLabels] = useState<Map<string, { label: string; color: string }>>(new Map());
@@ -1248,9 +1250,8 @@ export function SchematicEditor() {
             tooltipLines.push(`Menge: ${bomItem.quantity}`);
             if (bomItem.gesamtkosten > 0) tooltipLines.push(`Gesamt: ${formatCurrency(bomItem.gesamtkosten)}`);
 
-            // Add popup annotation directly on the component area
-            // Covers the entire component so hovering anywhere shows the tooltip
-            // Use 'as any' to pass icon/flags for hiding the visual marker in PDF viewers
+            // Add invisible hover annotation directly on the component area
+            // Using low-level approach to set flags that hide the icon
             (doc as any).createAnnotation({
               type: 'text',
               title: bomItem.name,
@@ -1262,7 +1263,7 @@ export function SchematicEditor() {
               },
               contents: tooltipLines.join('\n'),
               open: false,
-              icon: 'NoIcon',
+              name: '',
             } as any);
           }
 
@@ -1684,6 +1685,7 @@ export function SchematicEditor() {
           onResetView={handleResetView}
           onExport={handleExportClick}
           onOpenBOM={() => setIsBOMOpen(true)}
+          onOpenMesskonzept={() => setIsMesskonzeptOpen(true)}
         />
         <div className="h-8 w-px bg-border mx-2" />
         <Button
@@ -1867,6 +1869,18 @@ export function SchematicEditor() {
         projectMarken={projectMarken}
         projectModelle={projectModelle}
         projectCustomFields={projectCustomFields}
+      />
+
+      <Messkonzept
+        open={isMesskonzeptOpen}
+        onClose={() => setIsMesskonzeptOpen(false)}
+        tiles={tiles}
+        tileLabels={tileLabels}
+        titleBlockData={titleBlockData}
+        components={components}
+        projectKategorien={projectKategorien}
+        projectMarken={projectMarken}
+        projectModelle={projectModelle}
       />
 
       <ExportGroupDialog
