@@ -321,7 +321,38 @@ export function Canvas({
     return false;
   }, [tiles]);
 
-  // Check if a component can be placed at a position
+  // Check if a position has only connection blocks (which can be replaced)
+  const getConnectionBlocksAtPosition = useCallback((component: Component, gridX: number, gridY: number): PlacedTile[] => {
+    const compWidth = component.width || 1;
+    const compHeight = component.height || 1;
+    const connectionBlocks: PlacedTile[] = [];
+    
+    for (let dx = 0; dx < compWidth; dx++) {
+      for (let dy = 0; dy < compHeight; dy++) {
+        const checkX = gridX + dx;
+        const checkY = gridY + dy;
+        
+        for (const tile of tiles) {
+          const tileWidth = tile.component.width || 1;
+          const tileHeight = tile.component.height || 1;
+          
+          if (checkX >= tile.gridX && checkX < tile.gridX + tileWidth &&
+              checkY >= tile.gridY && checkY < tile.gridY + tileHeight) {
+            // Only add if it's a connection block
+            if (isConnectionBlock(tile.component)) {
+              if (!connectionBlocks.find(cb => cb.id === tile.id)) {
+                connectionBlocks.push(tile);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return connectionBlocks;
+  }, [tiles]);
+
+  // Check if a component can be placed at a position (allows replacing connection blocks)
   const canPlaceComponent = useCallback((component: Component, gridX: number, gridY: number, excludeTileId?: string): boolean => {
     const compWidth = component.width || 1;
     const compHeight = component.height || 1;
@@ -332,13 +363,28 @@ export function Canvas({
     
     for (let dx = 0; dx < compWidth; dx++) {
       for (let dy = 0; dy < compHeight; dy++) {
-        if (isPositionOccupied(gridX + dx, gridY + dy, excludeTileId)) {
-          return false;
+        const checkX = gridX + dx;
+        const checkY = gridY + dy;
+        
+        // Check if position is occupied
+        for (const tile of tiles) {
+          if (tile.id === excludeTileId) continue;
+          
+          const tileWidth = tile.component.width || 1;
+          const tileHeight = tile.component.height || 1;
+          
+          if (checkX >= tile.gridX && checkX < tile.gridX + tileWidth &&
+              checkY >= tile.gridY && checkY < tile.gridY + tileHeight) {
+            // Allow if it's a connection block (can be replaced)
+            if (!isConnectionBlock(tile.component)) {
+              return false;
+            }
+          }
         }
       }
     }
     return true;
-  }, [gridCols, gridRows, isPositionOccupied]);
+  }, [gridCols, gridRows, tiles]);
 
   // Check if a connection already exists between two cells
   const connectionExists = useCallback((
@@ -975,12 +1021,118 @@ export function Canvas({
       // Regular component drop
       const component: Component = parsed;
       if (canPlaceComponent(component, gridX, gridY)) {
-        onDropComponent(component, gridX, gridY);
+        // Check if we're replacing connection blocks
+        const connectionBlocksToReplace = getConnectionBlocksAtPosition(component, gridX, gridY);
+        
+        if (connectionBlocksToReplace.length > 0) {
+          // Collect all connections from the replaced connection blocks
+          const connectionsToTransfer: CellConnection[] = [];
+          const connectionBlockIds = new Set(connectionBlocksToReplace.map(cb => cb.id));
+          
+          // Find all connections involving the connection blocks
+          for (const conn of connections) {
+            const fromIsConnectionBlock = connectionBlockIds.has(conn.fromTileId);
+            const toIsConnectionBlock = connectionBlockIds.has(conn.toTileId);
+            
+            // We need to transfer connections that go TO or FROM the connection blocks
+            // but connect to OTHER tiles (not the connection blocks themselves)
+            if (fromIsConnectionBlock && !toIsConnectionBlock) {
+              // Connection goes FROM connection block TO another tile
+              // We'll create a new connection from the new tile to that tile
+              const fromBlock = connectionBlocksToReplace.find(cb => cb.id === conn.fromTileId);
+              if (fromBlock) {
+                // Calculate the relative cell position within the new component
+                const relCellX = fromBlock.gridX - gridX + conn.fromCellX;
+                const relCellY = fromBlock.gridY - gridY + conn.fromCellY;
+                
+                // Only transfer if the cell position is within the new component
+                const compWidth = component.width || 1;
+                const compHeight = component.height || 1;
+                if (relCellX >= 0 && relCellX < compWidth && relCellY >= 0 && relCellY < compHeight) {
+                  connectionsToTransfer.push({
+                    ...conn,
+                    // Will be updated with new tile ID after creation
+                    __fromCellX: relCellX,
+                    __fromCellY: relCellY,
+                    __transferType: 'from'
+                  } as any);
+                }
+              }
+            } else if (toIsConnectionBlock && !fromIsConnectionBlock) {
+              // Connection goes FROM another tile TO a connection block
+              const toBlock = connectionBlocksToReplace.find(cb => cb.id === conn.toTileId);
+              if (toBlock) {
+                const relCellX = toBlock.gridX - gridX + conn.toCellX;
+                const relCellY = toBlock.gridY - gridY + conn.toCellY;
+                
+                const compWidth = component.width || 1;
+                const compHeight = component.height || 1;
+                if (relCellX >= 0 && relCellX < compWidth && relCellY >= 0 && relCellY < compHeight) {
+                  connectionsToTransfer.push({
+                    ...conn,
+                    __toCellX: relCellX,
+                    __toCellY: relCellY,
+                    __transferType: 'to'
+                  } as any);
+                }
+              }
+            }
+          }
+          
+          // Remove the connection blocks and their connections
+          const newTiles = tiles.filter(t => !connectionBlockIds.has(t.id));
+          const newConnections = connections.filter(c => 
+            !connectionBlockIds.has(c.fromTileId) && !connectionBlockIds.has(c.toTileId)
+          );
+          
+          // Create the new tile
+          const newTileId = Math.random().toString(36).substring(2, 11);
+          const newTile: PlacedTile = { id: newTileId, component, gridX, gridY };
+          
+          // Transfer the connections with the new tile ID
+          const transferredConnections: CellConnection[] = connectionsToTransfer.map((conn: any) => {
+            if (conn.__transferType === 'from') {
+              return {
+                id: generateConnectionId(),
+                fromTileId: newTileId,
+                fromCellX: conn.__fromCellX,
+                fromCellY: conn.__fromCellY,
+                fromSide: conn.fromSide,
+                toTileId: conn.toTileId,
+                toCellX: conn.toCellX,
+                toCellY: conn.toCellY,
+                toSide: conn.toSide,
+                color: conn.color
+              };
+            } else {
+              return {
+                id: generateConnectionId(),
+                fromTileId: conn.fromTileId,
+                fromCellX: conn.fromCellX,
+                fromCellY: conn.fromCellY,
+                fromSide: conn.fromSide,
+                toTileId: newTileId,
+                toCellX: conn.__toCellX,
+                toCellY: conn.__toCellY,
+                toSide: conn.toSide,
+                color: conn.color
+              };
+            }
+          });
+          
+          // Update tiles and connections
+          onTilesChange([...newTiles, newTile]);
+          onConnectionsChange([...newConnections, ...transferredConnections]);
+          onSelectionChange(new Set([newTileId]));
+        } else {
+          // Normal drop without replacing connection blocks
+          onDropComponent(component, gridX, gridY);
+        }
       }
     } catch (err) {
       console.error('Failed to parse dropped data:', err);
     }
-  }, [getGridPosition, canPlaceComponent, onDropComponent, onDropGroup, onDragEnd]);
+  }, [getGridPosition, canPlaceComponent, getConnectionBlocksAtPosition, onDropComponent, onDropGroup, onDragEnd, tiles, connections, onTilesChange, onConnectionsChange, onSelectionChange]);
 
   // Keyboard shortcuts
   useEffect(() => {
