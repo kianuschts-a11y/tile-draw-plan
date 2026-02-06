@@ -1,77 +1,112 @@
 
-# Plan: Auto-Verbindungen Feature für Komponenten
 
-## Übersicht
-Diese Funktion ermöglicht das Aktivieren von "Auto-Verbindungen" für Komponenten. Wenn aktiviert, werden automatisch dünne gestrichelte Verbindungslinien von dieser Komponente zu allen Komponenten mit aktivierter Beschriftung (labeling) gezeichnet.
+# Export-Dialog verbessern: Bild & interaktive PDF
 
-## Technische Änderungen
+## Zusammenfassung
 
-### 1. Datenbank-Migration
-**Neue Spalte in `components` Tabelle:**
-- `auto_connections_enabled` (boolean, nullable, default: false)
+Der aktuelle Export-Dialog wird erweitert um:
+1. **Verbessertes Eingabefeld** fur den Gruppennamen
+2. **Auswahl des Exportformats**: Bild (PNG) oder PDF
+3. **Interaktive PDF**: Komponenten sind anklickbar und zeigen Informationen wie Hersteller, Modell und technische Daten (wie in der Stuckliste)
 
-### 2. TypeScript Types
-**Datei: `src/types/schematic.ts`**
-- Neue Eigenschaft im `Component` Interface:
-  ```typescript
-  autoConnectionsEnabled?: boolean; // Auto-Verbindungen zu beschrifteten Komponenten
-  ```
+---
 
-### 3. Component Editor Dialog
-**Datei: `src/components/schematic/ComponentEditorDialog.tsx`**
-- Neuer State: `autoConnectionsEnabled`
-- Neue UI-Sektion unter "Beschriftung":
-  - Switch für "Auto Verbindungen aktivieren"
-  - Erklärungstext: "Zeichnet automatisch gestrichelte Linien zu allen beschrifteten Komponenten"
-- Props-Anpassung: `onSave` und `onUpdate` um `autoConnectionsEnabled` erweitern
-- `handleSave` anpassen um den neuen Wert zu übergeben
-- `handleClose` anpassen um State zurückzusetzen
-- `useEffect` für Laden bestehender Komponenten anpassen
+## Ablauf fur den Benutzer
 
-### 4. useComponents Hook
-**Datei: `src/hooks/useComponents.tsx`**
-- `saveComponent` Funktion erweitern um `autoConnectionsEnabled` Parameter
-- `updateComponent` Funktion erweitern um `autoConnectionsEnabled` Parameter
-- Mapping von Datenbankwerten zu Component-Objekten anpassen
-- Insert/Update Queries anpassen
+1. Benutzer klickt "Exportieren" oder druckt `E`
+2. Der verbesserte Dialog erscheint mit:
+   - Optional: Zeichnung als Gruppe speichern (Gruppenname-Eingabe)
+   - **Formatauswahl**: Bild (PNG) oder PDF
+3. Bei **Bild**: Export wie bisher als PNG
+4. Bei **PDF**: 
+   - Seite 1: Die Zeichnung als Vektorgrafik
+   - Jede Komponente in der Zeichnung ist mit einem unsichtbaren Link hinterlegt
+   - Seite 2+: Stuckliste mit allen Komponenteninformationen (Pos., Name, Kategorie, Marke, Modell, Menge, Preis)
+   - Klick auf eine Komponente in der Zeichnung springt zur entsprechenden Zeile in der Stuckliste
 
-### 5. Schematic Editor
-**Datei: `src/components/schematic/SchematicEditor.tsx`**
-- Handler-Funktionen für Save/Update anpassen um neuen Parameter weiterzuleiten
-- Neue Funktion: `generateAutoConnections` - berechnet alle Auto-Verbindungslinien
-  - Findet alle Tiles mit `autoConnectionsEnabled`
-  - Findet alle Tiles mit `labelingEnabled`
-  - Generiert Linien zwischen deren Zentren
-- Neuer State oder useMemo: `autoConnectionLines` - Array von Linien-Objekten
+---
 
-### 6. Canvas Rendering
-**Datei: `src/components/schematic/Canvas.tsx`**
-- Neue Props: `autoConnectionLines` (Array von Linien-Definitionen)
-- Render-Logik für gestrichelte Linien:
-  - Dünne Linienstärke (ca. 0.02 * tileSize)
-  - Gestrichelt (`strokeDasharray`)
-  - Farbe: grau oder konfigurierbar
-  - Von Tile-Zentrum zu Tile-Zentrum
+## Technische Details
 
-## Visuelles Konzept
+### 1. Neue Abhangigkeit: `jspdf`
+- `jspdf` wird als Dependency hinzugefugt fur die PDF-Erzeugung
+- Keine weiteren externen Abhangigkeiten notig (SVG wird als Bild eingebettet)
+
+### 2. Datei: `src/components/schematic/ExportGroupDialog.tsx` (Uberarbeitung)
+
+**Neue Props:**
+- `onExportImage: () => void` - Export als PNG
+- `onExportPdf: () => void` - Export als PDF
+- `onSaveGroupAndExportImage: (name: string) => void`
+- `onSaveGroupAndExportPdf: (name: string) => void`
+
+**UI-Anderungen:**
+- Gruppenname-Bereich wird kompakter gestaltet mit Checkbox statt separatem Bereich
+- Neuer Abschnitt "Exportformat" mit zwei grossen, klar erkennbaren Optionskarten:
+  - **Bild (PNG)**: Icon + kurze Beschreibung
+  - **PDF (interaktiv)**: Icon + Beschreibung ("Komponenten anklickbar mit Herstellerinformationen")
+- Zwei Aktions-Buttons am Ende: "Exportieren" (abhangig vom gewahlten Format) und optional "Als Gruppe speichern & exportieren"
+
+### 3. Datei: `src/components/schematic/SchematicEditor.tsx` (Erweiterung)
+
+**Neue Funktion `handleExportPdf`:**
+- Klont das SVG wie beim Bild-Export
+- Rendert es auf ein Canvas und erzeugt ein Bild
+- Erstellt ein PDF im gewahlten Papierformat (A4, A3, etc.) mit `jspdf`
+- Seite 1: Zeichnung als eingebettetes Bild
+  - Fur jede platzierte Komponente (kein Verbindungsblock) wird ein unsichtbarer Link-Bereich uber der Position erstellt, der auf die Stucklisten-Seite verweist
+- Seite 2: Stuckliste als Tabelle
+  - Spalten: Pos., Komponente, Kategorie, Marke, Modell, Menge, Preis, Gesamt
+  - Jede Zeile hat einen benannten Anker, auf den die Links von Seite 1 verweisen
+  - Gesamtkosten am Ende
+
+**Angepasste Callback-Funktionen:**
+- `handleSaveGroupAndExport` wird aufgeteilt in `handleSaveGroupAndExportImage` und `handleSaveGroupAndExportPdf`
+- `handleExportOnly` wird aufgeteilt in `handleExportImageOnly` und `handleExportPdfOnly`
+
+### 4. Datei: `src/components/schematic/HeaderActions.tsx` (keine Anderung notig)
+- Der bestehende Export-Button offnet weiterhin den Dialog
+
+---
+
+## PDF-Struktur im Detail
+
 ```text
-+--------+                    +--------+
-|  BHKW  | - - - - - - - - -> | 1.1    |
-| (Auto) |                    | Speich |
-+--------+                    +--------+
-     |
-     | (gestrichelte Linie)
-     v
-+--------+
-| 1.2    |
-| Pumpe  |
-+--------+
++----------------------------------+
+|          SEITE 1: ZEICHNUNG      |
+|                                  |
+|   +------+    +------+           |
+|   | Komp |----| Komp |           |
+|   |  A   |    |  B   |           |
+|   +------+    +------+           |
+|       |                          |
+|   [Klickbare Bereiche uber       |
+|    jeder Komponente -> Seite 2]  |
+|                                  |
++----------------------------------+
+
++----------------------------------+
+|       SEITE 2: STUCKLISTE        |
+|                                  |
+|  Projekt: [Name]                 |
+|  Datum: [Datum]                  |
+|                                  |
+|  Pos | Name | Kat. | Marke |...  |
+|  ----|------|------|-------|---- |
+|   1  | A    | ...  | ...   |...  |
+|   2  | B    | ...  | ...   |...  |
+|                                  |
+|  Gesamt: X Teile, Y.YY Euro     |
++----------------------------------+
 ```
 
-## Implementierungsreihenfolge
-1. Datenbank-Migration für neue Spalte
-2. TypeScript Types erweitern
-3. useComponents Hook anpassen
-4. ComponentEditorDialog UI hinzufügen
-5. SchematicEditor Logik für Auto-Verbindungen
-6. Canvas Rendering der gestrichelten Linien
+---
+
+## Dateien die erstellt/geandert werden
+
+| Datei | Aktion |
+|-------|--------|
+| `src/components/schematic/ExportGroupDialog.tsx` | Komplett uberarbeiten - neues Layout mit Formatauswahl |
+| `src/components/schematic/SchematicEditor.tsx` | Neue `handleExportPdf` Funktion + angepasste Callbacks |
+| `package.json` | `jspdf` als Dependency hinzufugen |
+
