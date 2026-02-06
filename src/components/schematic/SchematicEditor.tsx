@@ -1139,24 +1139,6 @@ export function SchematicEditor() {
             });
           }
 
-          // Add invisible clickable links over each component on page 1
-          // Map from componentId to BOM position for linking
-          const componentToBomPos = new Map(bomItems.map(item => [item.componentId, item.position]));
-
-          for (const tile of nonConnectionTiles) {
-            const bomPos = componentToBomPos.get(tile.component.id);
-            if (bomPos === undefined) continue;
-
-            // Convert grid position to PDF coordinates
-            const tileX = (tile.gridX / gridCols) * pdfWidth;
-            const tileY = (tile.gridY / gridRows) * pdfHeight;
-            const tileW = ((tile.component.width || 1) / gridCols) * pdfWidth;
-            const tileH = ((tile.component.height || 1) / gridRows) * pdfHeight;
-
-            // Add internal link to BOM page
-            doc.link(tileX, tileY, tileW, tileH, { pageNumber: 2 });
-          }
-
           // Page 2: BOM Table
           doc.addPage();
 
@@ -1207,6 +1189,23 @@ export function SchematicEditor() {
             totalKosten > 0 ? formatCurrency(totalKosten) : '–'
           ]);
 
+          // Distinct row colors for visual cross-referencing between drawing and BOM
+          const positionColors: [number, number, number][] = [
+            [219, 234, 254], // hellblau
+            [254, 226, 226], // hellrot
+            [209, 250, 229], // hellgrün
+            [254, 240, 199], // hellgelb
+            [233, 213, 255], // helllila
+            [254, 215, 226], // hellrosa
+            [207, 250, 254], // hellcyan
+            [255, 237, 213], // hellorange
+            [226, 232, 240], // hellgrau
+            [254, 249, 195], // helllime
+          ];
+
+          // Track row Y positions for linking from page 1
+          const rowPositions = new Map<string, number>();
+
           autoTable(doc, {
             startY: infoY,
             head: tableHead,
@@ -1221,9 +1220,6 @@ export function SchematicEditor() {
             bodyStyles: {
               fontSize: 8.5
             },
-            alternateRowStyles: {
-              fillColor: [245, 247, 250]
-            },
             columnStyles: {
               0: { cellWidth: 12, halign: 'center' },
               1: { cellWidth: 'auto' },
@@ -1234,15 +1230,71 @@ export function SchematicEditor() {
               6: { cellWidth: 22, halign: 'right' },
               7: { cellWidth: 22, halign: 'right' }
             },
-            // Style last row (totals) bold
             didParseCell: (data: any) => {
-              if (data.row.index === tableBody.length - 1) {
-                data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.fillColor = [224, 231, 243];
+              if (data.section === 'body') {
+                if (data.row.index < bomItems.length) {
+                  // Each BOM row gets a unique color for easy identification
+                  const colorIdx = data.row.index % positionColors.length;
+                  data.cell.styles.fillColor = positionColors[colorIdx];
+                } else {
+                  // Totals row
+                  data.cell.styles.fontStyle = 'bold';
+                  data.cell.styles.fillColor = [224, 231, 243];
+                }
+              }
+            },
+            didDrawCell: (data: any) => {
+              // Track Y position of each BOM row (first column)
+              if (data.section === 'body' && data.column.index === 0 && data.row.index < bomItems.length) {
+                rowPositions.set(bomItems[data.row.index].componentId, data.cell.y);
               }
             },
             margin: { left: 14, right: 14 }
           });
+
+          // Go back to page 1 to add interactive elements (annotations + links)
+          doc.setPage(1);
+
+          const componentBomMap = new Map(bomItems.map(item => [item.componentId, item]));
+
+          for (const tile of nonConnectionTiles) {
+            const bomItem = componentBomMap.get(tile.component.id);
+            if (!bomItem) continue;
+
+            // Convert grid position to PDF coordinates (mm)
+            const tileX = (tile.gridX / gridCols) * pdfWidth;
+            const tileY = (tile.gridY / gridRows) * pdfHeight;
+            const tileW = ((tile.component.width || 1) / gridCols) * pdfWidth;
+            const tileH = ((tile.component.height || 1) / gridRows) * pdfHeight;
+
+            // Build tooltip content for hover annotation
+            const tooltipLines: string[] = [];
+            tooltipLines.push(`${bomItem.name} (Pos. ${bomItem.position})`);
+            if (bomItem.kategorie) tooltipLines.push(`Kategorie: ${bomItem.kategorie}`);
+            if (bomItem.marke) tooltipLines.push(`Marke: ${bomItem.marke}`);
+            if (bomItem.modell) tooltipLines.push(`Modell: ${bomItem.modell}`);
+            if (bomItem.preis) tooltipLines.push(`Preis: ${formatCurrency(bomItem.preis)}`);
+            tooltipLines.push(`Menge: ${bomItem.quantity}`);
+            if (bomItem.gesamtkosten > 0) tooltipLines.push(`Gesamt: ${formatCurrency(bomItem.gesamtkosten)}`);
+
+            // Add popup annotation (shows info on hover/click in PDF viewers)
+            // Positioned at top-right corner of each component as a small note icon
+            doc.createAnnotation({
+              type: 'text',
+              title: bomItem.name,
+              bounds: {
+                x: tileX + tileW - 3,
+                y: tileY,
+                w: 4,
+                h: 4
+              },
+              contents: tooltipLines.join('\n'),
+              open: false
+            });
+
+            // Add invisible clickable link over entire component area → navigates to BOM page
+            doc.link(tileX, tileY, tileW, tileH, { pageNumber: 2 });
+          }
 
           // Save PDF
           const projektName = titleBlockData.projekt || 'Zeichnung';
