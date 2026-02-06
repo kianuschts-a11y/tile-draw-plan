@@ -1,4 +1,4 @@
-import { ZoomIn, ZoomOut, RotateCcw, Download, FileText } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, Download, FileText, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
@@ -9,6 +9,7 @@ interface HeaderActionsProps {
   onResetView: () => void;
   onExport: () => void;
   onOpenBOM: () => void;
+  onOpenMesskonzept: () => void;
 }
 
 export function HeaderActions({
@@ -16,7 +17,8 @@ export function HeaderActions({
   onZoomOut,
   onResetView,
   onExport,
-  onOpenBOM
+  onOpenBOM,
+  onOpenMesskonzept
 }: HeaderActionsProps) {
   return (
     <div className="flex items-center gap-1">
@@ -90,6 +92,20 @@ export function HeaderActions({
           </Button>
         </TooltipTrigger>
         <TooltipContent>Stückliste (B)</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onOpenMesskonzept}
+          >
+            <Activity className="w-4 h-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Messkonzept (M)</TooltipContent>
       </Tooltip>
     </div>
   );
