@@ -10,6 +10,7 @@ import { ComponentSelectorDialog } from "./ComponentSelectorDialog";
 import { TitleBlockEditor } from "./TitleBlockEditor";
 import { HeaderActions } from "./HeaderActions";
 import { BillOfMaterials } from "./BillOfMaterials";
+import { ExportGroupDialog } from "./ExportGroupDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
@@ -105,6 +106,7 @@ export function SchematicEditor() {
   });
   const [isTitleBlockEditorOpen, setIsTitleBlockEditorOpen] = useState(false);
   const [isBOMOpen, setIsBOMOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   // Auto-generated labels for tiles (tileId -> { label, color })
   const [tileLabels, setTileLabels] = useState<Map<string, { label: string; color: string }>>(new Map());
   const [canvasState, setCanvasState] = useState<CanvasState>({
@@ -911,6 +913,76 @@ export function SchematicEditor() {
     setSelectedTileIds(new Set());
   }, [selectedTileIds, tiles, connections, createGroup]);
 
+  // Create group from ALL non-connection tiles on canvas (for export dialog)
+  const handleCreateGroupFromAllTiles = useCallback(async (name: string) => {
+    const nonConnectionTiles = tiles.filter(t => !isConnectionBlock(t.component));
+    if (nonConnectionTiles.length < 2) return;
+    
+    // Include all tiles (non-connection + connection blocks within bounding box)
+    const allTileIds = new Set(tiles.map(t => t.id));
+    const allTilesForGroup = tiles;
+    
+    const minX = Math.min(...allTilesForGroup.map(t => t.gridX));
+    const minY = Math.min(...allTilesForGroup.map(t => t.gridY));
+    
+    const tileData: GroupTileData[] = allTilesForGroup.map(tile => ({
+      componentId: tile.component.id,
+      relativeX: tile.gridX - minX,
+      relativeY: tile.gridY - minY
+    }));
+    
+    const componentIds = [...new Set(allTilesForGroup.map(t => t.component.id))];
+    
+    const relevantConnections = connections.filter(c => 
+      allTileIds.has(c.fromTileId) && allTileIds.has(c.toTileId)
+    );
+    
+    const tileIdToIndex = new Map(allTilesForGroup.map((t, i) => [t.id, i]));
+    
+    const connectionData: GroupConnectionData[] = relevantConnections.map(conn => ({
+      fromTileIndex: tileIdToIndex.get(conn.fromTileId)!,
+      fromCellX: conn.fromCellX,
+      fromCellY: conn.fromCellY,
+      fromSide: conn.fromSide,
+      toTileIndex: tileIdToIndex.get(conn.toTileId)!,
+      toCellX: conn.toCellX,
+      toCellY: conn.toCellY,
+      toSide: conn.toSide,
+      color: conn.color
+    }));
+    
+    const layoutData: GroupLayoutData = {
+      tiles: tileData,
+      connections: connectionData
+    };
+    
+    await createGroup(name, componentIds, layoutData);
+  }, [tiles, connections, createGroup]);
+
+  // Handle export button click - show dialog first
+  const handleExportClick = useCallback(() => {
+    const nonConnectionTiles = tiles.filter(t => !isConnectionBlock(t.component));
+    if (nonConnectionTiles.length >= 2) {
+      setIsExportDialogOpen(true);
+    } else {
+      // Not enough tiles for a group, just export directly
+      handleExport();
+    }
+  }, [tiles, handleExport]);
+
+  // Handle save group + export from dialog
+  const handleSaveGroupAndExport = useCallback(async (groupName: string) => {
+    await handleCreateGroupFromAllTiles(groupName);
+    setIsExportDialogOpen(false);
+    handleExport();
+  }, [handleCreateGroupFromAllTiles, handleExport]);
+
+  // Handle export only from dialog
+  const handleExportOnly = useCallback(() => {
+    setIsExportDialogOpen(false);
+    handleExport();
+  }, [handleExport]);
+
   const handleCreateGroup = useCallback(async (name: string, componentIds: string[]) => {
     await createGroup(name, componentIds);
     setSelectedComponentIds(new Set());
@@ -1227,11 +1299,12 @@ export function SchematicEditor() {
         case '+': case '=': handleZoomIn(); break;
         case '-': handleZoomOut(); break;
         case '0': handleResetView(); break;
+        case 'e': handleExportClick(); break;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleZoomIn, handleZoomOut, handleResetView]);
+  }, [handleZoomIn, handleZoomOut, handleResetView, handleExportClick]);
 
   if (componentsLoading) {
     return (
@@ -1275,7 +1348,7 @@ export function SchematicEditor() {
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onResetView={handleResetView}
-          onExport={handleExport}
+          onExport={handleExportClick}
           onOpenBOM={() => setIsBOMOpen(true)}
         />
         <div className="h-8 w-px bg-border mx-2" />
@@ -1460,6 +1533,14 @@ export function SchematicEditor() {
         projectMarken={projectMarken}
         projectModelle={projectModelle}
         projectCustomFields={projectCustomFields}
+      />
+
+      <ExportGroupDialog
+        open={isExportDialogOpen}
+        onClose={() => setIsExportDialogOpen(false)}
+        onExportOnly={handleExportOnly}
+        onSaveGroupAndExport={handleSaveGroupAndExport}
+        hasTiles={tiles.filter(t => !isConnectionBlock(t.component)).length >= 2}
       />
     </div>
   );
