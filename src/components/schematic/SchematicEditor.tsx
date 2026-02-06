@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { PDFDocument, PDFName, PDFArray, PDFString } from "pdf-lib";
 import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile, AutoConnectionLine } from "./Canvas";
@@ -1225,10 +1226,14 @@ export function SchematicEditor() {
             margin: { left: 14, right: 14 }
           });
 
-          // Go back to page 1 to add interactive elements (annotations + links)
+          // Go back to page 1 - collect annotation data for pdf-lib post-processing
           doc.setPage(1);
 
           const componentBomMap = new Map(bomItems.map(item => [item.componentId, item]));
+          const pdfPageHeight = doc.internal.pageSize.getHeight();
+
+          // Collect annotation data for post-processing with pdf-lib
+          const annotationData: { x: number; y: number; w: number; h: number; title: string; contents: string }[] = [];
 
           for (const tile of nonConnectionTiles) {
             const bomItem = componentBomMap.get(tile.component.id);
@@ -1240,7 +1245,7 @@ export function SchematicEditor() {
             const tileW = ((tile.component.width || 1) / gridCols) * pdfWidth;
             const tileH = ((tile.component.height || 1) / gridRows) * pdfHeight;
 
-            // Build tooltip content for hover annotation
+            // Build tooltip content
             const tooltipLines: string[] = [];
             tooltipLines.push(`${bomItem.name} (Pos. ${bomItem.position})`);
             if (bomItem.kategorie) tooltipLines.push(`Kategorie: ${bomItem.kategorie}`);
@@ -1250,27 +1255,77 @@ export function SchematicEditor() {
             tooltipLines.push(`Menge: ${bomItem.quantity}`);
             if (bomItem.gesamtkosten > 0) tooltipLines.push(`Gesamt: ${formatCurrency(bomItem.gesamtkosten)}`);
 
-            // Add invisible hover annotation directly on the component area
-            // Using low-level approach to set flags that hide the icon
-            (doc as any).createAnnotation({
-              type: 'text',
+            // PDF coordinate system: origin at bottom-left
+            const pdfY1 = pdfPageHeight - tileY - tileH; // bottom
+            const pdfY2 = pdfPageHeight - tileY; // top
+
+            annotationData.push({
+              x: tileX * 2.835, // mm to points (1mm = 2.835pt)
+              y: pdfY1 * 2.835,
+              w: (tileX + tileW) * 2.835,
+              h: pdfY2 * 2.835,
               title: bomItem.name,
-              bounds: {
-                x: tileX,
-                y: tileY,
-                w: tileW,
-                h: tileH
-              },
-              contents: tooltipLines.join('\n'),
-              open: false,
-              name: '',
-            } as any);
+              contents: tooltipLines.join('\n')
+            });
           }
 
-          // Save PDF
-          const projektName = titleBlockData.projekt || 'Zeichnung';
-          const fileName = `${projektName}-${new Date().toISOString().slice(0, 10)}.pdf`;
-          doc.save(fileName);
+          // Generate jsPDF output as arraybuffer, then post-process with pdf-lib
+          const jspdfOutput = doc.output('arraybuffer');
+          
+          // Post-process with pdf-lib to add truly invisible annotations
+          PDFDocument.load(jspdfOutput).then(async (pdfDoc) => {
+            const page = pdfDoc.getPages()[0]; // Page 1
+            
+            for (const annot of annotationData) {
+              // Create an empty appearance stream (XObject Form) - this hides the icon
+              const emptyStream = pdfDoc.context.stream(new Uint8Array(0), {
+                Type: 'XObject',
+                Subtype: 'Form',
+                BBox: [0, 0, annot.w - annot.x, annot.h - annot.y],
+              });
+              const emptyStreamRef = pdfDoc.context.register(emptyStream);
+              
+              // Create the appearance dictionary with the empty stream
+              const apDict = pdfDoc.context.obj({
+                N: emptyStreamRef,
+              });
+              
+              // Create the annotation dictionary
+              const annotDict = pdfDoc.context.obj({
+                Type: 'Annot',
+                Subtype: 'Text',
+                Rect: [annot.x, annot.y, annot.w, annot.h],
+                Contents: PDFString.of(annot.contents),
+                T: PDFString.of(annot.title),
+                Open: false,
+                F: 0,
+                AP: apDict,
+                C: [], // No color
+              });
+              const annotRef = pdfDoc.context.register(annotDict);
+              
+              // Add annotation to page
+              const existingAnnots = page.node.lookup(PDFName.of('Annots'));
+              if (existingAnnots instanceof PDFArray) {
+                existingAnnots.push(annotRef);
+              } else {
+                page.node.set(PDFName.of('Annots'), pdfDoc.context.obj([annotRef]));
+              }
+            }
+            
+            // Save and download
+            const pdfBytes = await pdfDoc.save();
+            const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const projektName = titleBlockData.projekt || 'Zeichnung';
+            a.download = `${projektName}-${new Date().toISOString().slice(0, 10)}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }).catch(err => {
+            console.error('PDF post-processing failed:', err);
+          });
         };
         img.onerror = (err) => {
           console.error('PDF export failed:', err);
