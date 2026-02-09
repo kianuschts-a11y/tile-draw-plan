@@ -766,7 +766,7 @@ export function Canvas({
         }
       }
     }
-  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions]);
+  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions, isDrawingAnnotationLine, isDraggingAnnotation, selectedAnnotationId, annotationDragStart, annotationLines, onAnnotationLineMove, onAnnotationTextMove]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     // Finish annotation line drawing
@@ -1008,7 +1008,7 @@ export function Canvas({
     setIsSelectionBox(false);
     setIsConnecting(false);
     setConnectionPath([]);
-  }, [isConnecting, connectionPath, activeTool, getTileAndCellAtPosition, connections, connectionColor, onConnectionsChange]);
+  }, [isConnecting, connectionPath, activeTool, getTileAndCellAtPosition, connections, connectionColor, onConnectionsChange, isDrawingAnnotationLine, annotationLineStart, annotationLinePreview, annotationColor, annotationLineStyle, onAnnotationLineCreate, isDraggingAnnotation]);
 
   const handleTileMouseDown = useCallback((e: React.MouseEvent, tile: PlacedTile) => {
     e.stopPropagation();
