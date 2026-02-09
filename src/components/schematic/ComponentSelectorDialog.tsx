@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal, AlertTriangle, Upload } from "lucide-react";
+import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal, AlertTriangle, Upload, Settings2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,9 @@ import {
 } from "@/components/ui/collapsible";
 import { GroupPreview } from "./GroupPreview";
 import { ComponentImportDialog } from "./ComponentImportDialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 interface ComponentSelectorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -90,6 +93,12 @@ export function ComponentSelectorDialog({
   const [modelle, setModelle] = useState<Map<string, string>>(new Map());
   const [customFields, setCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
+  
+  // Group matching filter settings
+  const [includeMesskomponenten, setIncludeMesskomponenten] = useState(true);
+  const [minMatchPercent, setMinMatchPercent] = useState(0);
+  const [onlyFullMatches, setOnlyFullMatches] = useState(false);
+  const [showFilterSettings, setShowFilterSettings] = useState(false);
   
   // Track the ORIGINAL quantities selected by user (before any group insertions)
   // This never changes during the session - it's what the user originally picked
@@ -422,29 +431,32 @@ export function ComponentSelectorDialog({
     return componentId.startsWith('connection-');
   }, []);
 
-  // Get component requirements from a group (excluding connection blocks for matching purposes)
-  const getGroupComponentRequirements = useCallback((group: ComponentGroup, excludeConnections: boolean = false): Map<string, number> => {
+  // Get component requirements from a group (excluding connection blocks and optionally labeling components)
+  const getGroupComponentRequirements = useCallback((group: ComponentGroup, excludeConnections: boolean = false, excludeLabeling: boolean = false): Map<string, number> => {
     const requirements = new Map<string, number>();
     
     if (group.layoutData?.tiles && group.layoutData.tiles.length > 0) {
       for (const tile of group.layoutData.tiles) {
-        // Skip connection blocks when matching against project components
-        if (excludeConnections && isConnectionBlock(tile.componentId)) {
-          continue;
+        if (excludeConnections && isConnectionBlock(tile.componentId)) continue;
+        if (excludeLabeling) {
+          const comp = components.find(c => c.id === tile.componentId);
+          if (comp && comp.labelingEnabled) continue;
         }
         requirements.set(tile.componentId, (requirements.get(tile.componentId) || 0) + 1);
       }
     } else {
       for (const id of group.componentIds) {
-        if (excludeConnections && isConnectionBlock(id)) {
-          continue;
+        if (excludeConnections && isConnectionBlock(id)) continue;
+        if (excludeLabeling) {
+          const comp = components.find(c => c.id === id);
+          if (comp && comp.labelingEnabled) continue;
         }
         requirements.set(id, (requirements.get(id) || 0) + 1);
       }
     }
     
     return requirements;
-  }, [isConnectionBlock]);
+  }, [isConnectionBlock, components]);
 
   // Check if a group can be fulfilled with given component quantities (full match)
   // Uses excludeConnections=true to ignore connection blocks when matching
@@ -452,10 +464,9 @@ export function ComponentSelectorDialog({
     group: ComponentGroup,
     availableComponents: Map<string, number>
   ): { possible: boolean; maxCount: number } => {
-    // For matching, exclude connection blocks - they are auto-included with groups
-    const requirements = getGroupComponentRequirements(group, true);
+    const excludeLabeling = !includeMesskomponenten;
+    const requirements = getGroupComponentRequirements(group, true, excludeLabeling);
     
-    // If the group has no non-connection components, skip it
     if (requirements.size === 0) {
       return { possible: false, maxCount: 0 };
     }
@@ -472,14 +483,15 @@ export function ComponentSelectorDialog({
     }
     
     return { possible: true, maxCount: maxPossible === Infinity ? 0 : maxPossible };
-  }, [getGroupComponentRequirements]);
+  }, [getGroupComponentRequirements, includeMesskomponenten]);
 
   // Calculate partial match percentage for a group
   const calculateGroupMatchPercentage = useCallback((
     group: ComponentGroup,
     availableComponents: Map<string, number>
   ): { matchPercent: number; matchingComponents: number; totalComponents: number } => {
-    const requirements = getGroupComponentRequirements(group, true);
+    const excludeLabeling = !includeMesskomponenten;
+    const requirements = getGroupComponentRequirements(group, true, excludeLabeling);
     
     if (requirements.size === 0) {
       return { matchPercent: 0, matchingComponents: 0, totalComponents: 0 };
@@ -499,24 +511,48 @@ export function ComponentSelectorDialog({
       matchingComponents,
       totalComponents
     };
-  }, [getGroupComponentRequirements]);
+  }, [getGroupComponentRequirements, includeMesskomponenten]);
+
+  // Build filtered quantities (excluding Messkomponenten if toggled off)
+  const filteredQuantities = useMemo((): Map<string, number> => {
+    if (includeMesskomponenten) return quantities;
+    
+    const filtered = new Map<string, number>();
+    for (const [compId, qty] of quantities.entries()) {
+      const comp = components.find(c => c.id === compId);
+      if (comp && comp.labelingEnabled) continue; // Skip Messkomponenten
+      filtered.set(compId, qty);
+    }
+    return filtered;
+  }, [quantities, includeMesskomponenten, components]);
 
   // Find all matching groups - now shows partial matches too!
   const matchingGroups = useMemo((): GroupSuggestion[] => {
-    if (quantities.size === 0) return [];
+    if (filteredQuantities.size === 0) return [];
     
     const suggestions: GroupSuggestion[] = [];
     
     for (const group of groups) {
+      // When excluding Messkomponenten, also exclude them from group requirements
       const requirements = getGroupComponentRequirements(group, true);
       
-      // Skip groups with no non-connection components
-      if (requirements.size === 0) continue;
+      // If not including Messkomponenten, filter out labeling components from requirements
+      const filteredRequirements = new Map<string, number>();
+      for (const [compId, qty] of requirements.entries()) {
+        if (!includeMesskomponenten) {
+          const comp = components.find(c => c.id === compId);
+          if (comp && comp.labelingEnabled) continue;
+        }
+        filteredRequirements.set(compId, qty);
+      }
+      
+      // Skip groups with no matching components after filtering
+      if (filteredRequirements.size === 0) continue;
       
       // Check for any overlap with selected components
       let hasAnyOverlap = false;
-      for (const [componentId] of requirements.entries()) {
-        if ((quantities.get(componentId) || 0) > 0) {
+      for (const [componentId] of filteredRequirements.entries()) {
+        if ((filteredQuantities.get(componentId) || 0) > 0) {
           hasAnyOverlap = true;
           break;
         }
@@ -525,22 +561,30 @@ export function ComponentSelectorDialog({
       // Only show groups that have at least one matching component
       if (!hasAnyOverlap) continue;
       
-      // Check if fully fulfillable
-      const { possible, maxCount } = canFulfillGroup(group, quantities);
+      // Check if fully fulfillable (using filtered quantities)
+      const { possible, maxCount } = canFulfillGroup(group, filteredQuantities);
       
       // Calculate match percentage
-      const { matchPercent } = calculateGroupMatchPercentage(group, quantities);
+      const { matchPercent } = calculateGroupMatchPercentage(group, filteredQuantities);
       
-      const totalGroupComponents = Array.from(requirements.values()).reduce((a, b) => a + b, 0);
-      const totalProjectComponents = Array.from(quantities.values()).reduce((a, b) => a + b, 0);
+      const totalGroupComponents = Array.from(filteredRequirements.values()).reduce((a, b) => a + b, 0);
+      const totalProjectComponents = Array.from(filteredQuantities.values()).reduce((a, b) => a + b, 0);
+      
+      const coveragePercent = possible 
+        ? Math.round((totalGroupComponents / totalProjectComponents) * 100)
+        : matchPercent;
+      
+      // Apply minimum match filter
+      if (coveragePercent < minMatchPercent) continue;
+      
+      // Apply "only full matches" filter
+      if (onlyFullMatches && !possible) continue;
       
       suggestions.push({
         group,
-        possibleCount: possible ? maxCount : 0, // 0 if not fully fulfillable
-        usedComponents: requirements,
-        coveragePercent: possible 
-          ? Math.round((totalGroupComponents / totalProjectComponents) * 100)
-          : matchPercent // For partial matches, show how much of the group is covered
+        possibleCount: possible ? maxCount : 0,
+        usedComponents: filteredRequirements,
+        coveragePercent
       });
     }
     
@@ -552,7 +596,7 @@ export function ComponentSelectorDialog({
       // Then by coverage percentage
       return b.coveragePercent - a.coveragePercent;
     });
-  }, [quantities, groups, canFulfillGroup, getGroupComponentRequirements, calculateGroupMatchPercentage]);
+  }, [filteredQuantities, groups, canFulfillGroup, getGroupComponentRequirements, calculateGroupMatchPercentage, includeMesskomponenten, components, minMatchPercent, onlyFullMatches]);
 
   // Helper to subtract group requirements from a component map
   const subtractGroupFromComponents = useCallback((
@@ -589,7 +633,7 @@ export function ComponentSelectorDialog({
     if (matchingGroups.length < 2) return [];
     
     const sets: ComplementaryGroupSet[] = [];
-    const totalProjectComponents = Array.from(quantities.values()).reduce((a, b) => a + b, 0);
+    const totalProjectComponents = Array.from(filteredQuantities.values()).reduce((a, b) => a + b, 0);
     if (totalProjectComponents === 0) return [];
     
     // Recursive function to find all valid combinations
@@ -633,7 +677,7 @@ export function ComponentSelectorDialog({
     // Start combinations from each group
     for (let i = 0; i < matchingGroups.length; i++) {
       const firstGroup = matchingGroups[i];
-      const remainingAfterFirst = subtractGroupFromComponents(quantities, firstGroup.usedComponents);
+      const remainingAfterFirst = subtractGroupFromComponents(filteredQuantities, firstGroup.usedComponents);
       findCombinations(i + 1, [{ ...firstGroup, possibleCount: 1 }], remainingAfterFirst, 1);
     }
     
@@ -647,6 +691,13 @@ export function ComponentSelectorDialog({
     }
     
     return Array.from(uniqueSets.values())
+      .filter(set => {
+        // Apply minimum match filter
+        if (set.totalCoverage < minMatchPercent) return false;
+        // Apply "only full matches" filter
+        if (onlyFullMatches && set.totalCoverage < 100) return false;
+        return true;
+      })
       .sort((a, b) => {
         // 100% matches first
         if (a.totalCoverage === 100 && b.totalCoverage !== 100) return -1;
@@ -654,7 +705,7 @@ export function ComponentSelectorDialog({
         // Then by coverage descending
         return b.totalCoverage - a.totalCoverage;
       });
-  }, [matchingGroups, quantities, canFulfillGroup, subtractGroupFromComponents, calculateSetCoverage]);
+  }, [matchingGroups, filteredQuantities, canFulfillGroup, subtractGroupFromComponents, calculateSetCoverage, minMatchPercent, onlyFullMatches]);
 
   const totalComponents = useMemo(() => 
     Array.from(quantities.values()).reduce((a, b) => a + b, 0)
@@ -891,17 +942,75 @@ export function ComponentSelectorDialog({
           
           {/* Right: Matching Groups */}
           <div className="w-64 flex flex-col border-l pl-4">
-            <h4 className="text-sm font-medium mb-2">Passende Gruppen</h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium">Passende Gruppen</h4>
+              <button
+                onClick={() => setShowFilterSettings(!showFilterSettings)}
+                className={`p-1 rounded hover:bg-accent transition-colors ${showFilterSettings ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
+                title="Filter-Einstellungen"
+              >
+                <Settings2 className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Filter Settings Panel */}
+            {showFilterSettings && (
+              <div className="mb-3 p-2 rounded-lg border bg-muted/30 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="include-mess" className="text-xs cursor-pointer leading-tight">
+                    Messkomponenten einbeziehen
+                  </Label>
+                  <Switch
+                    id="include-mess"
+                    checked={includeMesskomponenten}
+                    onCheckedChange={setIncludeMesskomponenten}
+                    className="scale-75"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="only-full" className="text-xs cursor-pointer leading-tight">
+                    Nur vollständige Matches
+                  </Label>
+                  <Switch
+                    id="only-full"
+                    checked={onlyFullMatches}
+                    onCheckedChange={setOnlyFullMatches}
+                    className="scale-75"
+                  />
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Mind. Übereinstimmung</Label>
+                    <span className="text-xs font-mono text-muted-foreground">{minMatchPercent}%</span>
+                  </div>
+                  <Slider
+                    value={[minMatchPercent]}
+                    onValueChange={([val]) => setMinMatchPercent(val)}
+                    min={0}
+                    max={100}
+                    step={10}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
             
             <ScrollArea className="flex-1 -mx-1 px-1">
               {quantities.size === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Wählen Sie Komponenten aus, um passende Gruppen zu finden.
                 </p>
-              ) : matchingGroups.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Keine Gruppen gefunden, die mindestens eine der gewählten Komponenten enthalten.
-                </p>
+              ) : matchingGroups.length === 0 && complementaryGroupSets.length === 0 ? (
+                <div className="text-sm text-muted-foreground space-y-2">
+                  <p>Keine passenden Gruppen gefunden.</p>
+                  {(minMatchPercent > 0 || onlyFullMatches || !includeMesskomponenten) && (
+                    <p className="text-xs">
+                      Tipp: Passen Sie die Filter-Einstellungen an, um mehr Ergebnisse zu erhalten.
+                    </p>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-3">
                   {/* 100% matches first (single groups AND combinations) */}
