@@ -962,8 +962,10 @@ export function SchematicEditor() {
     await createGroup(name, componentIds, layoutData);
   }, [tiles, connections, createGroup]);
 
-  // PDF Export
-  const handleExportPdf = useCallback(() => {
+  // PDF Export - accepts options for which pages to include
+  const handleExportPdf = useCallback((options?: { includeBOM?: boolean; includeMesskonzept?: boolean }) => {
+    const includeBOM = options?.includeBOM ?? true; // Default: always include BOM (backward compat)
+    const includeMesskonzept = options?.includeMesskonzept ?? false;
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
     if (!svgElement) return;
 
@@ -1142,89 +1144,163 @@ export function SchematicEditor() {
             });
           }
 
-          // Page 2: BOM Table
-          doc.addPage();
-
-          // Header
-          doc.setFontSize(18);
-          doc.setFont('helvetica', 'bold');
-          doc.text('STÜCKLISTE', 14, 20);
-
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          let infoY = 28;
-          if (titleBlockData.projekt) {
-            doc.text(`Projekt: ${titleBlockData.projekt}`, 14, infoY);
-            infoY += 5;
-          }
-          if (titleBlockData.zeichnungsNr) {
-            doc.text(`Zeichnungs-Nr.: ${titleBlockData.zeichnungsNr}`, 14, infoY);
-            infoY += 5;
-          }
-          doc.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')}`, 14, infoY);
-          infoY += 8;
-
           const formatCurrency = (value: number) => {
             if (!value) return '–';
             return value.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
           };
 
-          // Build table data
-          const tableHead = [['Pos.', 'Komponente', 'Kategorie', 'Marke', 'Modell', 'Menge', 'Preis (€)', 'Gesamt (€)']];
-          const tableBody = bomItems.map(item => [
-            String(item.position),
-            item.name,
-            item.kategorie || '–',
-            item.marke || '–',
-            item.modell || '–',
-            String(item.quantity),
-            formatCurrency(item.preis),
-            formatCurrency(item.gesamtkosten)
-          ]);
+          // Page 2: BOM Table (if included)
+          if (includeBOM) {
+            doc.addPage();
 
-          // Totals row
-          const totalQuantity = bomItems.reduce((sum, item) => sum + item.quantity, 0);
-          const totalKosten = bomItems.reduce((sum, item) => sum + item.gesamtkosten, 0);
-          tableBody.push([
-            '', '', '', '', 'GESAMT:',
-            String(totalQuantity),
-            '',
-            totalKosten > 0 ? formatCurrency(totalKosten) : '–'
-          ]);
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('STÜCKLISTE', 14, 20);
 
-          autoTable(doc, {
-            startY: infoY,
-            head: tableHead,
-            body: tableBody,
-            theme: 'grid',
-            headStyles: {
-              fillColor: [37, 99, 235],
-              textColor: [255, 255, 255],
-              fontStyle: 'bold',
-              fontSize: 9
-            },
-            bodyStyles: {
-              fontSize: 8.5
-            },
-            columnStyles: {
-              0: { cellWidth: 12, halign: 'center' },
-              1: { cellWidth: 'auto' },
-              2: { cellWidth: 28 },
-              3: { cellWidth: 25 },
-              4: { cellWidth: 30 },
-              5: { cellWidth: 14, halign: 'center' },
-              6: { cellWidth: 22, halign: 'right' },
-              7: { cellWidth: 22, halign: 'right' }
-            },
-            didParseCell: (data: any) => {
-              if (data.section === 'body' && data.row.index >= bomItems.length) {
-                // Totals row styling
-                data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.fillColor = [224, 231, 243];
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            let infoY = 28;
+            if (titleBlockData.projekt) {
+              doc.text(`Projekt: ${titleBlockData.projekt}`, 14, infoY);
+              infoY += 5;
+            }
+            if (titleBlockData.zeichnungsNr) {
+              doc.text(`Zeichnungs-Nr.: ${titleBlockData.zeichnungsNr}`, 14, infoY);
+              infoY += 5;
+            }
+            doc.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')}`, 14, infoY);
+            infoY += 8;
+
+            const tableHead = [['Pos.', 'Komponente', 'Kategorie', 'Marke', 'Modell', 'Menge', 'Preis (€)', 'Gesamt (€)']];
+            const tableBody = bomItems.map(item => [
+              String(item.position),
+              item.name,
+              item.kategorie || '–',
+              item.marke || '–',
+              item.modell || '–',
+              String(item.quantity),
+              formatCurrency(item.preis),
+              formatCurrency(item.gesamtkosten)
+            ]);
+
+            const totalQuantity = bomItems.reduce((sum, item) => sum + item.quantity, 0);
+            const totalKosten = bomItems.reduce((sum, item) => sum + item.gesamtkosten, 0);
+            tableBody.push([
+              '', '', '', '', 'GESAMT:',
+              String(totalQuantity),
+              '',
+              totalKosten > 0 ? formatCurrency(totalKosten) : '–'
+            ]);
+
+            autoTable(doc, {
+              startY: infoY,
+              head: tableHead,
+              body: tableBody,
+              theme: 'grid',
+              headStyles: {
+                fillColor: [37, 99, 235],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 9
+              },
+              bodyStyles: {
+                fontSize: 8.5
+              },
+              columnStyles: {
+                0: { cellWidth: 12, halign: 'center' },
+                1: { cellWidth: 'auto' },
+                2: { cellWidth: 28 },
+                3: { cellWidth: 25 },
+                4: { cellWidth: 30 },
+                5: { cellWidth: 14, halign: 'center' },
+                6: { cellWidth: 22, halign: 'right' },
+                7: { cellWidth: 22, halign: 'right' }
+              },
+              didParseCell: (data: any) => {
+                if (data.section === 'body' && data.row.index >= bomItems.length) {
+                  data.cell.styles.fontStyle = 'bold';
+                  data.cell.styles.fillColor = [224, 231, 243];
+                }
+              },
+              margin: { left: 14, right: 14 }
+            });
+          }
+
+          // Messkonzept Page (if included)
+          if (includeMesskonzept) {
+            // Build messkonzept items from labeled tiles
+            const messkonzeptItems: Array<{ label: string; name: string; kategorie: string; marke: string; modell: string }> = [];
+            for (const tile of tiles) {
+              if (isConnectionBlock(tile.component)) continue;
+              const labelData = tileLabels.get(tile.id);
+              if (!labelData) continue;
+              const kategorie = tile.component.category || projectKategorien.get(tile.component.id) || '';
+              const marke = projectMarken.get(tile.component.id) || '';
+              const modell = projectModelle.get(tile.component.id) || '';
+              messkonzeptItems.push({ label: labelData.label, name: tile.component.name, kategorie, marke, modell });
+            }
+            messkonzeptItems.sort((a, b) => {
+              const [aPri, aIdx] = a.label.split('.').map(Number);
+              const [bPri, bIdx] = b.label.split('.').map(Number);
+              if (aPri !== bPri) return aPri - bPri;
+              return aIdx - bIdx;
+            });
+
+            if (messkonzeptItems.length > 0) {
+              doc.addPage();
+
+              doc.setFontSize(18);
+              doc.setFont('helvetica', 'bold');
+              doc.text('MESSKONZEPT', 14, 20);
+
+              doc.setFontSize(10);
+              doc.setFont('helvetica', 'normal');
+              let mkInfoY = 28;
+              if (titleBlockData.projekt) {
+                doc.text(`Projekt: ${titleBlockData.projekt}`, 14, mkInfoY);
+                mkInfoY += 5;
               }
-            },
-            margin: { left: 14, right: 14 }
-          });
+              if (titleBlockData.zeichnungsNr) {
+                doc.text(`Zeichnungs-Nr.: ${titleBlockData.zeichnungsNr}`, 14, mkInfoY);
+                mkInfoY += 5;
+              }
+              doc.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')}`, 14, mkInfoY);
+              mkInfoY += 8;
+
+              const mkTableHead = [['Nr.', 'Komponente', 'Kategorie', 'Marke', 'Modell']];
+              const mkTableBody = messkonzeptItems.map(item => [
+                item.label,
+                item.name,
+                item.kategorie || '–',
+                item.marke || '–',
+                item.modell || '–'
+              ]);
+
+              autoTable(doc, {
+                startY: mkInfoY,
+                head: mkTableHead,
+                body: mkTableBody,
+                theme: 'grid',
+                headStyles: {
+                  fillColor: [37, 99, 235],
+                  textColor: [255, 255, 255],
+                  fontStyle: 'bold',
+                  fontSize: 9
+                },
+                bodyStyles: {
+                  fontSize: 8.5
+                },
+                columnStyles: {
+                  0: { cellWidth: 16, halign: 'center' },
+                  1: { cellWidth: 'auto' },
+                  2: { cellWidth: 35 },
+                  3: { cellWidth: 30 },
+                  4: { cellWidth: 35 }
+                },
+                margin: { left: 14, right: 14 }
+              });
+            }
+          }
 
           // Go back to page 1 - collect annotation data for pdf-lib post-processing
           doc.setPage(1);
@@ -1334,7 +1410,7 @@ export function SchematicEditor() {
         img.src = url;
       });
     });
-  }, [canvasState, tiles, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise]);
+  }, [canvasState, tiles, tileLabels, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise]);
 
   // Handle export button click - always show dialog
   const handleExportClick = useCallback(() => {
@@ -1473,10 +1549,10 @@ export function SchematicEditor() {
   }, [handleCreateGroupFromAllTiles, handleExport]);
 
   // Handle save group + export PDF from dialog
-  const handleSaveGroupAndExportPdf = useCallback(async (groupName: string) => {
+  const handleSaveGroupAndExportPdf = useCallback(async (groupName: string, pdfOptions?: { includeBOM?: boolean; includeMesskonzept?: boolean }) => {
     await handleCreateGroupFromAllTiles(groupName);
     setIsExportDialogOpen(false);
-    handleExportPdf();
+    handleExportPdf(pdfOptions);
   }, [handleCreateGroupFromAllTiles, handleExportPdf]);
 
   // Handle export image only from dialog
@@ -1486,9 +1562,9 @@ export function SchematicEditor() {
   }, [handleExport]);
 
   // Handle export PDF only from dialog
-  const handleExportPdfOnly = useCallback(() => {
+  const handleExportPdfOnly = useCallback((pdfOptions?: { includeBOM?: boolean; includeMesskonzept?: boolean }) => {
     setIsExportDialogOpen(false);
-    handleExportPdf();
+    handleExportPdf(pdfOptions);
   }, [handleExportPdf]);
 
   const handleCreateGroup = useCallback(async (name: string, componentIds: string[]) => {
