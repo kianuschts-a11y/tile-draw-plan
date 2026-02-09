@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { GroupInfoDialog } from "./GroupInfoDialog";
 
-type LibraryTab = 'components' | 'connections' | 'groups';
+type LibraryTab = 'components' | 'groups';
 
 interface ComponentLibraryProps {
   components: Component[];
@@ -191,40 +191,6 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
   return element;
 }
 
-// Connections tab component
-interface ConnectionsTabProps {
-  onDragStart: (e: React.DragEvent, component: Component) => void;
-}
-
-function ConnectionsTab({ onDragStart }: ConnectionsTabProps) {
-  const renderConnectionBlockItem = (block: Component) => {
-    return (
-      <div
-        key={block.id}
-        className="library-item flex flex-col items-center gap-1 relative group cursor-grab active:cursor-grabbing p-2 rounded-lg hover:bg-muted/50 transition-colors"
-        draggable
-        onDragStart={(e) => onDragStart(e, block)}
-      >
-        <div className="w-[50px] h-[50px] flex items-center justify-center border border-dashed border-muted-foreground/30 rounded bg-white">
-          <svg width={40} height={40}>
-            {block.shapes.map((shape, idx) => (
-              <g key={idx}>{renderShape(shape, 40, 40)}</g>
-            ))}
-          </svg>
-        </div>
-        <span className="text-[10px] text-muted-foreground text-center truncate w-full">
-          {block.name}
-        </span>
-      </div>
-    );
-  };
-
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {CONNECTION_BLOCKS.map(block => renderConnectionBlockItem(block))}
-    </div>
-  );
-}
 
 export function ComponentLibrary({ 
   components, 
@@ -586,9 +552,8 @@ export function ComponentLibrary({
     <div className="toolbar-panel border-l w-64 flex flex-col">
       <div className="p-3 border-b">
         <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as LibraryTab)}>
-          <TabsList className="w-full grid grid-cols-3">
-            <TabsTrigger value="components" className="text-xs px-1">Komp.</TabsTrigger>
-            <TabsTrigger value="connections" className="text-xs px-1">Verb.</TabsTrigger>
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="components" className="text-xs px-1">Komponenten</TabsTrigger>
             <TabsTrigger value="groups" className="text-xs px-1">Gruppen</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -611,11 +576,6 @@ export function ComponentLibrary({
               </div>
             </>
           )}
-          {activeTab === 'connections' && (
-            <p className="text-xs text-muted-foreground">
-              {CONNECTION_BLOCKS.length} Verbindungsblöcke
-            </p>
-          )}
           {activeTab === 'groups' && (
             <p className="text-xs text-muted-foreground">
               {groups.length} Gruppe{groups.length !== 1 ? 'n' : ''}
@@ -629,10 +589,6 @@ export function ComponentLibrary({
           <div className="grid grid-cols-2 gap-2">
             {sortedComponents.map(component => renderComponentItem(component))}
           </div>
-        )}
-        
-        {activeTab === 'connections' && (
-          <ConnectionsTab onDragStart={onDragStart} />
         )}
         
         {activeTab === 'groups' && (
