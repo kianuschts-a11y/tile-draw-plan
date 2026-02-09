@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { PDFDocument, PDFName, PDFArray, PDFString } from "pdf-lib";
 import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
+import { AnnotationLine, AnnotationText, LineStyle } from "@/types/annotations";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile, AutoConnectionLine } from "./Canvas";
 import { ComponentLibrary } from "./ComponentLibrary";
@@ -112,6 +113,24 @@ export function SchematicEditor() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   // Auto-generated labels for tiles (tileId -> { label, color })
   const [tileLabels, setTileLabels] = useState<Map<string, { label: string; color: string }>>(new Map());
+  
+  // Annotations state (separate layer, no interaction with connections/BOM/Messkonzept)
+  const [annotationLines, setAnnotationLines] = useState<AnnotationLine[]>([]);
+  const [annotationTexts, setAnnotationTexts] = useState<AnnotationText[]>([]);
+  const [annotationLineStyle, setAnnotationLineStyle] = useState<LineStyle>('solid');
+  const [annotationColor, setAnnotationColor] = useState<string>('#000000');
+  const [annotationFontSize, setAnnotationFontSize] = useState<number>(14);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [selectedAnnotationType, setSelectedAnnotationType] = useState<'line' | 'text' | null>(null);
+
+  // Clear annotation selection when tiles are selected
+  useEffect(() => {
+    if (selectedTileIds.size > 0) {
+      setSelectedAnnotationId(null);
+      setSelectedAnnotationType(null);
+    }
+  }, [selectedTileIds]);
+
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 0.8,
     panX: 50,
@@ -324,12 +343,21 @@ export function SchematicEditor() {
           e.preventDefault();
           handleRotate();
         }
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && selectedAnnotationType) {
+        e.preventDefault();
+        if (selectedAnnotationType === 'line') {
+          setAnnotationLines(prev => prev.filter(l => l.id !== selectedAnnotationId));
+        } else {
+          setAnnotationTexts(prev => prev.filter(t => t.id !== selectedAnnotationId));
+        }
+        setSelectedAnnotationId(null);
+        setSelectedAnnotationType(null);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, handleRotate, selectedTileIds.size, isGroupMode]);
+  }, [handleUndo, handleRedo, handleRotate, selectedTileIds.size, isGroupMode, selectedAnnotationId, selectedAnnotationType]);
 
   const handleExport = useCallback(() => {
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
@@ -763,8 +791,77 @@ export function SchematicEditor() {
       });
     }
     
+    // Deduplizierung: Linien die zum selben Ziel gehen spreizen
+    const linesByTarget = new Map<string, number[]>();
+    for (let i = 0; i < lines.length; i++) {
+      const key = lines[i].toTileId;
+      const existing = linesByTarget.get(key) || [];
+      existing.push(i);
+      linesByTarget.set(key, existing);
+    }
+    
+    for (const [, indices] of linesByTarget) {
+      if (indices.length <= 1) continue;
+      const spreadStep = 0.25; // Grid-Einheiten Abstand zwischen Linien
+      const totalSpread = (indices.length - 1) * spreadStep;
+      indices.forEach((lineIdx, i) => {
+        const offset = -totalSpread / 2 + i * spreadStep;
+        lines[lineIdx].toX += offset;
+        lines[lineIdx].midX = lines[lineIdx].toX;
+      });
+    }
+    
+    // Horizontale Segmente auf gleicher Y-Achse spreizen
+    const horizontalSegments = new Map<string, number[]>();
+    for (let i = 0; i < lines.length; i++) {
+      const yKey = String(Math.round(lines[i].fromY * 10) / 10);
+      const existing = horizontalSegments.get(yKey) || [];
+      existing.push(i);
+      horizontalSegments.set(yKey, existing);
+    }
+    
+    for (const [, indices] of horizontalSegments) {
+      if (indices.length <= 1) continue;
+      const spreadStep = 0.15;
+      const totalSpread = (indices.length - 1) * spreadStep;
+      indices.forEach((lineIdx, i) => {
+        const offset = -totalSpread / 2 + i * spreadStep;
+        lines[lineIdx].fromY += offset;
+        lines[lineIdx].midY = lines[lineIdx].fromY;
+      });
+    }
+    
     return lines;
   }, [tiles, components]);
+
+  // Annotation handlers
+  const handleAnnotationLineCreate = useCallback((lineData: Omit<AnnotationLine, 'id'>) => {
+    setAnnotationLines(prev => [...prev, { ...lineData, id: generateId() }]);
+  }, []);
+
+  const handleAnnotationTextCreate = useCallback((textData: Omit<AnnotationText, 'id'>) => {
+    setAnnotationTexts(prev => [...prev, { ...textData, id: generateId() }]);
+  }, []);
+
+  const handleAnnotationSelect = useCallback((id: string | null, type?: 'line' | 'text') => {
+    setSelectedAnnotationId(id);
+    setSelectedAnnotationType(type || null);
+    if (id) {
+      setSelectedTileIds(new Set()); // Deselect tiles when annotation is selected
+    }
+  }, []);
+
+  const handleAnnotationLineMove = useCallback((id: string, dx: number, dy: number) => {
+    setAnnotationLines(prev => prev.map(line => 
+      line.id === id ? { ...line, fromX: line.fromX + dx, fromY: line.fromY + dy, toX: line.toX + dx, toY: line.toY + dy } : line
+    ));
+  }, []);
+
+  const handleAnnotationTextMove = useCallback((id: string, dx: number, dy: number) => {
+    setAnnotationTexts(prev => prev.map(text => 
+      text.id === id ? { ...text, x: text.x + dx, y: text.y + dy } : text
+    ));
+  }, []);
 
   const handleComponentSelect = useCallback((id: string) => {
     // Toggle selection for the component
@@ -1880,6 +1977,8 @@ export function SchematicEditor() {
         case 'c': setActiveTool('connect'); break;
         case 'x': setActiveTool('disconnect'); break;
         case 'a': setActiveTool('arrow'); break;
+        case 'l': setActiveTool('annotate-line'); break;
+        case 't': setActiveTool('annotate-text'); break;
         case '+': case '=': handleZoomIn(); break;
         case '-': handleZoomOut(); break;
         case '0': handleResetView(); break;
@@ -2011,6 +2110,12 @@ export function SchematicEditor() {
           canRotate={selectedTileIds.size > 0}
           onAutoLabel={handleAutoLabel}
           hasLabelableComponents={hasLabelableComponents}
+          annotationLineStyle={annotationLineStyle}
+          onAnnotationLineStyleChange={setAnnotationLineStyle}
+          annotationColor={annotationColor}
+          onAnnotationColorChange={setAnnotationColor}
+          annotationFontSize={annotationFontSize}
+          onAnnotationFontSizeChange={setAnnotationFontSize}
         />
 
         <div className="flex-1 overflow-hidden schematic-canvas">
@@ -2028,6 +2133,17 @@ export function SchematicEditor() {
             tileLabels={tileLabels}
             excessTileIds={excessTileIds}
             autoConnectionLines={autoConnectionLines}
+            annotationLines={annotationLines}
+            annotationTexts={annotationTexts}
+            annotationLineStyle={annotationLineStyle}
+            annotationColor={annotationColor}
+            annotationFontSize={annotationFontSize}
+            selectedAnnotationId={selectedAnnotationId}
+            onAnnotationLineCreate={handleAnnotationLineCreate}
+            onAnnotationTextCreate={handleAnnotationTextCreate}
+            onAnnotationSelect={handleAnnotationSelect}
+            onAnnotationLineMove={handleAnnotationLineMove}
+            onAnnotationTextMove={handleAnnotationTextMove}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
