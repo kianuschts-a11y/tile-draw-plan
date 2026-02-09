@@ -53,7 +53,7 @@ export function PaperSettings({
   const gridRows = Math.floor(paperHeight / gridSize);
 
   return (
-    <div className="flex items-center gap-3 flex-wrap">
+    <div className="flex items-center gap-3 flex-nowrap">
       {/* Paper Format Selector */}
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Format:</span>
