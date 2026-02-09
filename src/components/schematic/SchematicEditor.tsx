@@ -1336,16 +1336,134 @@ export function SchematicEditor() {
     });
   }, [canvasState, tiles, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise]);
 
-  // Handle export button click - show dialog first
+  // Handle export button click - always show dialog
   const handleExportClick = useCallback(() => {
-    const nonConnectionTiles = tiles.filter(t => !isConnectionBlock(t.component));
-    if (nonConnectionTiles.length >= 2) {
-      setIsExportDialogOpen(true);
-    } else {
-      // Not enough tiles for a group, just export directly
-      handleExport();
+    setIsExportDialogOpen(true);
+  }, []);
+
+  // BOM Excel export (extracted for use in unified dialog)
+  const handleExportBOMExcel = useCallback(() => {
+    const XLSX_MODULE = import('xlsx');
+    XLSX_MODULE.then((XLSX) => {
+      // Build BOM items
+      const componentCounts = new Map<string, { component: Component; count: number }>();
+      for (const tile of tiles) {
+        if (isConnectionBlock(tile.component)) continue;
+        const existing = componentCounts.get(tile.component.id);
+        if (existing) {
+          existing.count++;
+        } else {
+          componentCounts.set(tile.component.id, { component: tile.component, count: 1 });
+        }
+      }
+
+      const sortedEntries = Array.from(componentCounts.entries())
+        .sort(([, a], [, b]) => {
+          const catA = a.component.category || '';
+          const catB = b.component.category || '';
+          if (catA !== catB) {
+            if (!catA) return 1;
+            if (!catB) return -1;
+            return catA.localeCompare(catB);
+          }
+          return a.component.name.localeCompare(b.component.name);
+        });
+
+      const bomItems: Array<{ position: number; name: string; kategorie: string; marke: string; modell: string; quantity: number; preis: number; gesamtkosten: number }> = [];
+      let position = 1;
+      for (const [id, { component, count }] of sortedEntries) {
+        const kategorie = component.category || projectKategorien.get(id) || '';
+        const marke = projectMarken.get(id) || '';
+        const modell = projectModelle.get(id) || '';
+        const preis = projectPreise.get(id) || 0;
+        bomItems.push({
+          position: position++,
+          name: component.name,
+          kategorie,
+          marke,
+          modell,
+          quantity: count,
+          preis,
+          gesamtkosten: preis * count,
+        });
+      }
+
+      const wb = XLSX.utils.book_new();
+      const wsData: (string | number)[][] = [];
+      wsData.push(['STÜCKLISTE', '', '', '', '', '', '', '']);
+      wsData.push(['', '', '', '', '', '', '', '']);
+      if (titleBlockData.projekt) wsData.push(['Projekt:', titleBlockData.projekt, '', '', '', '', '', '']);
+      if (titleBlockData.zeichnungsNr) wsData.push(['Zeichnungs-Nr.:', titleBlockData.zeichnungsNr, '', '', '', '', '', '']);
+      wsData.push(['Erstellt am:', new Date().toLocaleDateString('de-DE'), '', '', '', '', '', '']);
+      wsData.push(['', '', '', '', '', '', '', '']);
+      wsData.push(['Pos.', 'Komponente', 'Kategorie', 'Marke', 'Modell', 'Menge', 'Preis (€)', 'Gesamt (€)']);
+      for (const item of bomItems) {
+        wsData.push([item.position, item.name, item.kategorie || '', item.marke || '', item.modell || '', item.quantity, item.preis || '', item.gesamtkosten || '']);
+      }
+      wsData.push(Array(8).fill(''));
+      const totalCount = bomItems.reduce((sum, item) => sum + item.quantity, 0);
+      const totalKosten = bomItems.reduce((sum, item) => sum + item.gesamtkosten, 0);
+      wsData.push(['', '', '', '', 'GESAMT:', totalCount, '', totalKosten > 0 ? totalKosten : '']);
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols'] = [{ wch: 6 }, { wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 8 }, { wch: 12 }, { wch: 12 }];
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Stückliste');
+      const projektName = titleBlockData.projekt || 'Projekt';
+      XLSX.writeFile(wb, `stueckliste-${projektName}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    });
+  }, [tiles, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise]);
+
+  // Messkonzept Excel export (extracted for use in unified dialog)
+  const handleExportMesskonzeptExcel = useCallback(() => {
+    import('xlsx').then((XLSX) => {
+      const items: Array<{ label: string; name: string; kategorie: string; marke: string; modell: string }> = [];
+      for (const tile of tiles) {
+        if (isConnectionBlock(tile.component)) continue;
+        const labelData = tileLabels.get(tile.id);
+        if (!labelData) continue;
+        const kategorie = tile.component.category || projectKategorien.get(tile.component.id) || '';
+        const marke = projectMarken.get(tile.component.id) || '';
+        const modell = projectModelle.get(tile.component.id) || '';
+        items.push({ label: labelData.label, name: tile.component.name, kategorie, marke, modell });
+      }
+      items.sort((a, b) => {
+        const [aPri, aIdx] = a.label.split('.').map(Number);
+        const [bPri, bIdx] = b.label.split('.').map(Number);
+        if (aPri !== bPri) return aPri - bPri;
+        return aIdx - bIdx;
+      });
+
+      const wb = XLSX.utils.book_new();
+      const wsData: (string | number)[][] = [];
+      wsData.push(['MESSKONZEPT', '', '', '', '']);
+      wsData.push(['', '', '', '', '']);
+      if (titleBlockData.projekt) wsData.push(['Projekt:', titleBlockData.projekt, '', '', '']);
+      if (titleBlockData.zeichnungsNr) wsData.push(['Zeichnungs-Nr.:', titleBlockData.zeichnungsNr, '', '', '']);
+      wsData.push(['Erstellt am:', new Date().toLocaleDateString('de-DE'), '', '', '']);
+      wsData.push(['', '', '', '', '']);
+      wsData.push(['Nr.', 'Komponente', 'Kategorie', 'Marke', 'Modell']);
+      for (const item of items) {
+        wsData.push([item.label, item.name, item.kategorie || '', item.marke || '', item.modell || '']);
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols'] = [{ wch: 8 }, { wch: 25 }, { wch: 18 }, { wch: 18 }, { wch: 22 }];
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Messkonzept');
+      const projektName = titleBlockData.projekt || 'Projekt';
+      XLSX.writeFile(wb, `messkonzept-${projektName}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    });
+  }, [tiles, tileLabels, titleBlockData, projectKategorien, projectMarken, projectModelle]);
+
+  // Check if there are messkonzept items (labeled tiles)
+  const hasMesskonzeptItems = useMemo(() => {
+    for (const tile of tiles) {
+      if (isConnectionBlock(tile.component)) continue;
+      if (tileLabels.has(tile.id)) return true;
     }
-  }, [tiles, handleExport]);
+    return false;
+  }, [tiles, tileLabels]);
 
   // Handle save group + export image from dialog
   const handleSaveGroupAndExportImage = useCallback(async (groupName: string) => {
@@ -1943,9 +2061,12 @@ export function SchematicEditor() {
         onClose={() => setIsExportDialogOpen(false)}
         onExportImage={handleExportImageOnly}
         onExportPdf={handleExportPdfOnly}
+        onExportBOMExcel={handleExportBOMExcel}
+        onExportMesskonzeptExcel={handleExportMesskonzeptExcel}
         onSaveGroupAndExportImage={handleSaveGroupAndExportImage}
         onSaveGroupAndExportPdf={handleSaveGroupAndExportPdf}
         hasTiles={tiles.filter(t => !isConnectionBlock(t.component)).length >= 2}
+        hasMesskonzeptItems={hasMesskonzeptItems}
       />
     </div>
   );
