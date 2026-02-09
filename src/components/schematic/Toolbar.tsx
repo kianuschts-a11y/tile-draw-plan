@@ -298,123 +298,103 @@ export function Toolbar({
       
       {/* Annotation Tools */}
       
-      {/* Annotation Color Picker */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-accent transition-colors border"
-            title="Annotationsfarbe"
-          >
-            <div 
-              className="w-5 h-5 rounded-sm border border-border"
-              style={{ backgroundColor: annotationColor }}
-            />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent side="right" className="w-auto p-2">
-          <div className="grid grid-cols-4 gap-1">
-            {TOOL_COLORS.map((color) => (
-              <button
-                key={color.value}
-                className={`w-7 h-7 rounded border-2 transition-all hover:scale-110 ${
-                  annotationColor === color.value ? 'border-primary ring-2 ring-primary/30' : 'border-border'
-                }`}
-                style={{ backgroundColor: color.value }}
-                onClick={() => onAnnotationColorChange(color.value)}
-                title={color.label}
-              />
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">Annotationsfarbe</p>
-        </PopoverContent>
-      </Popover>
-      
-      {/* Line Style Picker */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-accent transition-colors border"
-            title="Linienstil"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20">
-              <line
-                x1="2" y1="10" x2="18" y2="10"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeDasharray={LINE_STYLES.find(s => s.value === annotationLineStyle)?.dasharray || ''}
-              />
-            </svg>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent side="right" className="w-auto p-2">
-          <div className="flex flex-col gap-1">
-            {LINE_STYLES.map((style) => (
-              <button
-                key={style.value}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors ${
-                  annotationLineStyle === style.value ? 'bg-accent font-medium' : ''
-                }`}
-                onClick={() => onAnnotationLineStyleChange(style.value)}
-              >
-                <svg width="40" height="12" viewBox="0 0 40 12">
-                  <line
-                    x1="2" y1="6" x2="38" y2="6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeDasharray={style.dasharray}
-                  />
-                </svg>
-                <span>{style.label}</span>
-              </button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-      
-      <ToolButton
-        icon={Minus}
-        label="Markierungslinie"
-        shortcut="L"
-        isActive={activeTool === 'annotate-line'}
-        onClick={() => onToolChange('annotate-line')}
-        disabled={isGroupMode}
-      />
-      
-      {/* Font Size Control */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-accent transition-colors border text-[10px] font-bold"
-            title={`Schriftgröße: ${annotationFontSize}px`}
-          >
-            {annotationFontSize}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent side="right" className="w-48 p-3">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Schriftgröße</span>
-              <span className="text-xs font-medium">{annotationFontSize}px</span>
+      {/* Linie button with settings popover opening to the right */}
+      <div className="relative">
+        <ToolButton
+          icon={Minus}
+          label="Linie"
+          shortcut="L"
+          isActive={activeTool === 'annotate-line'}
+          onClick={() => onToolChange('annotate-line')}
+          disabled={isGroupMode}
+        />
+        {activeTool === 'annotate-line' && (
+          <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
+            <p className="text-xs font-medium mb-2">Linie</p>
+            {/* Color picker */}
+            <div className="grid grid-cols-4 gap-1 mb-2">
+              {TOOL_COLORS.map((color) => (
+                <button
+                  key={color.value}
+                  className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${
+                    annotationColor === color.value ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+                  }`}
+                  style={{ backgroundColor: color.value }}
+                  onClick={() => onAnnotationColorChange(color.value)}
+                  title={color.label}
+                />
+              ))}
             </div>
-            <Slider
-              value={[annotationFontSize]}
-              onValueChange={(v) => onAnnotationFontSizeChange(v[0])}
-              min={8}
-              max={48}
-              step={1}
-            />
+            {/* Line style picker */}
+            <div className="flex flex-col gap-0.5">
+              {LINE_STYLES.map((style) => (
+                <button
+                  key={style.value}
+                  className={`flex items-center gap-2 px-2 py-1 rounded text-xs hover:bg-accent transition-colors ${
+                    annotationLineStyle === style.value ? 'bg-accent font-medium' : ''
+                  }`}
+                  onClick={() => onAnnotationLineStyleChange(style.value)}
+                >
+                  <svg width="32" height="10" viewBox="0 0 32 10">
+                    <line
+                      x1="2" y1="5" x2="30" y2="5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeDasharray={style.dasharray}
+                    />
+                  </svg>
+                  <span>{style.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </PopoverContent>
-      </Popover>
+        )}
+      </div>
       
-      <ToolButton
-        icon={Type}
-        label="Textfeld"
-        shortcut="T"
-        isActive={activeTool === 'annotate-text'}
-        onClick={() => onToolChange('annotate-text')}
-        disabled={isGroupMode}
-      />
+      {/* Text button with font size popover opening to the right */}
+      <div className="relative">
+        <ToolButton
+          icon={Type}
+          label="Text"
+          shortcut="T"
+          isActive={activeTool === 'annotate-text'}
+          onClick={() => onToolChange('annotate-text')}
+          disabled={isGroupMode}
+        />
+        {activeTool === 'annotate-text' && (
+          <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
+            <p className="text-xs font-medium mb-2">Text</p>
+            {/* Color picker */}
+            <div className="grid grid-cols-4 gap-1 mb-2">
+              {TOOL_COLORS.map((color) => (
+                <button
+                  key={color.value}
+                  className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${
+                    annotationColor === color.value ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+                  }`}
+                  style={{ backgroundColor: color.value }}
+                  onClick={() => onAnnotationColorChange(color.value)}
+                  title={color.label}
+                />
+              ))}
+            </div>
+            {/* Font size slider */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Schriftgröße</span>
+                <span className="text-xs font-medium">{annotationFontSize}px</span>
+              </div>
+              <Slider
+                value={[annotationFontSize]}
+                onValueChange={(v) => onAnnotationFontSizeChange(v[0])}
+                min={8}
+                max={48}
+                step={1}
+              />
+            </div>
+          </div>
+        )}
+      </div>
       
     </div>
   );
