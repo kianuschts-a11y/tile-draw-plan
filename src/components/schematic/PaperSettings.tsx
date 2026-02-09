@@ -143,13 +143,13 @@ export function PaperSettings({
             checked={titleBlockData?.enabled || false}
             onCheckedChange={onTitleBlockToggle}
           />
-          {titleBlockData?.enabled && onEditTitleBlock && (
+          {onEditTitleBlock && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className={`h-7 w-7 ${!titleBlockData?.enabled ? 'invisible' : ''}`}
                   onClick={onEditTitleBlock}
                 >
                   <Edit className="w-3 h-3" />
