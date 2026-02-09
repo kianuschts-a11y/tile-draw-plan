@@ -4,19 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FolderPlus, Download, Image, FileText, CheckCircle2 } from "lucide-react";
+import { FolderPlus, Download, Image, FileText, CheckCircle2, FileSpreadsheet, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type ExportFormat = 'image' | 'pdf';
+type DrawingFormat = 'image' | 'pdf';
 
 interface ExportGroupDialogProps {
   open: boolean;
   onClose: () => void;
   onExportImage: () => void;
   onExportPdf: () => void;
+  onExportBOMExcel: () => void;
+  onExportMesskonzeptExcel: () => void;
   onSaveGroupAndExportImage: (groupName: string) => void;
   onSaveGroupAndExportPdf: (groupName: string) => void;
   hasTiles: boolean;
+  hasMesskonzeptItems: boolean;
 }
 
 export function ExportGroupDialog({
@@ -24,28 +27,60 @@ export function ExportGroupDialog({
   onClose,
   onExportImage,
   onExportPdf,
+  onExportBOMExcel,
+  onExportMesskonzeptExcel,
   onSaveGroupAndExportImage,
   onSaveGroupAndExportPdf,
   hasTiles,
+  hasMesskonzeptItems,
 }: ExportGroupDialogProps) {
   const [groupName, setGroupName] = useState("");
   const [saveAsGroup, setSaveAsGroup] = useState(false);
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('image');
+  const [drawingFormat, setDrawingFormat] = useState<DrawingFormat>('image');
+  
+  // Export checkboxes
+  const [exportDrawing, setExportDrawing] = useState(true);
+  const [exportBOM, setExportBOM] = useState(false);
+  const [exportMesskonzept, setExportMesskonzept] = useState(false);
 
   const handleExport = () => {
-    if (saveAsGroup && groupName.trim()) {
-      if (selectedFormat === 'pdf') {
-        onSaveGroupAndExportPdf(groupName.trim());
+    // Export drawing
+    if (exportDrawing) {
+      if (saveAsGroup && groupName.trim()) {
+        if (drawingFormat === 'pdf') {
+          onSaveGroupAndExportPdf(groupName.trim());
+        } else {
+          onSaveGroupAndExportImage(groupName.trim());
+        }
       } else {
-        onSaveGroupAndExportImage(groupName.trim());
+        if (drawingFormat === 'pdf') {
+          onExportPdf();
+        } else {
+          onExportImage();
+        }
       }
-    } else {
-      if (selectedFormat === 'pdf') {
-        onExportPdf();
-      } else {
-        onExportImage();
-      }
+    } else if (saveAsGroup && groupName.trim()) {
+      // If only saving group without drawing export, still save the group
+      // Use image export path which also saves the group
+      onSaveGroupAndExportImage(groupName.trim());
     }
+
+    // Export BOM
+    if (exportBOM) {
+      onExportBOMExcel();
+    }
+
+    // Export Messkonzept
+    if (exportMesskonzept) {
+      onExportMesskonzeptExcel();
+    }
+
+    // Close dialog if no drawing export was triggered (those close via their own handlers)
+    if (!exportDrawing && !saveAsGroup) {
+      onClose();
+    }
+
+    // Reset state
     setGroupName("");
     setSaveAsGroup(false);
   };
@@ -53,83 +88,149 @@ export function ExportGroupDialog({
   const handleClose = () => {
     setGroupName("");
     setSaveAsGroup(false);
+    setExportDrawing(true);
+    setExportBOM(false);
+    setExportMesskonzept(false);
     onClose();
   };
 
-  const canExport = !saveAsGroup || groupName.trim().length > 0;
+  const hasAnyExportSelected = exportDrawing || exportBOM || exportMesskonzept;
+  const canExport = hasAnyExportSelected && (!saveAsGroup || groupName.trim().length > 0);
+
+  // Count selected exports
+  const selectedCount = [exportDrawing, exportBOM, exportMesskonzept].filter(Boolean).length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Zeichnung exportieren</DialogTitle>
+          <DialogTitle>Exportieren</DialogTitle>
           <DialogDescription>
-            Wählen Sie das Exportformat und speichern Sie optional die Zeichnung als Gruppe.
+            Wählen Sie, was exportiert werden soll.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          {/* Format Selection */}
-          <div className="space-y-2.5">
-            <Label className="text-sm font-medium">Exportformat</Label>
-            <div className="grid grid-cols-2 gap-3">
-              {/* PNG Option */}
-              <button
-                type="button"
-                onClick={() => setSelectedFormat('image')}
+          {/* Export Items Selection */}
+          <div className="space-y-3">
+            {/* Drawing Export */}
+            <div className="space-y-3">
+              <div
                 className={cn(
-                  "relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all hover:shadow-md",
-                  selectedFormat === 'image'
-                    ? "border-primary bg-primary/5 shadow-sm"
-                    : "border-border hover:border-muted-foreground/30"
+                  "flex items-start gap-3 rounded-lg border p-3 transition-colors",
+                  exportDrawing ? "border-primary/50 bg-primary/5" : "border-border"
                 )}
               >
-                {selectedFormat === 'image' && (
-                  <CheckCircle2 className="absolute top-2 right-2 w-4 h-4 text-primary" />
-                )}
-                <div className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center",
-                  selectedFormat === 'image' ? "bg-primary/10" : "bg-muted"
-                )}>
-                  <Image className={cn("w-5 h-5", selectedFormat === 'image' ? "text-primary" : "text-muted-foreground")} />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium">Bild (PNG)</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Hochauflösendes Bild</p>
-                </div>
-              </button>
+                <Checkbox
+                  id="export-drawing"
+                  checked={exportDrawing}
+                  onCheckedChange={(checked) => setExportDrawing(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 space-y-2.5">
+                  <Label htmlFor="export-drawing" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                    <Image className="w-4 h-4 text-muted-foreground" />
+                    Zeichnung
+                  </Label>
+                  
+                  {/* Format Selection - only shown when drawing is checked */}
+                  {exportDrawing && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDrawingFormat('image')}
+                        className={cn(
+                          "relative flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all text-sm",
+                          drawingFormat === 'image'
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:border-muted-foreground/30"
+                        )}
+                      >
+                        {drawingFormat === 'image' && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                        )}
+                        <div>
+                          <p className="font-medium">PNG</p>
+                          <p className="text-xs text-muted-foreground">Hochauflösend</p>
+                        </div>
+                      </button>
 
-              {/* PDF Option */}
-              <button
-                type="button"
-                onClick={() => setSelectedFormat('pdf')}
+                      <button
+                        type="button"
+                        onClick={() => setDrawingFormat('pdf')}
+                        className={cn(
+                          "relative flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all text-sm",
+                          drawingFormat === 'pdf'
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:border-muted-foreground/30"
+                        )}
+                      >
+                        {drawingFormat === 'pdf' && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                        )}
+                        <div>
+                          <p className="font-medium">PDF</p>
+                          <p className="text-xs text-muted-foreground">Interaktiv + Stückliste</p>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* BOM Export */}
+              <div
                 className={cn(
-                  "relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all hover:shadow-md",
-                  selectedFormat === 'pdf'
-                    ? "border-primary bg-primary/5 shadow-sm"
-                    : "border-border hover:border-muted-foreground/30"
+                  "flex items-center gap-3 rounded-lg border p-3 transition-colors",
+                  exportBOM ? "border-primary/50 bg-primary/5" : "border-border"
                 )}
               >
-                {selectedFormat === 'pdf' && (
-                  <CheckCircle2 className="absolute top-2 right-2 w-4 h-4 text-primary" />
+                <Checkbox
+                  id="export-bom"
+                  checked={exportBOM}
+                  onCheckedChange={(checked) => setExportBOM(checked === true)}
+                />
+                <Label htmlFor="export-bom" className="text-sm font-medium cursor-pointer flex items-center gap-2 flex-1">
+                  <FileSpreadsheet className="w-4 h-4 text-muted-foreground" />
+                  Stückliste
+                  <span className="text-xs text-muted-foreground font-normal ml-auto">Excel</span>
+                </Label>
+              </div>
+
+              {/* Messkonzept Export */}
+              <div
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3 transition-colors",
+                  exportMesskonzept ? "border-primary/50 bg-primary/5" : "border-border",
+                  !hasMesskonzeptItems && "opacity-50"
                 )}
-                <div className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center",
-                  selectedFormat === 'pdf' ? "bg-primary/10" : "bg-muted"
-                )}>
-                  <FileText className={cn("w-5 h-5", selectedFormat === 'pdf' ? "text-primary" : "text-muted-foreground")} />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium">PDF (interaktiv)</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Klickbare Komponenten mit Stückliste</p>
-                </div>
-              </button>
+              >
+                <Checkbox
+                  id="export-messkonzept"
+                  checked={exportMesskonzept}
+                  onCheckedChange={(checked) => setExportMesskonzept(checked === true)}
+                  disabled={!hasMesskonzeptItems}
+                />
+                <Label 
+                  htmlFor="export-messkonzept" 
+                  className={cn(
+                    "text-sm font-medium cursor-pointer flex items-center gap-2 flex-1",
+                    !hasMesskonzeptItems && "cursor-not-allowed"
+                  )}
+                >
+                  <Activity className="w-4 h-4 text-muted-foreground" />
+                  Messkonzept
+                  <span className="text-xs text-muted-foreground font-normal ml-auto">
+                    {hasMesskonzeptItems ? 'Excel' : 'Keine Messpunkte'}
+                  </span>
+                </Label>
+              </div>
             </div>
           </div>
 
           {/* Save as Group Section */}
           {hasTiles && (
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 border-t pt-4">
               <div className="flex items-center gap-2.5">
                 <Checkbox
                   id="save-as-group"
@@ -173,11 +274,12 @@ export function ExportGroupDialog({
             disabled={!canExport}
             className="gap-2"
           >
-            {saveAsGroup && <FolderPlus className="w-4 h-4" />}
-            {!saveAsGroup && <Download className="w-4 h-4" />}
+            {saveAsGroup ? <FolderPlus className="w-4 h-4" /> : <Download className="w-4 h-4" />}
             {saveAsGroup
-              ? `Speichern & als ${selectedFormat === 'pdf' ? 'PDF' : 'Bild'} exportieren`
-              : `Als ${selectedFormat === 'pdf' ? 'PDF' : 'Bild'} exportieren`
+              ? `Speichern & exportieren`
+              : selectedCount > 1
+                ? `${selectedCount} Dateien exportieren`
+                : `Exportieren`
             }
           </Button>
         </DialogFooter>
