@@ -853,13 +853,13 @@ export function SchematicEditor() {
 
   const handleAnnotationLineMove = useCallback((id: string, dx: number, dy: number) => {
     setAnnotationLines(prev => prev.map(line => 
-      line.id === id ? { ...line, fromX: line.fromX + dx, fromY: line.fromY + dy, toX: line.toX + dx, toY: line.toY + dy } : line
+      line.id === id ? { ...line, path: line.path.map(p => ({ gridX: p.gridX + dx, gridY: p.gridY + dy })) } : line
     ));
   }, []);
 
   const handleAnnotationTextMove = useCallback((id: string, dx: number, dy: number) => {
     setAnnotationTexts(prev => prev.map(text => 
-      text.id === id ? { ...text, x: text.x + dx, y: text.y + dy } : text
+      text.id === id ? { ...text, gridX: text.gridX + dx, gridY: text.gridY + dy } : text
     ));
   }, []);
 
