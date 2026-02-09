@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { CanvasState, Component, PAPER_SIZES, MM_TO_PX, Shape, CellConnection, ComponentGroup, GroupLayoutData, TitleBlockData } from "@/types/schematic";
+import { AnnotationLine, AnnotationText, LineStyle } from "@/types/annotations";
 import { ShapeRenderer } from "./ShapeRenderer";
 import { TitleBlock } from "./TitleBlock";
 import { MainToolType } from "./Toolbar";
@@ -180,9 +181,21 @@ interface CanvasProps {
   isGroupMode?: boolean;
   components?: Component[];
   titleBlockData?: TitleBlockData;
-  tileLabels?: Map<string, { label: string; color: string }>; // Auto-generated labels for tiles
-  excessTileIds?: Set<string>; // Tiles that exceed project requirements (marked red)
-  autoConnectionLines?: AutoConnectionLine[]; // Gestrichelte Auto-Verbindungslinien
+  tileLabels?: Map<string, { label: string; color: string }>;
+  excessTileIds?: Set<string>;
+  autoConnectionLines?: AutoConnectionLine[];
+  // Annotation props
+  annotationLines?: AnnotationLine[];
+  annotationTexts?: AnnotationText[];
+  annotationLineStyle?: LineStyle;
+  annotationColor?: string;
+  annotationFontSize?: number;
+  selectedAnnotationId?: string | null;
+  onAnnotationLineCreate?: (line: Omit<AnnotationLine, 'id'>) => void;
+  onAnnotationTextCreate?: (text: Omit<AnnotationText, 'id'>) => void;
+  onAnnotationSelect?: (id: string | null, type?: 'line' | 'text') => void;
+  onAnnotationLineMove?: (id: string, dx: number, dy: number) => void;
+  onAnnotationTextMove?: (id: string, dx: number, dy: number) => void;
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
@@ -207,6 +220,17 @@ export function Canvas({
   tileLabels = new Map(),
   excessTileIds = new Set(),
   autoConnectionLines = [],
+  annotationLines = [],
+  annotationTexts = [],
+  annotationLineStyle = 'solid',
+  annotationColor = '#000000',
+  annotationFontSize = 14,
+  selectedAnnotationId = null,
+  onAnnotationLineCreate,
+  onAnnotationTextCreate,
+  onAnnotationSelect,
+  onAnnotationLineMove,
+  onAnnotationTextMove,
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
@@ -240,6 +264,16 @@ export function Canvas({
   // Connect tool state - path drawing mode
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionPath, setConnectionPath] = useState<{ gridX: number; gridY: number }[]>([]);
+
+  // Annotation drawing state
+  const [isDrawingAnnotationLine, setIsDrawingAnnotationLine] = useState(false);
+  const [annotationLineStart, setAnnotationLineStart] = useState<{ x: number; y: number } | null>(null);
+  const [annotationLinePreview, setAnnotationLinePreview] = useState<{ x: number; y: number } | null>(null);
+  const [textInputPosition, setTextInputPosition] = useState<{ x: number; y: number } | null>(null);
+  const [textInputValue, setTextInputValue] = useState('');
+  // Annotation dragging
+  const [isDraggingAnnotation, setIsDraggingAnnotation] = useState(false);
+  const [annotationDragStart, setAnnotationDragStart] = useState<{ x: number; y: number } | null>(null);
 
   // Calculate paper dimensions in pixels
   const paperSize = PAPER_SIZES[canvasState.paperFormat];
@@ -486,6 +520,22 @@ export function Canvas({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
 
+    // Annotation line drawing
+    if (activeTool === 'annotate-line') {
+      const pos = getCanvasPosition(e);
+      setAnnotationLineStart({ x: pos.x / tileSize, y: pos.y / tileSize });
+      setIsDrawingAnnotationLine(true);
+      return;
+    }
+
+    // Annotation text placement
+    if (activeTool === 'annotate-text') {
+      const pos = getCanvasPosition(e);
+      setTextInputPosition({ x: pos.x / tileSize, y: pos.y / tileSize });
+      setTextInputValue('');
+      return;
+    }
+
     // Pan tool - start panning
     if (activeTool === 'pan') {
       setIsPanning(true);
@@ -522,6 +572,30 @@ export function Canvas({
   }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findConnectionAtPosition, onConnectionArrowToggle]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    // Annotation line preview
+    if (isDrawingAnnotationLine && activeTool === 'annotate-line') {
+      const pos = getCanvasPosition(e);
+      setAnnotationLinePreview({ x: pos.x / tileSize, y: pos.y / tileSize });
+      return;
+    }
+
+    // Annotation dragging
+    if (isDraggingAnnotation && selectedAnnotationId && annotationDragStart) {
+      const pos = getCanvasPosition(e);
+      const dx = (pos.x - annotationDragStart.x) / tileSize;
+      const dy = (pos.y - annotationDragStart.y) / tileSize;
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+        const isLine = annotationLines.some(l => l.id === selectedAnnotationId);
+        if (isLine) {
+          onAnnotationLineMove?.(selectedAnnotationId, dx, dy);
+        } else {
+          onAnnotationTextMove?.(selectedAnnotationId, dx, dy);
+        }
+        setAnnotationDragStart(pos);
+      }
+      return;
+    }
+
     if (isPanning) {
       onCanvasStateChange({
         ...canvasState,
@@ -695,6 +769,34 @@ export function Canvas({
   }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    // Finish annotation line drawing
+    if (isDrawingAnnotationLine && annotationLineStart) {
+      if (annotationLinePreview) {
+        const dx = annotationLinePreview.x - annotationLineStart.x;
+        const dy = annotationLinePreview.y - annotationLineStart.y;
+        if (Math.sqrt(dx * dx + dy * dy) >= 0.3) {
+          onAnnotationLineCreate?.({
+            fromX: annotationLineStart.x,
+            fromY: annotationLineStart.y,
+            toX: annotationLinePreview.x,
+            toY: annotationLinePreview.y,
+            color: annotationColor,
+            strokeWidth: 2,
+            lineStyle: annotationLineStyle
+          });
+        }
+      }
+      setIsDrawingAnnotationLine(false);
+      setAnnotationLineStart(null);
+      setAnnotationLinePreview(null);
+    }
+
+    // Finish annotation dragging
+    if (isDraggingAnnotation) {
+      setIsDraggingAnnotation(false);
+      setAnnotationDragStart(null);
+    }
+
     // Handle connection path completion
     if (isConnecting && connectionPath.length >= 2 && (activeTool === 'connect' || activeTool === 'disconnect')) {
       if (activeTool === 'connect') {
@@ -1162,7 +1264,9 @@ export function Canvas({
     if (activeTool === 'connect') return 'crosshair';
     if (activeTool === 'disconnect') return 'not-allowed';
     if (activeTool === 'arrow') return 'pointer';
-    if (isDragging) return 'grabbing';
+    if (activeTool === 'annotate-line') return 'crosshair';
+    if (activeTool === 'annotate-text') return 'text';
+    if (isDragging || isDraggingAnnotation) return 'grabbing';
     return 'default';
   };
 
@@ -1538,7 +1642,173 @@ export function Canvas({
           );
         })}
 
-        {/* Connection arrows - rendered between tiles */}
+        {/* Annotationsebene - Markierungslinien */}
+        {annotationLines.map(line => {
+          const isSelected = selectedAnnotationId === line.id;
+          const unit = tileSize * 0.1;
+          let dashArray: string | undefined;
+          switch (line.lineStyle) {
+            case 'dashed': dashArray = `${unit * 2} ${unit}`; break;
+            case 'dotted': dashArray = `${unit * 0.5} ${unit}`; break;
+            case 'dash-dot': dashArray = `${unit * 2} ${unit} ${unit * 0.5} ${unit}`; break;
+            default: dashArray = undefined;
+          }
+          return (
+            <g key={`ann-line-${line.id}`}>
+              {/* Invisible wider hit area for easier selection */}
+              <line
+                x1={line.fromX * tileSize}
+                y1={line.fromY * tileSize}
+                x2={line.toX * tileSize}
+                y2={line.toY * tileSize}
+                stroke="transparent"
+                strokeWidth={Math.max(line.strokeWidth + 8, 12)}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  if (activeTool === 'select') {
+                    onAnnotationSelect?.(line.id, 'line');
+                    setIsDraggingAnnotation(true);
+                    setAnnotationDragStart(getCanvasPosition(e));
+                  }
+                }}
+                style={{ cursor: activeTool === 'select' ? 'move' : 'inherit' }}
+              />
+              <line
+                x1={line.fromX * tileSize}
+                y1={line.fromY * tileSize}
+                x2={line.toX * tileSize}
+                y2={line.toY * tileSize}
+                stroke={line.color}
+                strokeWidth={line.strokeWidth}
+                strokeDasharray={dashArray}
+                strokeLinecap="round"
+                pointerEvents="none"
+              />
+              {isSelected && (
+                <>
+                  <circle cx={line.fromX * tileSize} cy={line.fromY * tileSize} r={4} fill="hsl(var(--primary))" />
+                  <circle cx={line.toX * tileSize} cy={line.toY * tileSize} r={4} fill="hsl(var(--primary))" />
+                </>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Annotationsebene - Textfelder */}
+        {annotationTexts.map(text => {
+          const isSelected = selectedAnnotationId === text.id;
+          return (
+            <g key={`ann-text-${text.id}`}>
+              <text
+                x={text.x * tileSize}
+                y={text.y * tileSize}
+                fontSize={text.fontSize}
+                fontWeight={text.fontWeight || 'normal'}
+                fill={text.color}
+                fontFamily="sans-serif"
+                dominantBaseline="hanging"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  if (activeTool === 'select') {
+                    onAnnotationSelect?.(text.id, 'text');
+                    setIsDraggingAnnotation(true);
+                    setAnnotationDragStart(getCanvasPosition(e));
+                  }
+                }}
+                style={{ cursor: activeTool === 'select' ? 'move' : 'inherit', userSelect: 'none' }}
+              >
+                {text.text}
+              </text>
+              {isSelected && (
+                <rect
+                  x={text.x * tileSize - 3}
+                  y={text.y * tileSize - 3}
+                  width={text.text.length * text.fontSize * 0.6 + 6}
+                  height={text.fontSize + 6}
+                  fill="none"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 2"
+                  rx={2}
+                />
+              )}
+            </g>
+          );
+        })}
+
+        {/* Annotation line preview while drawing */}
+        {isDrawingAnnotationLine && annotationLineStart && annotationLinePreview && (
+          <line
+            x1={annotationLineStart.x * tileSize}
+            y1={annotationLineStart.y * tileSize}
+            x2={annotationLinePreview.x * tileSize}
+            y2={annotationLinePreview.y * tileSize}
+            stroke={annotationColor}
+            strokeWidth={2}
+            strokeDasharray="4 4"
+            opacity={0.6}
+            data-export-ignore="true"
+          />
+        )}
+
+        {/* Text input for annotation text placement */}
+        {textInputPosition && (
+          <foreignObject
+            x={textInputPosition.x * tileSize - 2}
+            y={textInputPosition.y * tileSize - 2}
+            width={300}
+            height={annotationFontSize + 12}
+            data-export-ignore="true"
+          >
+            <input
+              autoFocus
+              value={textInputValue}
+              onChange={(e) => setTextInputValue((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter' && textInputValue.trim()) {
+                  onAnnotationTextCreate?.({
+                    x: textInputPosition.x,
+                    y: textInputPosition.y,
+                    text: textInputValue.trim(),
+                    fontSize: annotationFontSize,
+                    color: annotationColor,
+                  });
+                  setTextInputPosition(null);
+                  setTextInputValue('');
+                }
+                if (e.key === 'Escape') {
+                  setTextInputPosition(null);
+                  setTextInputValue('');
+                }
+              }}
+              onBlur={() => {
+                if (textInputValue.trim()) {
+                  onAnnotationTextCreate?.({
+                    x: textInputPosition.x,
+                    y: textInputPosition.y,
+                    text: textInputValue.trim(),
+                    fontSize: annotationFontSize,
+                    color: annotationColor,
+                  });
+                }
+                setTextInputPosition(null);
+                setTextInputValue('');
+              }}
+              style={{
+                fontSize: `${annotationFontSize}px`,
+                border: '2px solid #2563eb',
+                outline: 'none',
+                padding: '2px 4px',
+                backgroundColor: 'white',
+                color: annotationColor,
+                width: '100%',
+                fontFamily: 'sans-serif',
+                borderRadius: '3px',
+              }}
+            />
+          </foreignObject>
+        )}
         {connections.filter(c => c.arrowDirection && c.arrowDirection !== 'none').map(conn => {
           const fromTile = tiles.find(t => t.id === conn.fromTileId);
           const toTile = tiles.find(t => t.id === conn.toTileId);
