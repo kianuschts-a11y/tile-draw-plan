@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Pencil, Upload, Folder, Info, FileText, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Folder, Info, FileText, ChevronDown, ChevronRight, X, Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -65,6 +65,7 @@ interface ComponentLibraryProps {
   onFilterCategoryChange?: (cat: string) => void;
   filterTag?: string;
   onFilterTagChange?: (tag: string) => void;
+  onManageCategories?: () => void;
 }
 
 function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
@@ -227,7 +228,8 @@ export function ComponentLibrary({
   filterCategory,
   onFilterCategoryChange,
   filterTag,
-  onFilterTagChange
+  onFilterTagChange,
+  onManageCategories
 }: ComponentLibraryProps) {
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -597,12 +599,24 @@ export function ComponentLibrary({
           )}
           {activeTab === 'groups' && (
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground mb-2">
-                {groups.length} Gruppe{groups.length !== 1 ? 'n' : ''}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {groups.length} Gruppe{groups.length !== 1 ? 'n' : ''}
+                </p>
+                {onManageCategories && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 gap-1 text-xs px-1.5"
+                    onClick={onManageCategories}
+                  >
+                    <Settings2 className="w-3 h-3" />
+                    Verwalten
+                  </Button>
+                )}
+              </div>
               {categories && categories.length > 0 && (
                 <div className="space-y-0.5">
-                  {/* "Alle" option */}
                   <button
                     className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
                       !filterCategory ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
