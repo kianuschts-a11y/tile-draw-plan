@@ -37,6 +37,8 @@ function findComponentById(componentId: string, components: Component[]): Compon
 interface HistoryEntry {
   tiles: PlacedTile[];
   connections: CellConnection[];
+  annotationLines: AnnotationLine[];
+  annotationTexts: AnnotationText[];
 }
 import {
   DropdownMenu,
@@ -141,14 +143,14 @@ export function SchematicEditor() {
   });
 
   // Undo/Redo History - speichert kompletten Zustand
-  const historyRef = useRef<HistoryEntry[]>([{ tiles: [], connections: [] }]);
+  const historyRef = useRef<HistoryEntry[]>([{ tiles: [], connections: [], annotationLines: [], annotationTexts: [] }]);
   const historyIndexRef = useRef(0);
   const [historyVersion, setHistoryVersion] = useState(0);
   const isUndoRedoRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
 
   // Snapshot des aktuellen Zustands speichern (debounced)
-  const saveToHistory = useCallback((newTiles: PlacedTile[], newConnections: CellConnection[]) => {
+  const saveToHistory = useCallback((newTiles: PlacedTile[], newConnections: CellConnection[], newAnnLines: AnnotationLine[], newAnnTexts: AnnotationText[]) => {
     // Wenn gerade Undo/Redo läuft, nicht speichern
     if (isUndoRedoRef.current) {
       return;
@@ -157,13 +159,17 @@ export function SchematicEditor() {
     const currentEntry = historyRef.current[historyIndexRef.current];
     const tilesChanged = JSON.stringify(currentEntry?.tiles) !== JSON.stringify(newTiles);
     const connectionsChanged = JSON.stringify(currentEntry?.connections) !== JSON.stringify(newConnections);
+    const annLinesChanged = JSON.stringify(currentEntry?.annotationLines) !== JSON.stringify(newAnnLines);
+    const annTextsChanged = JSON.stringify(currentEntry?.annotationTexts) !== JSON.stringify(newAnnTexts);
     
-    if (tilesChanged || connectionsChanged) {
+    if (tilesChanged || connectionsChanged || annLinesChanged || annTextsChanged) {
       // Historie bis zum aktuellen Index abschneiden, neuen Eintrag hinzufügen
       historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
       historyRef.current.push({ 
         tiles: JSON.parse(JSON.stringify(newTiles)), 
-        connections: JSON.parse(JSON.stringify(newConnections)) 
+        connections: JSON.parse(JSON.stringify(newConnections)),
+        annotationLines: JSON.parse(JSON.stringify(newAnnLines)),
+        annotationTexts: JSON.parse(JSON.stringify(newAnnTexts))
       });
       // Maximal 50 Einträge
       if (historyRef.current.length > 50) {
@@ -185,7 +191,13 @@ export function SchematicEditor() {
       // Aktuellen State holen und speichern
       setTilesInternal(currentTiles => {
         setConnectionsInternal(currentConnections => {
-          saveToHistory(currentTiles, currentConnections);
+          setAnnotationLines(currentAnnLines => {
+            setAnnotationTexts(currentAnnTexts => {
+              saveToHistory(currentTiles, currentConnections, currentAnnLines, currentAnnTexts);
+              return currentAnnTexts;
+            });
+            return currentAnnLines;
+          });
           return currentConnections;
         });
         return currentTiles;
@@ -226,7 +238,11 @@ export function SchematicEditor() {
       console.log('[Undo] Restoring to index:', historyIndexRef.current, 'tiles:', prevState.tiles.length);
       setTilesInternal(JSON.parse(JSON.stringify(prevState.tiles)));
       setConnectionsInternal(JSON.parse(JSON.stringify(prevState.connections)));
+      setAnnotationLines(JSON.parse(JSON.stringify(prevState.annotationLines || [])));
+      setAnnotationTexts(JSON.parse(JSON.stringify(prevState.annotationTexts || [])));
       setSelectedTileIds(new Set());
+      setSelectedAnnotationId(null);
+      setSelectedAnnotationType(null);
       setHistoryVersion(v => v + 1);
       // Flag nach kurzer Zeit zurücksetzen
       setTimeout(() => {
@@ -250,7 +266,11 @@ export function SchematicEditor() {
       console.log('[Redo] Restoring to index:', historyIndexRef.current);
       setTilesInternal(JSON.parse(JSON.stringify(nextState.tiles)));
       setConnectionsInternal(JSON.parse(JSON.stringify(nextState.connections)));
+      setAnnotationLines(JSON.parse(JSON.stringify(nextState.annotationLines || [])));
+      setAnnotationTexts(JSON.parse(JSON.stringify(nextState.annotationTexts || [])));
       setSelectedTileIds(new Set());
+      setSelectedAnnotationId(null);
+      setSelectedAnnotationType(null);
       setHistoryVersion(v => v + 1);
       // Flag nach kurzer Zeit zurücksetzen
       setTimeout(() => {
@@ -281,6 +301,7 @@ export function SchematicEditor() {
       }
       setSelectedAnnotationId(null);
       setSelectedAnnotationType(null);
+      scheduleSave();
       return;
     }
     if (selectedTileIds.size > 0) {
@@ -363,6 +384,7 @@ export function SchematicEditor() {
         }
         setSelectedAnnotationId(null);
         setSelectedAnnotationType(null);
+        scheduleSave();
       }
     };
 
@@ -848,11 +870,13 @@ export function SchematicEditor() {
   // Annotation handlers
   const handleAnnotationLineCreate = useCallback((lineData: Omit<AnnotationLine, 'id'>) => {
     setAnnotationLines(prev => [...prev, { ...lineData, id: generateId() }]);
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const handleAnnotationTextCreate = useCallback((textData: Omit<AnnotationText, 'id'>) => {
     setAnnotationTexts(prev => [...prev, { ...textData, id: generateId() }]);
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const handleAnnotationSelect = useCallback((id: string | null, type?: 'line' | 'text') => {
     setSelectedAnnotationId(id);
@@ -866,13 +890,15 @@ export function SchematicEditor() {
     setAnnotationLines(prev => prev.map(line => 
       line.id === id ? { ...line, path: line.path.map(p => ({ gridX: p.gridX + dx, gridY: p.gridY + dy })) } : line
     ));
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const handleAnnotationTextMove = useCallback((id: string, dx: number, dy: number) => {
     setAnnotationTexts(prev => prev.map(text => 
       text.id === id ? { ...text, gridX: text.gridX + dx, gridY: text.gridY + dy } : text
     ));
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const handleComponentSelect = useCallback((id: string) => {
     // Toggle selection for the component
