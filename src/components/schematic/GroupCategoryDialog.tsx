@@ -14,6 +14,7 @@ interface GroupCategoryDialogProps {
   onConfirm: (name: string, category?: string, tags?: string[]) => void;
   categories: GroupCategory[];
   onManageCategories: () => void;
+  initialName?: string;
 }
 
 export function GroupCategoryDialog({
@@ -22,10 +23,12 @@ export function GroupCategoryDialog({
   onConfirm,
   categories,
   onManageCategories,
+  initialName,
 }: GroupCategoryDialogProps) {
-  const [groupName, setGroupName] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  const groupName = initialName || "";
 
   const selectedCategoryObj = categories.find(c => c.name === selectedCategory);
   const availableTags = selectedCategoryObj?.tags || [];
@@ -47,7 +50,6 @@ export function GroupCategoryDialog({
   };
 
   const resetAndClose = () => {
-    setGroupName("");
     setSelectedCategory("");
     setSelectedTags([]);
     onClose();
@@ -62,23 +64,10 @@ export function GroupCategoryDialog({
     <Dialog open={open} onOpenChange={resetAndClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Gruppe erstellen</DialogTitle>
+          <DialogTitle>Gruppe erstellen: {groupName}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="group-name">Name</Label>
-            <Input
-              id="group-name"
-              placeholder="z.B. Heizkreis Standard"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && groupName.trim()) handleConfirm();
-              }}
-              autoFocus
-            />
-          </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
