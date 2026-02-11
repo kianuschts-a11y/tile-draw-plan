@@ -559,6 +559,62 @@ export function SchematicEditor() {
 
   // Handle dropping a group onto the canvas - places all tiles with their relative positions and connections
   const handleDropGroup = useCallback((groupData: any, gridX: number, gridY: number) => {
+    // Handle saved plan drops
+    if (groupData.isSavedPlan && groupData.planId) {
+      const plan = savedPlans.find(p => p.id === groupData.planId);
+      if (!plan || !plan.drawingData?.tiles || plan.drawingData.tiles.length === 0) return;
+      
+      const planTiles = plan.drawingData.tiles;
+      const planConnections = plan.drawingData.connections || [];
+      
+      // Calculate min position for relative placement
+      const minX = Math.min(...planTiles.map(t => t.gridX));
+      const minY = Math.min(...planTiles.map(t => t.gridY));
+      
+      const newTileIds: string[] = [];
+      const newTiles: PlacedTile[] = [];
+      const oldToNewIdMap = new Map<string, string>();
+      
+      for (const tile of planTiles) {
+        const component = tile.component || findComponentById(tile.component?.id || (tile as any).componentId, components);
+        if (!component) continue;
+        
+        const newId = generateId();
+        oldToNewIdMap.set(tile.id, newId);
+        
+        const newTile: PlacedTile = {
+          id: newId,
+          component,
+          gridX: gridX + (tile.gridX - minX),
+          gridY: gridY + (tile.gridY - minY),
+          rotation: tile.rotation
+        };
+        newTiles.push(newTile);
+        newTileIds.push(newId);
+      }
+      
+      // Remap connections
+      const newConnections: CellConnection[] = [];
+      for (const conn of planConnections) {
+        const newFromId = oldToNewIdMap.get(conn.fromTileId);
+        const newToId = oldToNewIdMap.get(conn.toTileId);
+        if (newFromId && newToId) {
+          newConnections.push({
+            ...conn,
+            id: generateId(),
+            fromTileId: newFromId,
+            toTileId: newToId
+          });
+        }
+      }
+      
+      setTiles(prev => [...prev, ...newTiles]);
+      setConnections(prev => [...prev, ...newConnections]);
+      setSelectedTileIds(new Set(newTileIds));
+      return;
+    }
+    
+    // Handle regular group drops
     const group = groups.find(g => g.id === groupData.groupId);
     if (!group || !group.layoutData) return;
     
@@ -602,7 +658,7 @@ export function SchematicEditor() {
     setTiles(prev => [...prev, ...newTiles]);
     setConnections(prev => [...prev, ...newConnections]);
     setSelectedTileIds(new Set(newTileIds));
-  }, [groups, components]);
+  }, [groups, components, savedPlans]);
 
   const handleSaveComponent = useCallback(async (name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string, autoConnectionsEnabled?: boolean) => {
     await saveComponent(name, shapes, tileSize, category, labelingEnabled, labelingPriority, labelingColor, autoConnectionsEnabled);
@@ -2257,7 +2313,35 @@ export function SchematicEditor() {
         onOpenChange={setShowComponentSelector}
         components={components}
         groups={groups}
+        savedPlans={savedPlans}
         onInsertGroup={handleInsertGroupFromSelector}
+        onInsertPlan={(plan) => {
+          if (!plan.drawingData?.tiles || plan.drawingData.tiles.length === 0) return;
+          const planTiles = plan.drawingData.tiles;
+          const planConnections = plan.drawingData.connections || [];
+          const minX = Math.min(...planTiles.map(t => t.gridX));
+          const minY = Math.min(...planTiles.map(t => t.gridY));
+          const maxGridY = tiles.length > 0 ? Math.max(...tiles.map(t => t.gridY + (t.component.height || 1))) : 0;
+          const oldToNewIdMap = new Map<string, string>();
+          const newTiles: PlacedTile[] = [];
+          for (const tile of planTiles) {
+            const component = tile.component || findComponentById(tile.component?.id || (tile as any).componentId, components);
+            if (!component) continue;
+            const newId = generateId();
+            oldToNewIdMap.set(tile.id, newId);
+            newTiles.push({ id: newId, component, gridX: tile.gridX - minX, gridY: maxGridY + (tile.gridY - minY), rotation: tile.rotation });
+          }
+          const newConnections: CellConnection[] = [];
+          for (const conn of planConnections) {
+            const newFromId = oldToNewIdMap.get(conn.fromTileId);
+            const newToId = oldToNewIdMap.get(conn.toTileId);
+            if (newFromId && newToId) {
+              newConnections.push({ ...conn, id: generateId(), fromTileId: newFromId, toTileId: newToId });
+            }
+          }
+          setTiles(prev => [...prev, ...newTiles]);
+          setConnections(prev => [...prev, ...newConnections]);
+        }}
         onInsertMultipleGroups={handleInsertMultipleGroups}
         projectQuantities={projectQuantities}
         onProjectQuantitiesChange={setProjectQuantities}
