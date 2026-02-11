@@ -37,30 +37,36 @@ export type Database = {
       }
       component_groups: {
         Row: {
+          category: string | null
           company_id: string
           component_ids: string[]
           created_at: string
           id: string
           layout_data: Json | null
           name: string
+          tags: string[] | null
           updated_at: string
         }
         Insert: {
+          category?: string | null
           company_id: string
           component_ids?: string[]
           created_at?: string
           id?: string
           layout_data?: Json | null
           name: string
+          tags?: string[] | null
           updated_at?: string
         }
         Update: {
+          category?: string | null
           company_id?: string
           component_ids?: string[]
           created_at?: string
           id?: string
           layout_data?: Json | null
           name?: string
+          tags?: string[] | null
           updated_at?: string
         }
         Relationships: [
@@ -128,6 +134,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "components_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_categories: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number | null
+          tags: string[] | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number | null
+          tags?: string[] | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number | null
+          tags?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_categories_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
