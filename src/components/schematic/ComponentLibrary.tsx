@@ -35,6 +35,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { GroupInfoDialog } from "./GroupInfoDialog";
+import { PlanPreview } from "./PlanPreview";
 
 type LibraryTab = 'components' | 'groups' | 'projects';
 
@@ -694,7 +695,9 @@ export function ComponentLibrary({
                 }}
               >
                 <div className="flex items-start gap-2">
-                  <FileText className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div className="flex-shrink-0">
+                    <PlanPreview plan={plan} components={components} maxSize={80} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{plan.name}</p>
                     <p className="text-[10px] text-muted-foreground">

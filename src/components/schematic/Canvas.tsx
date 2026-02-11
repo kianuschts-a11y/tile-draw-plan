@@ -1153,6 +1153,12 @@ export function Canvas({
         return;
       }
       
+      // Check if it's a saved plan drop
+      if (parsed.isSavedPlan && parsed.planId && onDropGroup) {
+        onDropGroup(parsed, gridX, gridY);
+        return;
+      }
+      
       // Regular component drop
       const component: Component = parsed;
       if (canPlaceComponent(component, gridX, gridY)) {

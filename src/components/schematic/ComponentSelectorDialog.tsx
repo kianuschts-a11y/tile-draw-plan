@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Component, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, ProjectComponentData } from "@/types/schematic";
+import { SavedPlanData } from "@/hooks/useSavedPlans";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal, AlertTriangle, Upload, Settings2 } from "lucide-react";
+import { Plus, Minus, Folder, Check, X, Layers, ArrowRight, ChevronDown, ChevronRight, Equal, AlertTriangle, Upload, Settings2, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { GroupPreview } from "./GroupPreview";
+import { PlanPreview } from "./PlanPreview";
 import { ComponentImportDialog } from "./ComponentImportDialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -27,7 +29,9 @@ interface ComponentSelectorDialogProps {
   onOpenChange: (open: boolean) => void;
   components: Component[];
   groups: ComponentGroup[];
+  savedPlans?: SavedPlanData[];
   onInsertGroup: (group: ComponentGroup, count: number, isPartialMatch?: boolean, currentQuantities?: Map<string, number>) => void;
+  onInsertPlan?: (plan: SavedPlanData) => void;
   onInsertMultipleGroups: (groupsWithCounts: Array<{ group: ComponentGroup; count: number }>, isPartialMatch?: boolean, currentQuantities?: Map<string, number>) => void;
   projectQuantities: Map<string, number>;
   onProjectQuantitiesChange: (quantities: Map<string, number>) => void;
@@ -65,7 +69,9 @@ export function ComponentSelectorDialog({
   onOpenChange,
   components,
   groups,
+  savedPlans,
   onInsertGroup,
+  onInsertPlan,
   onInsertMultipleGroups,
   projectQuantities,
   onProjectQuantitiesChange,
@@ -707,6 +713,79 @@ export function ComponentSelectorDialog({
       });
   }, [matchingGroups, filteredQuantities, canFulfillGroup, subtractGroupFromComponents, calculateSetCoverage, minMatchPercent, onlyFullMatches]);
 
+  // Find matching saved plans based on component quantities
+  interface PlanSuggestion {
+    plan: SavedPlanData;
+    coveragePercent: number;
+    possibleCount: number; // 1 if fully fulfillable, 0 if partial
+  }
+
+  const matchingPlans = useMemo((): PlanSuggestion[] => {
+    if (filteredQuantities.size === 0 || !savedPlans || savedPlans.length === 0) return [];
+    
+    const suggestions: PlanSuggestion[] = [];
+    
+    for (const plan of savedPlans) {
+      if (!plan.drawingData?.tiles || plan.drawingData.tiles.length === 0) continue;
+      
+      // Build requirements from plan's tiles (excluding connection blocks)
+      const requirements = new Map<string, number>();
+      for (const tile of plan.drawingData.tiles) {
+        const compId = tile.component?.id || (tile as any).componentId;
+        if (!compId || compId.startsWith('connection-')) continue;
+        if (!includeMesskomponenten) {
+          const comp = components.find(c => c.id === compId);
+          if (comp && comp.labelingEnabled) continue;
+        }
+        requirements.set(compId, (requirements.get(compId) || 0) + 1);
+      }
+      
+      if (requirements.size === 0) continue;
+      
+      // Check overlap
+      let hasOverlap = false;
+      for (const [compId] of requirements) {
+        if ((filteredQuantities.get(compId) || 0) > 0) {
+          hasOverlap = true;
+          break;
+        }
+      }
+      if (!hasOverlap) continue;
+      
+      // Check fulfillability and calculate coverage
+      let canFulfill = true;
+      let matchingCount = 0;
+      let totalNeeded = 0;
+      
+      for (const [compId, needed] of requirements) {
+        totalNeeded += needed;
+        const available = filteredQuantities.get(compId) || 0;
+        matchingCount += Math.min(available, needed);
+        if (available < needed) canFulfill = false;
+      }
+      
+      const totalProjectComponents = Array.from(filteredQuantities.values()).reduce((a, b) => a + b, 0);
+      const coveragePercent = canFulfill
+        ? Math.round((totalNeeded / totalProjectComponents) * 100)
+        : Math.round((matchingCount / totalNeeded) * 100);
+      
+      if (coveragePercent < minMatchPercent) continue;
+      if (onlyFullMatches && !canFulfill) continue;
+      
+      suggestions.push({
+        plan,
+        coveragePercent: Math.min(100, coveragePercent),
+        possibleCount: canFulfill ? 1 : 0
+      });
+    }
+    
+    return suggestions.sort((a, b) => {
+      if (a.possibleCount > 0 && b.possibleCount === 0) return -1;
+      if (a.possibleCount === 0 && b.possibleCount > 0) return 1;
+      return b.coveragePercent - a.coveragePercent;
+    });
+  }, [filteredQuantities, savedPlans, includeMesskomponenten, components, minMatchPercent, onlyFullMatches]);
+
   const totalComponents = useMemo(() => 
     Array.from(quantities.values()).reduce((a, b) => a + b, 0)
   , [quantities]);
@@ -714,6 +793,7 @@ export function ComponentSelectorDialog({
   // Check for fully fulfillable 100% matches (possibleCount > 0 means all components are available)
   const hasExactMatch = matchingGroups.some(g => g.possibleCount > 0 && g.coveragePercent === 100);
   const hasExactCombinationMatch = complementaryGroupSets.some(s => s.totalCoverage === 100);
+  const hasExactPlanMatch = matchingPlans.some(p => p.possibleCount > 0 && p.coveragePercent === 100);
   
   // Split complementary sets into exact (100%) and partial
   const exactCombinations = complementaryGroupSets.filter(s => s.totalCoverage === 100);
@@ -743,6 +823,29 @@ export function ComponentSelectorDialog({
   const handleInsertComplementarySet = (set: ComplementaryGroupSet) => {
     onInsertMultipleGroups(set.groups.map(g => ({ group: g.group, count: g.possibleCount })), false, quantities);
     setQuantities(set.remainingComponents);
+  };
+
+  const handleInsertPlan = (plan: SavedPlanData) => {
+    if (onInsertPlan) {
+      onInsertPlan(plan);
+    }
+    // Subtract plan components from quantities
+    if (plan.drawingData?.tiles) {
+      setQuantities(prev => {
+        const next = new Map(prev);
+        for (const tile of plan.drawingData.tiles) {
+          const compId = tile.component?.id || (tile as any).componentId;
+          if (!compId || compId.startsWith('connection-')) continue;
+          const current = next.get(compId) || 0;
+          if (current - 1 <= 0) {
+            next.delete(compId);
+          } else {
+            next.set(compId, current - 1);
+          }
+        }
+        return next;
+      });
+    }
   };
 
   // Determine button text
@@ -943,7 +1046,7 @@ export function ComponentSelectorDialog({
           {/* Right: Matching Groups */}
           <div className="w-64 flex flex-col border-l pl-4">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium">Passende Gruppen</h4>
+              <h4 className="text-sm font-medium">Passende Vorlagen</h4>
               <button
                 onClick={() => setShowFilterSettings(!showFilterSettings)}
                 className={`p-1 rounded hover:bg-accent transition-colors ${showFilterSettings ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
@@ -1000,11 +1103,11 @@ export function ComponentSelectorDialog({
             <ScrollArea className="flex-1 -mx-1 px-1">
               {quantities.size === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Wählen Sie Komponenten aus, um passende Gruppen zu finden.
+                  Wählen Sie Komponenten aus, um passende Vorlagen zu finden.
                 </p>
-              ) : matchingGroups.length === 0 && complementaryGroupSets.length === 0 ? (
+              ) : matchingGroups.length === 0 && complementaryGroupSets.length === 0 && matchingPlans.length === 0 ? (
                 <div className="text-sm text-muted-foreground space-y-2">
-                  <p>Keine passenden Gruppen gefunden.</p>
+                  <p>Keine passenden Vorlagen gefunden.</p>
                   {(minMatchPercent > 0 || onlyFullMatches || !includeMesskomponenten) && (
                     <p className="text-xs">
                       Tipp: Passen Sie die Filter-Einstellungen an, um mehr Ergebnisse zu erhalten.
@@ -1013,8 +1116,8 @@ export function ComponentSelectorDialog({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* 100% matches first (single groups AND combinations) */}
-                  {(hasExactMatch || hasExactCombinationMatch) && (
+                  {/* 100% matches first (single groups, plans, AND combinations) */}
+                  {(hasExactMatch || hasExactCombinationMatch || hasExactPlanMatch) && (
                     <div className="space-y-2">
                       <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
                         <Check className="w-3 h-3" />
@@ -1087,11 +1190,47 @@ export function ComponentSelectorDialog({
                           </div>
                         </div>
                       ))}
+                      
+                      {/* Plans with 100% */}
+                      {matchingPlans.filter(p => p.possibleCount > 0 && p.coveragePercent === 100).map(suggestion => (
+                        <div
+                          key={`plan-${suggestion.plan.id}`}
+                          className="p-2 rounded-lg border border-green-500/50 bg-green-500/10 space-y-2"
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="flex-shrink-0">
+                              <PlanPreview plan={suggestion.plan} components={components} maxSize={50} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1">
+                                <FileText className="w-3 h-3 text-muted-foreground" />
+                                <span className="text-sm font-medium truncate block">
+                                  {suggestion.plan.name}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 mt-1">
+                                <Badge variant="default" className="bg-green-600 h-5 text-[10px]">
+                                  100%
+                                </Badge>
+                                <span className="text-[10px] text-muted-foreground">Projekt</span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="h-6 text-xs w-full gap-1"
+                            onClick={() => handleInsertPlan(suggestion.plan)}
+                          >
+                            <ArrowRight className="w-3 h-3" />
+                            Einfügen
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   )}
                   
-                  {/* All partial matches (single groups and combinations) sorted by percentage */}
-                  {(matchingGroups.filter(g => !(g.possibleCount > 0 && g.coveragePercent === 100)).length > 0 || partialCombinations.length > 0) && (
+                  {/* All partial matches (single groups, plans, and combinations) sorted by percentage */}
+                  {(matchingGroups.filter(g => !(g.possibleCount > 0 && g.coveragePercent === 100)).length > 0 || partialCombinations.length > 0 || matchingPlans.filter(p => !(p.possibleCount > 0 && p.coveragePercent === 100)).length > 0) && (
                     <div className="space-y-2">
                       <div className="text-xs text-muted-foreground font-medium">
                         Teilweise Übereinstimmung
@@ -1099,10 +1238,11 @@ export function ComponentSelectorDialog({
                       
                       {/* Merge and sort: single groups + combinations by percentage */}
                       {(() => {
-                        // Create unified list of single groups and combinations
+                        // Create unified list of single groups, plans, and combinations
                         type DisplayItem = 
                           | { type: 'single'; suggestion: GroupSuggestion; coverage: number }
-                          | { type: 'combo'; set: ComplementaryGroupSet; coverage: number };
+                          | { type: 'combo'; set: ComplementaryGroupSet; coverage: number }
+                          | { type: 'plan'; planSuggestion: PlanSuggestion; coverage: number };
                         
                         const items: DisplayItem[] = [
                           ...matchingGroups
@@ -1110,7 +1250,10 @@ export function ComponentSelectorDialog({
                             .filter(g => !(g.possibleCount > 0 && g.coveragePercent === 100))
                             .map(g => ({ type: 'single' as const, suggestion: g, coverage: g.coveragePercent })),
                           ...partialCombinations
-                            .map(s => ({ type: 'combo' as const, set: s, coverage: s.totalCoverage }))
+                            .map(s => ({ type: 'combo' as const, set: s, coverage: s.totalCoverage })),
+                          ...matchingPlans
+                            .filter(p => !(p.possibleCount > 0 && p.coveragePercent === 100))
+                            .map(p => ({ type: 'plan' as const, planSuggestion: p, coverage: p.coveragePercent }))
                         ];
                         
                         // Sort by coverage descending
@@ -1159,7 +1302,7 @@ export function ComponentSelectorDialog({
                                 </Button>
                               </div>
                             );
-                          } else {
+                          } else if (item.type === 'combo') {
                             const set = item.set;
                             return (
                               <div
@@ -1190,6 +1333,41 @@ export function ComponentSelectorDialog({
                                     Alle einfügen
                                   </Button>
                                 </div>
+                              </div>
+                            );
+                          } else {
+                            const ps = item.planSuggestion;
+                            return (
+                              <div
+                                key={`plan-${ps.plan.id}`}
+                                className="p-2 rounded-lg border bg-muted/30 space-y-2"
+                              >
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-shrink-0">
+                                    <PlanPreview plan={ps.plan} components={components} maxSize={50} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1">
+                                      <FileText className="w-3 h-3 text-muted-foreground" />
+                                      <span className="text-sm truncate block">{ps.plan.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <Badge variant="secondary" className="h-5 text-[10px]">
+                                        {ps.coveragePercent}%
+                                      </Badge>
+                                      <span className="text-[10px] text-muted-foreground">Projekt</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-xs w-full gap-1"
+                                  onClick={() => handleInsertPlan(ps.plan)}
+                                >
+                                  <ArrowRight className="w-3 h-3" />
+                                  Einfügen
+                                </Button>
                               </div>
                             );
                           }
