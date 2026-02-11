@@ -776,10 +776,19 @@ export function SchematicEditor() {
       
       let minX = 1, maxX = 0, minY = 1, maxY = 0;
       for (const shape of boundaryShapes) {
-        minX = Math.min(minX, shape.x);
-        maxX = Math.max(maxX, shape.x + shape.width);
-        minY = Math.min(minY, shape.y);
-        maxY = Math.max(maxY, shape.y + shape.height);
+        if ((shape.type === 'polygon' || shape.type === 'polyline') && shape.points?.length) {
+          for (const p of shape.points) {
+            minX = Math.min(minX, p.x);
+            maxX = Math.max(maxX, p.x);
+            minY = Math.min(minY, p.y);
+            maxY = Math.max(maxY, p.y);
+          }
+        } else {
+          minX = Math.min(minX, shape.x);
+          maxX = Math.max(maxX, shape.x + shape.width);
+          minY = Math.min(minY, shape.y);
+          maxY = Math.max(maxY, shape.y + shape.height);
+        }
       }
       
       // Konvertiere normalisierte Koordinaten (0-1) zu Grid-Einheiten
@@ -849,6 +858,14 @@ export function SchematicEditor() {
             : autoTile.gridY + autoBounds.minY; // obere Kante
         }
         
+        // Clamp Startpunkte auf Quellkomponenten-Grenzen
+        const autoTop = autoTile.gridY + autoBounds.minY;
+        const autoBottom = autoTile.gridY + autoBounds.maxY;
+        const autoLeft = autoTile.gridX + autoBounds.minX;
+        const autoRight = autoTile.gridX + autoBounds.maxX;
+        fromY = Math.max(autoTop, Math.min(autoBottom, fromY));
+        fromX = Math.max(autoLeft, Math.min(autoRight, fromX));
+        
         // Endpunkt an der tatsächlichen Körperkante der Zielkomponente
         let toX: number, toY: number;
         
@@ -872,6 +889,11 @@ export function SchematicEditor() {
           ? labeledTile.gridY + labelBounds.minY  // obere Kante
           : labeledTile.gridY + labelBounds.maxY; // untere Kante
         
+        // Clamp Zielpunkte auf Zielkomponenten-Grenzen
+        const targetLeft = labeledTile.gridX + labelBounds.minX;
+        const targetRight = labeledTile.gridX + labelBounds.maxX;
+        toX = Math.max(targetLeft, Math.min(targetRight, toX));
+        
         // Orthogonale Linienführung: erst horizontal (X), dann vertikal (Y)
         const midX = toX;
         const midY = fromY;
@@ -889,6 +911,23 @@ export function SchematicEditor() {
       });
     }
     
+    // Bounds-Map für Post-Spreading-Clamping aufbauen
+    const tileBoundsMap = new Map<string, { left: number; right: number; top: number; bottom: number }>();
+    for (const tile of tiles) {
+      const comp = components.find(c => c.id === tile.component.id);
+      if (!comp) continue;
+      const w = tile.component.width || 1;
+      const h = tile.component.height || 1;
+      const shapes = (tile.component.shapes || []) as Shape[];
+      const bounds = getShapeBounds(shapes, w, h);
+      tileBoundsMap.set(tile.id, {
+        left: tile.gridX + bounds.minX,
+        right: tile.gridX + bounds.maxX,
+        top: tile.gridY + bounds.minY,
+        bottom: tile.gridY + bounds.maxY
+      });
+    }
+    
     // Deduplizierung: Linien die zum selben Ziel gehen spreizen
     const linesByTarget = new Map<string, number[]>();
     for (let i = 0; i < lines.length; i++) {
@@ -898,13 +937,18 @@ export function SchematicEditor() {
       linesByTarget.set(key, existing);
     }
     
-    for (const [, indices] of linesByTarget) {
+    for (const [targetId, indices] of linesByTarget) {
       if (indices.length <= 1) continue;
-      const spreadStep = 0.25; // Grid-Einheiten Abstand zwischen Linien
+      const spreadStep = 0.25;
       const totalSpread = (indices.length - 1) * spreadStep;
+      const tBounds = tileBoundsMap.get(targetId);
       indices.forEach((lineIdx, i) => {
         const offset = -totalSpread / 2 + i * spreadStep;
         lines[lineIdx].toX += offset;
+        // Clamp nach Spreading
+        if (tBounds) {
+          lines[lineIdx].toX = Math.max(tBounds.left, Math.min(tBounds.right, lines[lineIdx].toX));
+        }
         lines[lineIdx].midX = lines[lineIdx].toX;
       });
     }
@@ -925,6 +969,11 @@ export function SchematicEditor() {
       indices.forEach((lineIdx, i) => {
         const offset = -totalSpread / 2 + i * spreadStep;
         lines[lineIdx].fromY += offset;
+        // Clamp nach Spreading
+        const sBounds = tileBoundsMap.get(lines[lineIdx].fromTileId);
+        if (sBounds) {
+          lines[lineIdx].fromY = Math.max(sBounds.top, Math.min(sBounds.bottom, lines[lineIdx].fromY));
+        }
         lines[lineIdx].midY = lines[lineIdx].fromY;
       });
     }
