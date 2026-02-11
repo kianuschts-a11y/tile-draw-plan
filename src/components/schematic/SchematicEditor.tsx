@@ -2414,6 +2414,7 @@ export function SchematicEditor() {
         onConfirm={handleConfirmGroupWithCategory}
         categories={categories}
         onManageCategories={() => setIsCategoryManagerOpen(true)}
+        initialName={pendingGroupName}
       />
 
       <CategoryManagerDialog

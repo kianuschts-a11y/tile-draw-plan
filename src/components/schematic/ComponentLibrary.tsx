@@ -240,6 +240,7 @@ export function ComponentLibrary({
   const [renameGroup, setRenameGroup] = useState<ComponentGroup | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Calculate how many of each component are already placed on canvas
   const placedComponentCounts = useMemo(() => {
@@ -665,18 +666,38 @@ export function ComponentLibrary({
           )}
         </div>
       </div>
+
+      {/* Search field */}
+      <div className="px-3 py-2 border-b">
+        <Input
+          placeholder={activeTab === 'components' ? 'Komponenten suchen...' : activeTab === 'groups' ? 'Gruppen suchen...' : 'Projekte suchen...'}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="h-8 text-sm"
+        />
+      </div>
       
       <ScrollArea className="flex-1 p-3">
-        {activeTab === 'components' && (
-          <div className="grid grid-cols-2 gap-2">
-            {sortedComponents.map(component => renderComponentItem(component))}
-          </div>
-        )}
+        {activeTab === 'components' && (() => {
+          const filtered = searchQuery
+            ? sortedComponents.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+            : sortedComponents;
+          return filtered.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2">
+              {filtered.map(component => renderComponentItem(component))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p className="text-sm">Keine Treffer</p>
+            </div>
+          );
+        })()}
         
         {activeTab === 'groups' && (() => {
           const filteredGroups = groups.filter(group => {
             if (filterCategory && group.category !== filterCategory) return false;
             if (filterTag && (!group.tags || !group.tags.includes(filterTag))) return false;
+            if (searchQuery && !group.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
             return true;
           });
           return filteredGroups.length > 0 ? (
@@ -685,9 +706,9 @@ export function ComponentLibrary({
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <p className="text-sm">{filterCategory || filterTag ? 'Keine Gruppen in dieser Kategorie' : 'Keine Gruppen'}</p>
+              <p className="text-sm">{filterCategory || filterTag || searchQuery ? 'Keine Treffer' : 'Keine Gruppen'}</p>
               <p className="text-xs mt-1">
-                {filterCategory || filterTag 
+                {filterCategory || filterTag || searchQuery
                   ? 'Versuchen Sie einen anderen Filter' 
                   : 'Wählen Sie Komponenten aus und klicken Sie auf "Gruppieren"'}
               </p>
@@ -695,47 +716,56 @@ export function ComponentLibrary({
           );
         })()}
 
-        {activeTab === 'projects' && savedPlans && savedPlans.length > 0 && (
-          <div className="flex flex-col gap-3">
-            {savedPlans.map(plan => (
-              <div
-                key={plan.id}
-                className="relative group border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-grab"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('application/json', JSON.stringify({
-                    isSavedPlan: true,
-                    planId: plan.id
-                  }));
-                  e.dataTransfer.effectAllowed = 'copy';
-                }}
-              >
-                <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0">
-                    <PlanPreview plan={plan} components={components} maxSize={80} />
+        {activeTab === 'projects' && savedPlans && savedPlans.length > 0 && (() => {
+          const filteredPlans = searchQuery
+            ? savedPlans.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+            : savedPlans;
+          return filteredPlans.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {filteredPlans.map(plan => (
+                <div
+                  key={plan.id}
+                  className="relative group border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-grab"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/json', JSON.stringify({
+                      isSavedPlan: true,
+                      planId: plan.id
+                    }));
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0">
+                      <PlanPreview plan={plan} components={components} maxSize={80} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{plan.name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {plan.componentQuantities.length} Komponente{plan.componentQuantities.length !== 1 ? 'n' : ''} · {plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('de-DE') : ''}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{plan.name}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {plan.componentQuantities.length} Komponente{plan.componentQuantities.length !== 1 ? 'n' : ''} · {plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('de-DE') : ''}
-                    </p>
-                  </div>
+                  {onDeletePlan && (
+                    <button
+                      className="absolute top-2 right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeletePlan(plan.id);
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
-                {onDeletePlan && (
-                  <button
-                    className="absolute top-2 right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeletePlan(plan.id);
-                    }}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p className="text-sm">Keine Treffer</p>
+            </div>
+          );
+        })()}
 
         {activeTab === 'projects' && (!savedPlans || savedPlans.length === 0) && (
           <div className="text-center py-8 text-muted-foreground">
