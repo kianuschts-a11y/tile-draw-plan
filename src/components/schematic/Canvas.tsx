@@ -271,6 +271,7 @@ export function Canvas({
   const [textInputPosition, setTextInputPosition] = useState<{ gridX: number; gridY: number } | null>(null);
   const [textInputValue, setTextInputValue] = useState('');
   const textInputRef = useRef<HTMLInputElement>(null);
+  const textInputMountedRef = useRef(false);
   // Annotation dragging
   const [isDraggingAnnotation, setIsDraggingAnnotation] = useState(false);
   const [annotationDragStart, setAnnotationDragStart] = useState<{ gridX: number; gridY: number } | null>(null);
@@ -1799,35 +1800,27 @@ export function Canvas({
             width={Math.max(200, 8 * tileSize)}
             height={Math.max(annotationFontSize + 16, tileSize)}
             data-export-ignore="true"
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
           >
             <div style={{ width: '100%', height: '100%' }}>
               <input
-                ref={textInputRef}
-                autoFocus
+                ref={(el) => {
+                  (textInputRef as React.MutableRefObject<HTMLInputElement | null>).current = el;
+                  if (el && !textInputMountedRef.current) {
+                    textInputMountedRef.current = true;
+                    // Focus after a small delay to avoid SVG focus issues
+                    requestAnimationFrame(() => {
+                      el.focus();
+                    });
+                  }
+                }}
                 value={textInputValue}
                 onChange={(e) => setTextInputValue((e.target as HTMLInputElement).value)}
                 onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                   e.stopPropagation();
-                  if (e.key === 'Enter' && textInputValue.trim()) {
-                    onAnnotationTextCreate?.({
-                      gridX: textInputPosition.gridX,
-                      gridY: textInputPosition.gridY,
-                      text: textInputValue.trim(),
-                      fontSize: annotationFontSize,
-                      color: annotationColor,
-                    });
-                    setTextInputPosition(null);
-                    setTextInputValue('');
-                  }
-                  if (e.key === 'Escape') {
-                    setTextInputPosition(null);
-                    setTextInputValue('');
-                  }
-                }}
-                onBlur={() => {
-                  // Delay to avoid immediate removal when clicking inside foreignObject
-                  setTimeout(() => {
+                  if (e.key === 'Enter') {
                     if (textInputValue.trim()) {
                       onAnnotationTextCreate?.({
                         gridX: textInputPosition.gridX,
@@ -1837,9 +1830,41 @@ export function Canvas({
                         color: annotationColor,
                       });
                     }
+                    textInputMountedRef.current = false;
                     setTextInputPosition(null);
                     setTextInputValue('');
-                  }, 150);
+                  }
+                  if (e.key === 'Escape') {
+                    textInputMountedRef.current = false;
+                    setTextInputPosition(null);
+                    setTextInputValue('');
+                  }
+                }}
+                onBlur={() => {
+                  // Use a longer delay and check if input still exists
+                  setTimeout(() => {
+                    // Only dismiss if the input is no longer focused
+                    if (textInputRef.current && document.activeElement === textInputRef.current) {
+                      return; // Still focused, don't dismiss
+                    }
+                    setTextInputPosition(prev => {
+                      if (!prev) return null;
+                      // Read current value from the input element directly
+                      const currentValue = textInputRef.current?.value?.trim();
+                      if (currentValue) {
+                        onAnnotationTextCreate?.({
+                          gridX: prev.gridX,
+                          gridY: prev.gridY,
+                          text: currentValue,
+                          fontSize: annotationFontSize,
+                          color: annotationColor,
+                        });
+                      }
+                      textInputMountedRef.current = false;
+                      return null;
+                    });
+                    setTextInputValue('');
+                  }, 300);
                 }}
                 style={{
                   fontSize: `${annotationFontSize}px`,
