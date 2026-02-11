@@ -1,128 +1,121 @@
 
-# Plan: Auto-Verbindungslinien Optimierung + Annotationsebene (Linien & Text)
+
+# Plan: Projekte-Reiter + Gruppen-Kategorisierung
 
 ## Zusammenfassung
 
-Drei Aufgaben werden umgesetzt:
-
-1. **Überlappende Auto-Verbindungslinien verhindern** -- Die gestrichelten Auto-Verbindungslinien werden dedupliziert, damit keine Linien auf identischen Pfaden doppelt gezeichnet werden.
-
-2. **Freie Markierungslinien** -- Neue Werkzeuge zum Zeichnen von Linien auf dem Canvas, die nicht an Komponenten gebunden sind und rein zur Bereichsmarkierung dienen. Verschiedene Linienstile waehlbar (durchgezogen, gestrichelt, gepunktet, strich-punkt).
-
-3. **Freie Textfelder** -- Positionierbare Textfelder auf dem Canvas mit aenderbarer Schriftgroesse.
-
-Sowohl Markierungslinien als auch Textfelder liegen auf einer separaten **Annotationsebene** und haben keinen Einfluss auf die Zeichenebene (keine Interaktion mit Verbindungen, Stuckliste oder Messkonzept).
+1. **Neuer "Projekte"-Reiter** in der Bibliothek -- fertige Zeichnungen werden hier gespeichert statt in Gruppen
+2. **Gruppen-Kategorien und Tags** -- beim Erstellen einer Gruppe wird eine Kategorie und optionale Tags zugewiesen
+3. **Kategorien-Verwaltung** -- Kategorien koennen hinzugefuegt, bearbeitet und geloescht werden
 
 ---
 
 ## Technische Details
 
-### 1. Ueberlappende Auto-Verbindungslinien verhindern
+### 1. Datenbank-Aenderungen
 
-**Datei:** `src/components/schematic/SchematicEditor.tsx` (Zeilen 621-767)
+**Tabelle `component_groups` erweitern:**
+- Neue Spalte `category` (text, nullable) -- z.B. "Erzeugung", "Speicherung"
+- Neue Spalte `tags` (text[], nullable) -- z.B. ["Waerme", "Kaelte"]
 
-Das bestehende `autoConnectionLines` useMemo berechnet fuer jede Auto-Connect-Komponente Linien zu allen beschrifteten Komponenten. Wenn z.B. zwei Quellkomponenten dieselbe Zielkomponente verbinden, koennen Liniensegmente uebereinanderliegen.
+**Neue Tabelle `group_categories` erstellen:**
+- `id` (uuid, PK)
+- `company_id` (uuid, NOT NULL)
+- `name` (text, NOT NULL) -- Kategoriename
+- `tags` (text[], default '{}') -- Verfuegbare Tags fuer diese Kategorie
+- `sort_order` (integer, default 0)
+- `created_at` (timestamptz)
 
-**Loesung:** Nach Berechnung aller Linien wird ein Deduplizierungs-Schritt eingefuegt:
-- Jedes Liniensegment (horizontal oder vertikal) wird auf einen Schluessel normalisiert (gerundete Koordinaten + Richtung)
-- Segmente, die auf demselben Pfad liegen (gleiche Achse, ueberlappender Bereich), werden erkannt
-- Bei Ueberlappung wird nur ein Segment behalten, oder die ueberlappenden Segmente werden leicht versetzt (Y-Offset fuer horizontale, X-Offset fuer vertikale Segmente)
-- Der Versatz-Algorithmus nutzt den bestehenden `offsetStep`-Mechanismus und erweitert ihn auf Mid-/Endpunkte
+RLS-Policies analog zu den bestehenden Tabellen (company_id-basiert).
 
-### 2. Neue Typen fuer Annotationsebene
+**Initiale Kategorien** werden als Seed-Daten beim ersten Laden eingefuegt (ueber die App, nicht als Migration), damit sie pro Firma existieren:
+- Erzeugung (Tags: Waerme, Kaelte)
+- Speicherung (Tags: Waermespeicher, Kaeltespeicher, Stromspeicher)
+- Verteilung (Tags: Heizkreisgruppen, Kaelteverteilung, Trinkwasser, Fernwaerme)
+- Hydraulik (keine Tags)
+- Sicherheit (keine Tags)
+
+### 2. Neuer Hook: `useGroupCategories`
+
+**Datei:** `src/hooks/useGroupCategories.tsx`
+
+- Laedt Kategorien aus `group_categories` Tabelle
+- CRUD-Operationen: `createCategory`, `updateCategory`, `deleteCategory`
+- Seed-Funktion: Beim ersten Laden (keine Kategorien vorhanden) werden die Standard-Kategorien angelegt
+- Gibt `categories` und die CRUD-Funktionen zurueck
+
+### 3. Hook `useComponentGroups` erweitern
+
+**Datei:** `src/hooks/useComponentGroups.tsx`
+
+- `createGroup` erhaelt zusaetzliche Parameter: `category?: string`, `tags?: string[]`
+- `updateGroup` erhaelt ebenfalls `category` und `tags`
+- Mapping der neuen Spalten beim Laden
+
+### 4. Typ-Erweiterung
 
 **Datei:** `src/types/schematic.ts`
 
-Neue Interfaces hinzufuegen:
-
 ```text
-AnnotationLine {
-  id: string
-  fromX: number (Grid-Koordinaten)
-  fromY: number
-  toX: number
-  toY: number
-  color: string
-  strokeWidth: number
-  lineStyle: 'solid' | 'dashed' | 'dotted' | 'dash-dot'
-}
+ComponentGroup erweitern um:
+  category?: string
+  tags?: string[]
 
-AnnotationText {
+Neues Interface:
+GroupCategory {
   id: string
-  x: number (Grid-Koordinaten)
-  y: number
-  text: string
-  fontSize: number
-  color: string
-  fontWeight?: 'normal' | 'bold'
+  name: string
+  tags: string[]
+  sortOrder: number
 }
 ```
 
-### 3. Neue Toolbar-Werkzeuge
+### 5. ComponentLibrary: 3 Tabs + Gruppen-Filterung
 
-**Datei:** `src/components/schematic/Toolbar.tsx`
+**Datei:** `src/components/schematic/ComponentLibrary.tsx`
 
-- `MainToolType` erweitern um `'annotate-line' | 'annotate-text'`
-- Zwei neue `ToolButton`-Eintraege unterhalb einer neuen Separator-Linie:
-  - **Markierungslinie** (Icon: `Minus` oder `Pencil`) -- Shortcut: `L`
-  - **Textfeld** (Icon: `Type`) -- Shortcut: `T`
-- Bei aktivem Linien-Tool: Popover fuer Linientyp-Auswahl (4 Stile: durchgezogen, gestrichelt, gepunktet, strich-punkt) und Farbauswahl
-- Bei aktivem Text-Tool: Popover fuer Schriftgroesse-Einstellung (Slider oder Eingabefeld)
+- `LibraryTab` erweitern: `'components' | 'groups' | 'projects'`
+- TabsList wird `grid-cols-3` mit "Komponenten", "Gruppen", "Projekte"
+- **Gruppen-Tab**: Filterung nach Kategorie (Accordion oder Dropdown) und Tags (Chips)
+- **Projekte-Tab**: Zeigt gespeicherte Plaene (aus `useSavedPlans`), per Drag-and-Drop platzierbar, mit Loeschen-Option
+- Neue Props: `savedPlans`, `onDeletePlan`, `categories`, Kategorie-/Tag-Filter-State
 
-### 4. State-Management fuer Annotationen
+### 6. Gruppen-Erstellung mit Kategorie-Dialog
 
-**Datei:** `src/components/schematic/SchematicEditor.tsx`
+**Neue Datei:** `src/components/schematic/GroupCategoryDialog.tsx`
 
-Neuer State:
-- `annotationLines: AnnotationLine[]`
-- `annotationTexts: AnnotationText[]`
-- `annotationLineStyle: 'solid' | 'dashed' | 'dotted' | 'dash-dot'`
-- `annotationColor: string` (Standard: '#000000')
-- `annotationFontSize: number` (Standard: 14)
+Dialog der beim Erstellen einer Gruppe erscheint (nach dem Benennen):
+- Dropdown/Select fuer Kategorie (aus `group_categories`)
+- Multi-Select Chips fuer Tags (gefiltert nach gewaehlter Kategorie)
+- Button zum Verwalten der Kategorien (oeffnet Unter-Dialog)
 
-Diese werden als Props an Canvas weitergereicht. Die Annotations-Daten werden NICHT in die Undo/Redo-History der Zeichnung einbezogen (separate Ebene), koennen aber optional spaeter hinzugefuegt werden.
+### 7. Kategorien-Verwaltungsdialog
 
-**Wichtig:** Annotationen haben keinen Einfluss auf:
-- `generateSingleConnectionLine` (connectionUtils.ts)
-- Auto-Verbindungslinien-Berechnung
-- Stuckliste (BOM)
-- Messkonzept
-- Gruppen-Erstellung
+**Neue Datei:** `src/components/schematic/CategoryManagerDialog.tsx`
 
-### 5. Canvas-Interaktion fuer Annotationen
+- Liste aller Kategorien mit Bearbeiten/Loeschen
+- Neue Kategorie hinzufuegen (Name + Tags)
+- Tags pro Kategorie bearbeitbar (hinzufuegen/entfernen)
+- Inline-Editing oder Dialog-basiert
 
-**Datei:** `src/components/schematic/Canvas.tsx`
+### 8. ExportGroupDialog anpassen
 
-**Markierungslinien zeichnen:**
-- Bei `activeTool === 'annotate-line'`: MouseDown setzt Startpunkt, MouseMove zeigt Preview-Linie, MouseUp setzt Endpunkt und erstellt die Annotation
-- Linien werden frei positioniert (nicht an Grid-Zellen gebunden, aber optional snapping)
-- Rendering als SVG `<line>` mit entsprechendem `strokeDasharray` je nach Linienstil
+**Datei:** `src/components/schematic/ExportGroupDialog.tsx`
 
-**Textfelder platzieren:**
-- Bei `activeTool === 'annotate-text'`: Click auf Canvas oeffnet ein Inline-Eingabefeld (foreignObject oder positioniertes HTML-Input)
-- Nach Enter oder Blur wird der Text als `AnnotationText` gespeichert
-- Im Canvas als SVG `<text>` gerendert mit konfigurierbarer Schriftgroesse
+- "Zeichnung als Gruppe speichern" wird zu "Zeichnung als Projekt speichern"
+- Statt `onSaveGroupAndExportImage/Pdf` wird `onSaveProjectAndExportImage/Pdf` verwendet
+- Speichert ueber `useSavedPlans.savePlan` statt `createGroup`
 
-**Annotationsebene rendern:**
-- Neue SVG-Gruppe `{/* Annotationsebene */}` die NACH den Tiles aber VOR den UI-Elementen (Selection Box, Path Preview) gerendert wird
-- Annotationen werden beim Export (PNG/PDF) mit exportiert
-- Annotationen sind im Select-Modus auswaehlbar und verschiebbar (aehnlich wie Tiles, aber unabhaengig)
-
-### 6. Export-Integration
+### 9. SchematicEditor anpassen
 
 **Datei:** `src/components/schematic/SchematicEditor.tsx`
 
-- PNG-Export: Annotationen werden automatisch mit gerendert (da sie im SVG sind)
-- PDF-Export: Annotationen werden mit exportiert
-- Annotationen werden NICHT in Gruppen gespeichert
-- Annotationen haben keinen Einfluss auf die Stuckliste oder das Messkonzept
-
-### 7. Annotations-Auswahl und Bearbeitung
-
-- Im Select-Modus koennen Annotations angeklickt und verschoben werden
-- Delete-Taste loescht ausgewaehlte Annotations
-- Doppelklick auf Text oeffnet Bearbeitungsmodus
-- Schriftgroesse kann per Popover oder Kontextmenue geaendert werden
+- `libraryTab` State erweitern um `'projects'`
+- `useGroupCategories` Hook einbinden
+- Gruppen-Erstellung: Nach Benennung den Kategorie-Dialog oeffnen
+- Export-Dialog: "Als Projekt speichern" statt "Als Gruppe speichern"
+- Neue Props an ComponentLibrary weiterreichen (savedPlans, categories, etc.)
+- `handleSaveGroupAndExport*` wird zu `handleSaveProjectAndExport*` (nutzt `savePlan`)
 
 ---
 
@@ -130,8 +123,13 @@ Diese werden als Props an Canvas weitergereicht. Die Annotations-Daten werden NI
 
 | Datei | Aenderung |
 |-------|-----------|
-| `src/types/schematic.ts` | Neue Interfaces `AnnotationLine`, `AnnotationText` |
-| `src/components/schematic/Toolbar.tsx` | Neue Tools `annotate-line`, `annotate-text` mit Stil-/Groessen-Optionen |
-| `src/components/schematic/SchematicEditor.tsx` | Neuer State fuer Annotationen, Deduplizierung der Auto-Verbindungslinien, Props an Canvas |
-| `src/components/schematic/Canvas.tsx` | Rendering der Annotationsebene, Mouse-Interaktion fuer Linien-/Text-Erstellung, Auswahl/Verschieben |
+| Migration | Neue Tabelle `group_categories`, Spalten `category`/`tags` in `component_groups` |
+| `src/types/schematic.ts` | `ComponentGroup` erweitern, neues Interface `GroupCategory` |
+| `src/hooks/useGroupCategories.tsx` | Neuer Hook (CRUD + Seed) |
+| `src/hooks/useComponentGroups.tsx` | `createGroup`/`updateGroup` um category/tags erweitern |
+| `src/components/schematic/GroupCategoryDialog.tsx` | Neuer Dialog fuer Kategorie-/Tag-Auswahl beim Gruppen-Erstellen |
+| `src/components/schematic/CategoryManagerDialog.tsx` | Neuer Dialog fuer Kategorien-Verwaltung |
+| `src/components/schematic/ComponentLibrary.tsx` | 3 Tabs, Gruppen-Filterung nach Kategorie/Tag, Projekte-Tab |
+| `src/components/schematic/ExportGroupDialog.tsx` | "Als Projekt speichern" statt "Als Gruppe speichern" |
+| `src/components/schematic/SchematicEditor.tsx` | Neue Hooks, angepasste Handler, erweiterte Props |
 
