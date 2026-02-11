@@ -531,11 +531,12 @@ export function Canvas({
 
     // Annotation text placement - grid-cell based
     if (activeTool === 'annotate-text') {
+      // If already showing an input, don't reset it (let the input handle itself)
+      if (textInputPosition) return;
       const { x, y } = getCanvasPosition(e);
       const { gridX, gridY } = getGridFromCanvas(x, y);
       setTextInputPosition({ gridX, gridY });
       setTextInputValue('');
-      // Focus will happen via autoFocus on the input
       return;
     }
 
@@ -1805,6 +1806,7 @@ export function Canvas({
                 autoFocus
                 value={textInputValue}
                 onChange={(e) => setTextInputValue((e.target as HTMLInputElement).value)}
+                onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                   e.stopPropagation();
                   if (e.key === 'Enter' && textInputValue.trim()) {
@@ -1824,17 +1826,20 @@ export function Canvas({
                   }
                 }}
                 onBlur={() => {
-                  if (textInputValue.trim()) {
-                    onAnnotationTextCreate?.({
-                      gridX: textInputPosition.gridX,
-                      gridY: textInputPosition.gridY,
-                      text: textInputValue.trim(),
-                      fontSize: annotationFontSize,
-                      color: annotationColor,
-                    });
-                  }
-                  setTextInputPosition(null);
-                  setTextInputValue('');
+                  // Delay to avoid immediate removal when clicking inside foreignObject
+                  setTimeout(() => {
+                    if (textInputValue.trim()) {
+                      onAnnotationTextCreate?.({
+                        gridX: textInputPosition.gridX,
+                        gridY: textInputPosition.gridY,
+                        text: textInputValue.trim(),
+                        fontSize: annotationFontSize,
+                        color: annotationColor,
+                      });
+                    }
+                    setTextInputPosition(null);
+                    setTextInputValue('');
+                  }, 150);
                 }}
                 style={{
                   fontSize: `${annotationFontSize}px`,
@@ -1846,7 +1851,7 @@ export function Canvas({
                   width: '100%',
                   fontFamily: 'sans-serif',
                   borderRadius: '3px',
-                  boxSizing: 'border-box',
+                  boxSizing: 'border-box' as const,
                 }}
               />
             </div>
