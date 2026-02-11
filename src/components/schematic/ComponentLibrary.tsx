@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Pencil, Upload, Folder, Info, FileText, ChevronDown, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Folder, Info, FileText, ChevronDown, ChevronRight, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -595,49 +595,65 @@ export function ComponentLibrary({
             </>
           )}
           {activeTab === 'groups' && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground mb-2">
                 {groups.length} Gruppe{groups.length !== 1 ? 'n' : ''}
               </p>
               {categories && categories.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap gap-1">
-                    <Badge
-                      variant={!filterCategory ? "default" : "outline"}
-                      className="cursor-pointer text-[10px]"
-                      onClick={() => onFilterCategoryChange?.("")}
-                    >
-                      Alle
-                    </Badge>
-                    {categories.map(cat => (
-                      <Badge
-                        key={cat.id}
-                        variant={filterCategory === cat.name ? "default" : "outline"}
-                        className="cursor-pointer text-[10px]"
-                        onClick={() => onFilterCategoryChange?.(filterCategory === cat.name ? "" : cat.name)}
-                      >
-                        {cat.name}
-                      </Badge>
-                    ))}
-                  </div>
-                  {filterCategory && (() => {
-                    const catObj = categories.find(c => c.name === filterCategory);
-                    return catObj && catObj.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {catObj.tags.map(tag => (
-                          <Badge
-                            key={tag}
-                            variant={filterTag === tag ? "secondary" : "outline"}
-                            className="cursor-pointer text-[10px]"
-                            onClick={() => onFilterTagChange?.(filterTag === tag ? "" : tag)}
-                          >
-                            {tag}
-                            {filterTag === tag && <X className="w-2.5 h-2.5 ml-0.5" />}
-                          </Badge>
-                        ))}
+                <div className="space-y-0.5">
+                  {/* "Alle" option */}
+                  <button
+                    className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      !filterCategory ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
+                    }`}
+                    onClick={() => { onFilterCategoryChange?.(""); onFilterTagChange?.(""); }}
+                  >
+                    Alle
+                  </button>
+                  {categories.map(cat => {
+                    const isSelected = filterCategory === cat.name;
+                    const hasTags = cat.tags.length > 0;
+                    return (
+                      <div key={cat.id}>
+                        <button
+                          className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
+                          }`}
+                          onClick={() => {
+                            if (isSelected) {
+                              onFilterCategoryChange?.("");
+                              onFilterTagChange?.("");
+                            } else {
+                              onFilterCategoryChange?.(cat.name);
+                              onFilterTagChange?.("");
+                            }
+                          }}
+                        >
+                          {hasTags && (
+                            isSelected 
+                              ? <ChevronDown className="w-3 h-3 flex-shrink-0" /> 
+                              : <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                          )}
+                          {cat.name}
+                        </button>
+                        {isSelected && hasTags && (
+                          <div className="flex flex-wrap gap-1 pl-5 py-1">
+                            {cat.tags.map(tag => (
+                              <Badge
+                                key={tag}
+                                variant={filterTag === tag ? "default" : "outline"}
+                                className="cursor-pointer text-[10px]"
+                                onClick={() => onFilterTagChange?.(filterTag === tag ? "" : tag)}
+                              >
+                                {tag}
+                                {filterTag === tag && <X className="w-2.5 h-2.5 ml-0.5" />}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    ) : null;
-                  })()}
+                    );
+                  })}
                 </div>
               )}
             </div>
