@@ -1,11 +1,13 @@
 import { useState, useMemo } from "react";
-import { Component, Shape, ComponentGroup } from "@/types/schematic";
+import { Component, Shape, ComponentGroup, GroupCategory } from "@/types/schematic";
+import { SavedPlanData } from "@/hooks/useSavedPlans";
 import { PlacedTile } from "./Canvas";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Pencil, Upload, Folder, Info } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Folder, Info, FileText, ChevronDown, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -34,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { GroupInfoDialog } from "./GroupInfoDialog";
 
-type LibraryTab = 'components' | 'groups';
+type LibraryTab = 'components' | 'groups' | 'projects';
 
 interface ComponentLibraryProps {
   components: Component[];
@@ -55,6 +57,13 @@ interface ComponentLibraryProps {
   projectQuantities?: Map<string, number>;
   projectOriginalQuantities?: Map<string, number>;
   placedTiles?: PlacedTile[];
+  categories?: GroupCategory[];
+  savedPlans?: SavedPlanData[];
+  onDeletePlan?: (id: string) => void;
+  filterCategory?: string;
+  onFilterCategoryChange?: (cat: string) => void;
+  filterTag?: string;
+  onFilterTagChange?: (tag: string) => void;
 }
 
 function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
@@ -210,7 +219,14 @@ export function ComponentLibrary({
   onTabChange,
   projectQuantities,
   projectOriginalQuantities,
-  placedTiles
+  placedTiles,
+  categories,
+  savedPlans,
+  onDeletePlan,
+  filterCategory,
+  onFilterCategoryChange,
+  filterTag,
+  onFilterTagChange
 }: ComponentLibraryProps) {
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -552,9 +568,10 @@ export function ComponentLibrary({
     <div className="toolbar-panel border-l w-64 flex flex-col">
       <div className="p-3 border-b">
         <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as LibraryTab)}>
-          <TabsList className="w-full grid grid-cols-2">
+          <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="components" className="text-xs px-1">Komponenten</TabsTrigger>
             <TabsTrigger value="groups" className="text-xs px-1">Gruppen</TabsTrigger>
+            <TabsTrigger value="projects" className="text-xs px-1">Projekte</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -577,8 +594,56 @@ export function ComponentLibrary({
             </>
           )}
           {activeTab === 'groups' && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {groups.length} Gruppe{groups.length !== 1 ? 'n' : ''}
+              </p>
+              {categories && categories.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap gap-1">
+                    <Badge
+                      variant={!filterCategory ? "default" : "outline"}
+                      className="cursor-pointer text-[10px]"
+                      onClick={() => onFilterCategoryChange?.("")}
+                    >
+                      Alle
+                    </Badge>
+                    {categories.map(cat => (
+                      <Badge
+                        key={cat.id}
+                        variant={filterCategory === cat.name ? "default" : "outline"}
+                        className="cursor-pointer text-[10px]"
+                        onClick={() => onFilterCategoryChange?.(filterCategory === cat.name ? "" : cat.name)}
+                      >
+                        {cat.name}
+                      </Badge>
+                    ))}
+                  </div>
+                  {filterCategory && (() => {
+                    const catObj = categories.find(c => c.name === filterCategory);
+                    return catObj && catObj.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {catObj.tags.map(tag => (
+                          <Badge
+                            key={tag}
+                            variant={filterTag === tag ? "secondary" : "outline"}
+                            className="cursor-pointer text-[10px]"
+                            onClick={() => onFilterTagChange?.(filterTag === tag ? "" : tag)}
+                          >
+                            {tag}
+                            {filterTag === tag && <X className="w-2.5 h-2.5 ml-0.5" />}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === 'projects' && (
             <p className="text-xs text-muted-foreground">
-              {groups.length} Gruppe{groups.length !== 1 ? 'n' : ''}
+              {savedPlans?.length || 0} Projekt{(savedPlans?.length || 0) !== 1 ? 'e' : ''}
             </p>
           )}
         </div>
@@ -591,9 +656,72 @@ export function ComponentLibrary({
           </div>
         )}
         
-        {activeTab === 'groups' && (
+        {activeTab === 'groups' && (() => {
+          const filteredGroups = groups.filter(group => {
+            if (filterCategory && group.category !== filterCategory) return false;
+            if (filterTag && (!group.tags || !group.tags.includes(filterTag))) return false;
+            return true;
+          });
+          return filteredGroups.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {filteredGroups.map(group => renderGroupItem(group))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p className="text-sm">{filterCategory || filterTag ? 'Keine Gruppen in dieser Kategorie' : 'Keine Gruppen'}</p>
+              <p className="text-xs mt-1">
+                {filterCategory || filterTag 
+                  ? 'Versuchen Sie einen anderen Filter' 
+                  : 'Wählen Sie Komponenten aus und klicken Sie auf "Gruppieren"'}
+              </p>
+            </div>
+          );
+        })()}
+
+        {activeTab === 'projects' && savedPlans && savedPlans.length > 0 && (
           <div className="flex flex-col gap-3">
-            {groups.map(group => renderGroupItem(group))}
+            {savedPlans.map(plan => (
+              <div
+                key={plan.id}
+                className="relative group border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-grab"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('application/json', JSON.stringify({
+                    isSavedPlan: true,
+                    planId: plan.id
+                  }));
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
+              >
+                <div className="flex items-start gap-2">
+                  <FileText className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{plan.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {plan.componentQuantities.length} Komponente{plan.componentQuantities.length !== 1 ? 'n' : ''} · {plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('de-DE') : ''}
+                    </p>
+                  </div>
+                </div>
+                {onDeletePlan && (
+                  <button
+                    className="absolute top-2 right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeletePlan(plan.id);
+                    }}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'projects' && (!savedPlans || savedPlans.length === 0) && (
+          <div className="text-center py-8 text-muted-foreground">
+            <p className="text-sm">Keine Projekte</p>
+            <p className="text-xs mt-1">Exportieren Sie eine Zeichnung als Projekt</p>
           </div>
         )}
 
@@ -612,13 +740,6 @@ export function ComponentLibrary({
                 Lokale Komponenten importieren
               </Button>
             )}
-          </div>
-        )}
-
-        {activeTab === 'groups' && groups.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            <p className="text-sm">Keine Gruppen</p>
-            <p className="text-xs mt-1">Wählen Sie Komponenten aus und klicken Sie auf "Gruppieren"</p>
           </div>
         )}
       </ScrollArea>

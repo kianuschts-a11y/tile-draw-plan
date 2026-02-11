@@ -167,6 +167,16 @@ export interface ComponentGroup {
   name: string;
   componentIds: string[]; // IDs of components in this group
   layoutData?: GroupLayoutData; // Positions and connections for template placement
+  category?: string; // Group category (e.g. "Erzeugung", "Speicherung")
+  tags?: string[]; // Tags for filtering within category
+}
+
+// Group Category - manageable categories for organizing groups
+export interface GroupCategory {
+  id: string;
+  name: string;
+  tags: string[];
+  sortOrder: number;
 }
 
 // Individual component description for BOM

@@ -29,7 +29,9 @@ export function useComponentGroups() {
         id: row.id,
         name: row.name,
         componentIds: row.component_ids || [],
-        layoutData: row.layout_data as unknown as GroupLayoutData | undefined
+        layoutData: row.layout_data as unknown as GroupLayoutData | undefined,
+        category: row.category || undefined,
+        tags: row.tags || undefined
       }));
 
       setGroups(mappedGroups);
@@ -48,7 +50,9 @@ export function useComponentGroups() {
   const createGroup = useCallback(async (
     name: string, 
     componentIds: string[],
-    layoutData?: GroupLayoutData
+    layoutData?: GroupLayoutData,
+    category?: string,
+    tags?: string[]
   ): Promise<ComponentGroup | null> => {
     if (!companyId) {
       toast.error('Keine Firma gefunden');
@@ -62,7 +66,9 @@ export function useComponentGroups() {
           company_id: companyId,
           name,
           component_ids: componentIds,
-          layout_data: layoutData as unknown as Json
+          layout_data: layoutData as unknown as Json,
+          category: category || null,
+          tags: tags || []
         })
         .select()
         .single();
@@ -73,7 +79,9 @@ export function useComponentGroups() {
         id: data.id,
         name: data.name,
         componentIds: data.component_ids || [],
-        layoutData: data.layout_data as unknown as GroupLayoutData | undefined
+        layoutData: data.layout_data as unknown as GroupLayoutData | undefined,
+        category: data.category || undefined,
+        tags: data.tags || undefined
       };
 
       setGroups(prev => [...prev, newGroup]);
@@ -86,17 +94,17 @@ export function useComponentGroups() {
     }
   }, [companyId]);
 
-  const updateGroup = useCallback(async (id: string, name: string, componentIds: string[]): Promise<boolean> => {
+  const updateGroup = useCallback(async (id: string, name: string, componentIds: string[], category?: string, tags?: string[]): Promise<boolean> => {
     try {
       const { error } = await supabase
         .from('component_groups')
-        .update({ name, component_ids: componentIds })
+        .update({ name, component_ids: componentIds, category: category || null, tags: tags || [] })
         .eq('id', id);
 
       if (error) throw error;
 
       setGroups(prev => prev.map(g => 
-        g.id === id ? { ...g, name, componentIds } : g
+        g.id === id ? { ...g, name, componentIds, category, tags } : g
       ));
       return true;
     } catch (error) {

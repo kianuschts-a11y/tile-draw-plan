@@ -21,8 +21,8 @@ interface ExportGroupDialogProps {
   onExportPdf: (options?: PdfOptions) => void;
   onExportBOMExcel: () => void;
   onExportMesskonzeptExcel: () => void;
-  onSaveGroupAndExportImage: (groupName: string) => void;
-  onSaveGroupAndExportPdf: (groupName: string, options?: PdfOptions) => void;
+  onSaveProjectAndExportImage: (projectName: string) => void;
+  onSaveProjectAndExportPdf: (projectName: string, options?: PdfOptions) => void;
   hasTiles: boolean;
   hasMesskonzeptItems: boolean;
 }
@@ -34,13 +34,13 @@ export function ExportGroupDialog({
   onExportPdf,
   onExportBOMExcel,
   onExportMesskonzeptExcel,
-  onSaveGroupAndExportImage,
-  onSaveGroupAndExportPdf,
+  onSaveProjectAndExportImage,
+  onSaveProjectAndExportPdf,
   hasTiles,
   hasMesskonzeptItems,
 }: ExportGroupDialogProps) {
-  const [groupName, setGroupName] = useState("");
-  const [saveAsGroup, setSaveAsGroup] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [saveAsProject, setSaveAsProject] = useState(false);
   const [drawingFormat, setDrawingFormat] = useState<DrawingFormat>('pdf');
   
   // Export checkboxes
@@ -59,12 +59,11 @@ export function ExportGroupDialog({
     // When PNG format is selected: BOM and Messkonzept are exported as separate Excel files
 
     if (exportDrawing) {
-      if (saveAsGroup && groupName.trim()) {
+      if (saveAsProject && projectName.trim()) {
         if (isPdf) {
-          onSaveGroupAndExportPdf(groupName.trim(), pdfOptions);
+          onSaveProjectAndExportPdf(projectName.trim(), pdfOptions);
         } else {
-          onSaveGroupAndExportImage(groupName.trim());
-          // Export BOM/Messkonzept as separate Excel files for PNG
+          onSaveProjectAndExportImage(projectName.trim());
           if (exportBOM) onExportBOMExcel();
           if (exportMesskonzept) onExportMesskonzeptExcel();
         }
@@ -73,36 +72,33 @@ export function ExportGroupDialog({
           onExportPdf(pdfOptions);
         } else {
           onExportImage();
-          // Export BOM/Messkonzept as separate Excel files for PNG
           if (exportBOM) onExportBOMExcel();
           if (exportMesskonzept) onExportMesskonzeptExcel();
         }
       }
     } else {
-      // No drawing export - export BOM/Messkonzept as Excel
       if (exportBOM) onExportBOMExcel();
       if (exportMesskonzept) onExportMesskonzeptExcel();
       
-      if (saveAsGroup && groupName.trim()) {
-        onSaveGroupAndExportImage(groupName.trim());
+      if (saveAsProject && projectName.trim()) {
+        onSaveProjectAndExportImage(projectName.trim());
       } else {
         onClose();
       }
     }
 
-    // Reset state
-    setGroupName("");
-    setSaveAsGroup(false);
+    setProjectName("");
+    setSaveAsProject(false);
   };
 
   const handleClose = () => {
-    setGroupName("");
-    setSaveAsGroup(false);
+    setProjectName("");
+    setSaveAsProject(false);
     onClose();
   };
 
   const hasAnyExportSelected = exportDrawing || exportBOM || exportMesskonzept;
-  const canExport = hasAnyExportSelected && (!saveAsGroup || groupName.trim().length > 0);
+  const canExport = hasAnyExportSelected && (!saveAsProject || projectName.trim().length > 0);
 
   // Determine what the user will get
   const isPdf = drawingFormat === 'pdf' && exportDrawing;
@@ -262,26 +258,26 @@ export function ExportGroupDialog({
             </p>
           )}
 
-          {/* Save as Group Section */}
+          {/* Save as Project Section */}
           {hasTiles && (
             <div className="space-y-2.5 border-t pt-4">
               <div className="flex items-center gap-2.5">
                 <Checkbox
-                  id="save-as-group"
-                  checked={saveAsGroup}
-                  onCheckedChange={(checked) => setSaveAsGroup(checked === true)}
+                  id="save-as-project"
+                  checked={saveAsProject}
+                  onCheckedChange={(checked) => setSaveAsProject(checked === true)}
                 />
-                <Label htmlFor="save-as-group" className="text-sm font-medium cursor-pointer">
-                  Zeichnung als Gruppe speichern
+                <Label htmlFor="save-as-project" className="text-sm font-medium cursor-pointer">
+                  Zeichnung als Projekt speichern
                 </Label>
               </div>
-              {saveAsGroup && (
+              {saveAsProject && (
                 <div className="pl-7">
                   <Input
-                    id="group-name"
-                    placeholder="z.B. Standardschaltung Wohnzimmer"
-                    value={groupName}
-                    onChange={(e) => setGroupName(e.target.value)}
+                    id="project-name"
+                    placeholder="z.B. Heizungsanlage EFH Müller"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && canExport) {
                         handleExport();
@@ -291,7 +287,7 @@ export function ExportGroupDialog({
                     className="text-sm"
                   />
                   <p className="text-xs text-muted-foreground mt-1.5">
-                    Gespeicherte Gruppen verbessern zukünftige Vorschläge.
+                    Gespeicherte Projekte können später wiederverwendet werden.
                   </p>
                 </div>
               )}
@@ -308,8 +304,8 @@ export function ExportGroupDialog({
             disabled={!canExport}
             className="gap-2"
           >
-            {saveAsGroup ? <FolderPlus className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-            {saveAsGroup
+            {saveAsProject ? <FolderPlus className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+            {saveAsProject
               ? `Speichern & exportieren`
               : fileCount > 1
                 ? `${fileCount} Dateien exportieren`

@@ -14,10 +14,13 @@ import { HeaderActions } from "./HeaderActions";
 import { BillOfMaterials } from "./BillOfMaterials";
 import { Messkonzept } from "./Messkonzept";
 import { ExportGroupDialog } from "./ExportGroupDialog";
+import { GroupCategoryDialog } from "./GroupCategoryDialog";
+import { CategoryManagerDialog } from "./CategoryManagerDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
 import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans";
+import { useGroupCategories } from "@/hooks/useGroupCategories";
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu, User, Building2, Package } from "lucide-react";
@@ -75,8 +78,9 @@ export function SchematicEditor() {
     updateGroup
   } = useComponentGroups();
 
-  const { savedPlans, savePlan, findExactMatchingPlan } = useSavedPlans();
+  const { savedPlans, savePlan, deletePlan, findExactMatchingPlan } = useSavedPlans();
   const { findMatchingGroups } = useProjects();
+  const { categories, createCategory, updateCategory, deleteCategory } = useGroupCategories();
 
   const [tiles, setTilesInternal] = useState<PlacedTile[]>([]);
   const [connections, setConnectionsInternal] = useState<CellConnection[]>([]);
@@ -88,7 +92,12 @@ export function SchematicEditor() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<Component | null>(null);
   const [editingGroup, setEditingGroup] = useState<ComponentGroup | null>(null);
-  const [libraryTab, setLibraryTab] = useState<'components' | 'groups'>('components');
+  const [libraryTab, setLibraryTab] = useState<'components' | 'groups' | 'projects'>('components');
+  const [isGroupCategoryDialogOpen, setIsGroupCategoryDialogOpen] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<string>("");
+  const [filterTag, setFilterTag] = useState<string>("");
+  const [pendingGroupData, setPendingGroupData] = useState<{ componentIds: string[]; layoutData: GroupLayoutData } | null>(null);
   const [isGroupMode, setIsGroupMode] = useState(false);
   const [showComponentSelector, setShowComponentSelector] = useState(false);
   const [projectQuantities, setProjectQuantities] = useState<Map<string, number>>(new Map());
@@ -913,8 +922,8 @@ export function SchematicEditor() {
     });
   }, []);
 
-  // Create group from selected tiles on canvas
-  const handleCreateGroupFromTiles = useCallback(async (name: string) => {
+  // Prepare group data from selected tiles (opens category dialog)
+  const handlePrepareGroupFromTiles = useCallback((name: string) => {
     if (selectedTileIds.size < 2) return;
     
     const selectedTiles = tiles.filter(t => selectedTileIds.has(t.id));
@@ -933,57 +942,39 @@ export function SchematicEditor() {
       maxBoundY = Math.max(maxBoundY, tile.gridY + tileHeight - 1);
     }
     
-    // Start with all selected tiles
     const allRelevantTileIds = new Set(selectedTileIds);
     
-    // Add all connection blocks that fall within the bounding box of selected tiles
-    // This ensures "free" connection blocks in the selection area are included
     for (const tile of tiles) {
       if (allRelevantTileIds.has(tile.id)) continue;
-      
       if (isConnectionBlock(tile.component)) {
         const tileWidth = tile.component.width || 1;
         const tileHeight = tile.component.height || 1;
-        
-        // Check if connection block is within or overlaps the bounding box
         const tileMinX = tile.gridX;
         const tileMaxX = tile.gridX + tileWidth - 1;
         const tileMinY = tile.gridY;
         const tileMaxY = tile.gridY + tileHeight - 1;
-        
-        const overlapsX = tileMinX <= maxBoundX && tileMaxX >= minBoundX;
-        const overlapsY = tileMinY <= maxBoundY && tileMaxY >= minBoundY;
-        
-        if (overlapsX && overlapsY) {
+        if (tileMinX <= maxBoundX && tileMaxX >= minBoundX && tileMinY <= maxBoundY && tileMaxY >= minBoundY) {
           allRelevantTileIds.add(tile.id);
         }
       }
     }
     
-    // Also include connection blocks that are connected in a chain from selected tiles
-    // This handles cases where connections extend beyond the bounding box but are still part of the group
     let changed = true;
     while (changed) {
       changed = false;
       for (const conn of connections) {
         const fromIncluded = allRelevantTileIds.has(conn.fromTileId);
         const toIncluded = allRelevantTileIds.has(conn.toTileId);
-        
-        // If one end is included and the other is a connection block connected to another included tile
         if (fromIncluded && !toIncluded) {
           const toTile = tiles.find(t => t.id === conn.toTileId);
           if (toTile && isConnectionBlock(toTile.component)) {
-            // Check if this connection block connects to any already included tile
             const connectedToIncluded = connections.some(c2 => 
               c2 !== conn && (
                 (c2.fromTileId === conn.toTileId && allRelevantTileIds.has(c2.toTileId)) ||
                 (c2.toTileId === conn.toTileId && allRelevantTileIds.has(c2.fromTileId))
               )
             );
-            if (connectedToIncluded) {
-              allRelevantTileIds.add(conn.toTileId);
-              changed = true;
-            }
+            if (connectedToIncluded) { allRelevantTileIds.add(conn.toTileId); changed = true; }
           }
         } else if (!fromIncluded && toIncluded) {
           const fromTile = tiles.find(t => t.id === conn.fromTileId);
@@ -994,39 +985,30 @@ export function SchematicEditor() {
                 (c2.toTileId === conn.fromTileId && allRelevantTileIds.has(c2.fromTileId))
               )
             );
-            if (connectedToIncluded) {
-              allRelevantTileIds.add(conn.fromTileId);
-              changed = true;
-            }
+            if (connectedToIncluded) { allRelevantTileIds.add(conn.fromTileId); changed = true; }
           }
         }
       }
     }
     
-    // Get all tiles to include in the group
     const allTilesForGroup = tiles.filter(t => allRelevantTileIds.has(t.id));
     if (allTilesForGroup.length < 2) return;
     
-    // Find min coordinates to calculate relative positions
     const minX = Math.min(...allTilesForGroup.map(t => t.gridX));
     const minY = Math.min(...allTilesForGroup.map(t => t.gridY));
     
-    // Create tile data with relative positions
     const tileData: GroupTileData[] = allTilesForGroup.map(tile => ({
       componentId: tile.component.id,
       relativeX: tile.gridX - minX,
       relativeY: tile.gridY - minY
     }));
     
-    // Get component IDs (unique)
     const componentIds = [...new Set(allTilesForGroup.map(t => t.component.id))];
     
-    // Find connections between all relevant tiles
     const relevantConnections = connections.filter(c => 
       allRelevantTileIds.has(c.fromTileId) && allRelevantTileIds.has(c.toTileId)
     );
     
-    // Map tile IDs to indices
     const tileIdToIndex = new Map(allTilesForGroup.map((t, i) => [t.id, i]));
     
     const connectionData: GroupConnectionData[] = relevantConnections.map(conn => ({
@@ -1046,9 +1028,24 @@ export function SchematicEditor() {
       connections: connectionData
     };
     
-    await createGroup(name, componentIds, layoutData);
+    // Store pending data and open category dialog with name pre-filled
+    setPendingGroupData({ componentIds, layoutData });
+    setPendingGroupName(name);
+    setIsGroupCategoryDialogOpen(true);
     setSelectedTileIds(new Set());
-  }, [selectedTileIds, tiles, connections, createGroup]);
+  }, [selectedTileIds, tiles, connections]);
+
+  // State for pending group name from toolbar
+  const [pendingGroupName, setPendingGroupName] = useState("");
+
+  // Confirm group creation with category/tags from dialog
+  const handleConfirmGroupWithCategory = useCallback(async (name: string, category?: string, tags?: string[]) => {
+    if (!pendingGroupData) return;
+    await createGroup(name, pendingGroupData.componentIds, pendingGroupData.layoutData, category, tags);
+    setPendingGroupData(null);
+    setPendingGroupName("");
+    setIsGroupCategoryDialogOpen(false);
+  }, [pendingGroupData, createGroup]);
 
   // Create group from ALL non-connection tiles on canvas (for export dialog)
   const handleCreateGroupFromAllTiles = useCallback(async (name: string) => {
@@ -1675,19 +1672,40 @@ export function SchematicEditor() {
     return false;
   }, [tiles, tileLabels]);
 
-  // Handle save group + export image from dialog
-  const handleSaveGroupAndExportImage = useCallback(async (groupName: string) => {
-    await handleCreateGroupFromAllTiles(groupName);
+  // Handle save project + export image from dialog
+  const handleSaveProjectAndExportImage = useCallback(async (projectName: string) => {
+    // Save as saved_plan (project) instead of group
+    const componentCounts = new Map<string, number>();
+    for (const tile of tiles) {
+      if (!isConnectionBlock(tile.component)) {
+        componentCounts.set(tile.component.id, (componentCounts.get(tile.component.id) || 0) + 1);
+      }
+    }
+    const componentQuantities: ComponentQuantity[] = Array.from(componentCounts.entries()).map(([componentId, quantity]) => ({
+      componentId, quantity
+    }));
+    const drawingData: DrawingData = { tiles, connections };
+    await savePlan(projectName, componentQuantities, drawingData);
     setIsExportDialogOpen(false);
     handleExport();
-  }, [handleCreateGroupFromAllTiles, handleExport]);
+  }, [tiles, connections, savePlan, handleExport]);
 
-  // Handle save group + export PDF from dialog
-  const handleSaveGroupAndExportPdf = useCallback(async (groupName: string, pdfOptions?: { includeBOM?: boolean; includeMesskonzept?: boolean }) => {
-    await handleCreateGroupFromAllTiles(groupName);
+  // Handle save project + export PDF from dialog
+  const handleSaveProjectAndExportPdf = useCallback(async (projectName: string, pdfOptions?: { includeBOM?: boolean; includeMesskonzept?: boolean }) => {
+    const componentCounts = new Map<string, number>();
+    for (const tile of tiles) {
+      if (!isConnectionBlock(tile.component)) {
+        componentCounts.set(tile.component.id, (componentCounts.get(tile.component.id) || 0) + 1);
+      }
+    }
+    const componentQuantities: ComponentQuantity[] = Array.from(componentCounts.entries()).map(([componentId, quantity]) => ({
+      componentId, quantity
+    }));
+    const drawingData: DrawingData = { tiles, connections };
+    await savePlan(projectName, componentQuantities, drawingData);
     setIsExportDialogOpen(false);
     handleExportPdf(pdfOptions);
-  }, [handleCreateGroupFromAllTiles, handleExportPdf]);
+  }, [tiles, connections, savePlan, handleExportPdf]);
 
   // Handle export image only from dialog
   const handleExportImageOnly = useCallback(() => {
@@ -2133,7 +2151,8 @@ export function SchematicEditor() {
           }}
           selectedTileCount={selectedTileIds.size}
           onSaveGroup={(name) => {
-            handleCreateGroupFromTiles(name);
+            // Prepare group data, then open category dialog
+            handlePrepareGroupFromTiles(name);
             setIsGroupMode(false);
           }}
           onCancelGroupMode={() => {
@@ -2211,6 +2230,13 @@ export function SchematicEditor() {
           projectQuantities={projectQuantities}
           projectOriginalQuantities={projectOriginalQuantities}
           placedTiles={tiles}
+          categories={categories}
+          savedPlans={savedPlans}
+          onDeletePlan={deletePlan}
+          filterCategory={filterCategory}
+          onFilterCategoryChange={setFilterCategory}
+          filterTag={filterTag}
+          onFilterTagChange={setFilterTag}
         />
       </div>
 
@@ -2292,10 +2318,27 @@ export function SchematicEditor() {
         onExportPdf={handleExportPdfOnly}
         onExportBOMExcel={handleExportBOMExcel}
         onExportMesskonzeptExcel={handleExportMesskonzeptExcel}
-        onSaveGroupAndExportImage={handleSaveGroupAndExportImage}
-        onSaveGroupAndExportPdf={handleSaveGroupAndExportPdf}
+        onSaveProjectAndExportImage={handleSaveProjectAndExportImage}
+        onSaveProjectAndExportPdf={handleSaveProjectAndExportPdf}
         hasTiles={tiles.filter(t => !isConnectionBlock(t.component)).length >= 2}
         hasMesskonzeptItems={hasMesskonzeptItems}
+      />
+
+      <GroupCategoryDialog
+        open={isGroupCategoryDialogOpen}
+        onClose={() => { setIsGroupCategoryDialogOpen(false); setPendingGroupData(null); }}
+        onConfirm={handleConfirmGroupWithCategory}
+        categories={categories}
+        onManageCategories={() => setIsCategoryManagerOpen(true)}
+      />
+
+      <CategoryManagerDialog
+        open={isCategoryManagerOpen}
+        onClose={() => setIsCategoryManagerOpen(false)}
+        categories={categories}
+        onCreateCategory={createCategory}
+        onUpdateCategory={updateCategory}
+        onDeleteCategory={deleteCategory}
       />
     </div>
   );
