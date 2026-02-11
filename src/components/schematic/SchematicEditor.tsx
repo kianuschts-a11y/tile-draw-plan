@@ -272,6 +272,17 @@ export function SchematicEditor() {
   }, []);
 
   const handleDelete = useCallback(() => {
+    // Delete selected annotation (line or text)
+    if (selectedAnnotationId && selectedAnnotationType) {
+      if (selectedAnnotationType === 'line') {
+        setAnnotationLines(prev => prev.filter(l => l.id !== selectedAnnotationId));
+      } else {
+        setAnnotationTexts(prev => prev.filter(t => t.id !== selectedAnnotationId));
+      }
+      setSelectedAnnotationId(null);
+      setSelectedAnnotationType(null);
+      return;
+    }
     if (selectedTileIds.size > 0) {
       setConnections(prev => prev.filter(c => 
         !selectedTileIds.has(c.fromTileId) && !selectedTileIds.has(c.toTileId)
@@ -285,7 +296,7 @@ export function SchematicEditor() {
       });
       setSelectedTileIds(new Set());
     }
-  }, [selectedTileIds]);
+  }, [selectedTileIds, selectedAnnotationId, selectedAnnotationType]);
 
   // Rotate selected tiles 90 degrees clockwise
   // The component is rotated visually using SVG transform, shapes stay unchanged
@@ -2087,7 +2098,7 @@ export function SchematicEditor() {
           activeTool={activeTool}
           onToolChange={setActiveTool}
           onDelete={handleDelete}
-          hasSelection={selectedTileIds.size > 0}
+          hasSelection={selectedTileIds.size > 0 || selectedAnnotationId !== null}
           connectionColor={connectionColor}
           onConnectionColorChange={setConnectionColor}
           isGroupMode={isGroupMode}

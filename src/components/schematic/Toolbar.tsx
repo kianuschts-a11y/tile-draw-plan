@@ -309,7 +309,7 @@ export function Toolbar({
           disabled={isGroupMode}
         />
         {activeTool === 'annotate-line' && (
-          <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
+          <div className="absolute left-full ml-2 bottom-0 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
             <p className="text-xs font-medium mb-2">Linie</p>
             {/* Color picker */}
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -362,7 +362,7 @@ export function Toolbar({
           disabled={isGroupMode}
         />
         {activeTool === 'annotate-text' && (
-          <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
+          <div className="absolute left-full ml-2 bottom-0 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
             <p className="text-xs font-medium mb-2">Text</p>
             {/* Color picker */}
             <div className="grid grid-cols-4 gap-1 mb-2">
