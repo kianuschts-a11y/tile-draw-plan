@@ -1,144 +1,46 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { ComponentGroup, GroupLayoutData } from "@/types/schematic";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { DEFAULT_GROUPS } from "@/data/defaultGroups";
+import { loadFromStorage, saveToStorage } from "@/lib/localStorage";
 import { toast } from "sonner";
-import { Json } from "@/integrations/supabase/types";
+
+const STORAGE_KEY = 'schematic-editor-groups';
 
 export function useComponentGroups() {
-  const { companyId } = useAuth();
-  const [groups, setGroups] = useState<ComponentGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [groups, setGroups] = useState<ComponentGroup[]>(() => 
+    loadFromStorage<ComponentGroup>(STORAGE_KEY, DEFAULT_GROUPS as ComponentGroup[])
+  );
 
-  const loadGroups = useCallback(async () => {
-    if (!companyId) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('component_groups')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      const mappedGroups: ComponentGroup[] = (data || []).map(row => ({
-        id: row.id,
-        name: row.name,
-        componentIds: row.component_ids || [],
-        layoutData: row.layout_data as unknown as GroupLayoutData | undefined,
-        category: row.category || undefined,
-        tags: row.tags || undefined
-      }));
-
-      setGroups(mappedGroups);
-    } catch (error) {
-      console.error('Error loading groups:', error);
-      toast.error('Fehler beim Laden der Gruppen');
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId]);
-
-  useEffect(() => {
-    loadGroups();
-  }, [loadGroups]);
+  const persist = useCallback((updated: ComponentGroup[]) => {
+    setGroups(updated);
+    saveToStorage(STORAGE_KEY, updated);
+  }, []);
 
   const createGroup = useCallback(async (
-    name: string, 
-    componentIds: string[],
-    layoutData?: GroupLayoutData,
-    category?: string,
-    tags?: string[]
+    name: string, componentIds: string[], layoutData?: GroupLayoutData, category?: string, tags?: string[]
   ): Promise<ComponentGroup | null> => {
-    if (!companyId) {
-      toast.error('Keine Firma gefunden');
-      return null;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('component_groups')
-        .insert({
-          company_id: companyId,
-          name,
-          component_ids: componentIds,
-          layout_data: layoutData as unknown as Json,
-          category: category || null,
-          tags: tags || []
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const newGroup: ComponentGroup = {
-        id: data.id,
-        name: data.name,
-        componentIds: data.component_ids || [],
-        layoutData: data.layout_data as unknown as GroupLayoutData | undefined,
-        category: data.category || undefined,
-        tags: data.tags || undefined
-      };
-
-      setGroups(prev => [...prev, newGroup]);
-      toast.success('Gruppe erstellt');
-      return newGroup;
-    } catch (error) {
-      console.error('Error creating group:', error);
-      toast.error('Fehler beim Erstellen der Gruppe');
-      return null;
-    }
-  }, [companyId]);
+    const newGroup: ComponentGroup = {
+      id: crypto.randomUUID(), name, componentIds, layoutData, category, tags
+    };
+    persist([...groups, newGroup]);
+    toast.success('Gruppe erstellt');
+    return newGroup;
+  }, [groups, persist]);
 
   const updateGroup = useCallback(async (id: string, name: string, componentIds: string[], category?: string, tags?: string[]): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('component_groups')
-        .update({ name, component_ids: componentIds, category: category || null, tags: tags || [] })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setGroups(prev => prev.map(g => 
-        g.id === id ? { ...g, name, componentIds, category, tags } : g
-      ));
-      return true;
-    } catch (error) {
-      console.error('Error updating group:', error);
-      toast.error('Fehler beim Aktualisieren der Gruppe');
-      return false;
-    }
-  }, []);
+    persist(groups.map(g => g.id === id ? { ...g, name, componentIds, category, tags } : g));
+    return true;
+  }, [groups, persist]);
 
   const deleteGroup = useCallback(async (id: string): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('component_groups')
-        .delete()
-        .eq('id', id);
+    persist(groups.filter(g => g.id !== id));
+    toast.success('Gruppe gelöscht');
+    return true;
+  }, [groups, persist]);
 
-      if (error) throw error;
-
-      setGroups(prev => prev.filter(g => g.id !== id));
-      toast.success('Gruppe gelöscht');
-      return true;
-    } catch (error) {
-      console.error('Error deleting group:', error);
-      toast.error('Fehler beim Löschen der Gruppe');
-      return false;
-    }
+  const reloadGroups = useCallback(() => {
+    setGroups(loadFromStorage<ComponentGroup>(STORAGE_KEY, DEFAULT_GROUPS as ComponentGroup[]));
   }, []);
 
-  return {
-    groups,
-    loading,
-    createGroup,
-    updateGroup,
-    deleteGroup,
-    reloadGroups: loadGroups
-  };
+  return { groups, loading: false, createGroup, updateGroup, deleteGroup, reloadGroups };
 }

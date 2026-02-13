@@ -37,7 +37,7 @@ export const TILE_SIZES: Record<TileSize, TileSizeConfig> = {
 };
 
 // Connection directions for component variations
-export type ConnectionDirection = 'left' | 'right' | 'top' | 'bottom' | 'horizontal' | 'vertical' | 'corner-tl' | 'corner-tr' | 'corner-bl' | 'corner-br';
+export type ConnectionDirection = string;
 
 export interface PaperSize {
   width: number;

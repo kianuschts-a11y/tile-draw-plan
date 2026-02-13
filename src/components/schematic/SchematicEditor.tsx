@@ -16,7 +16,7 @@ import { Messkonzept } from "./Messkonzept";
 import { ExportGroupDialog } from "./ExportGroupDialog";
 import { GroupCategoryDialog } from "./GroupCategoryDialog";
 import { CategoryManagerDialog } from "./CategoryManagerDialog";
-import { useAuth } from "@/hooks/useAuth";
+// Auth removed - local storage only
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
 import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans";
@@ -57,7 +57,7 @@ function generateId(): string {
 }
 
 export function SchematicEditor() {
-  const { user, companyName, signOut } = useAuth();
+  // Auth removed - no login required
   const { 
     components, 
     loading: componentsLoading,
@@ -2171,7 +2171,7 @@ export function SchematicEditor() {
           </div>
           <div>
             <h1 className="font-semibold text-sm">Schema-Editor</h1>
-            <p className="text-xs text-muted-foreground">{companyName || 'Anlagen-Diagramm Zeichner'}</p>
+            <p className="text-xs text-muted-foreground">Anlagen-Diagramm Zeichner</p>
           </div>
         </div>
         <div className="h-8 w-px bg-border mx-2" />
@@ -2206,40 +2206,7 @@ export function SchematicEditor() {
           Komponenten wählen
         </Button>
         <div className="h-8 w-px bg-border mx-2" />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <Menu className="w-5 h-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">Kontoinformationen</p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="flex items-center gap-2 cursor-default focus:bg-transparent">
-              <User className="w-4 h-4 text-muted-foreground" />
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">E-Mail</span>
-                <span className="text-sm">{user?.email}</span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex items-center gap-2 cursor-default focus:bg-transparent">
-              <Building2 className="w-4 h-4 text-muted-foreground" />
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Firma</span>
-                <span className="text-sm">{companyName || '–'}</span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive cursor-pointer">
-              <LogOut className="w-4 h-4 mr-2" />
-              Abmelden
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Menu dropdown removed - no auth needed */}
       </header>
 
       <div className="flex flex-1 overflow-hidden">
