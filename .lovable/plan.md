@@ -1,84 +1,129 @@
 
-# Fix: Auto-Verbindungslinien enden nicht korrekt an Komponenten-Boxen
+# Umstellung auf lokale Datenhaltung (ohne Datenbank)
 
-## Problem
+## Uebersicht
 
-Die gestrichelten Auto-Verbindungslinien enden teilweise nicht an den tatsaechlichen Koerperkanten der Zielkomponenten. Ursachen:
-
-1. **Fehlende Polygon-/Polyline-Unterstuetzung in `getShapeBounds`**: Die Funktion berechnet Grenzen nur ueber `shape.x + shape.width`, ignoriert aber `shape.points`-Arrays bei Polygonen/Polylines, deren visuelle Grenzen davon abweichen koennen.
-
-2. **Endpunkte werden durch Spreading ausserhalb der Koerper verschoben**: Der Spreizungs-Algorithmus (Zeilen 901-930) verschiebt `toX` und `fromY` um feste Offsets, ohne zu pruefen, ob der Punkt noch innerhalb der Komponentengrenzen liegt.
-
-3. **Fester `endpointOffset` statt kantenbasierter Berechnung**: Der Endpunkt wird pauschal um 0.15 Grid-Einheiten vom Zentrum verschoben, anstatt exakt an der Koerperkante zu landen.
+Alle Daten werden kuenftig im `localStorage` des Browsers gespeichert statt in der externen Datenbank. Authentifizierung, Firmenkonten und Login werden komplett entfernt. Die App startet direkt im Editor ohne Anmeldeseite.
 
 ---
 
-## Technische Aenderungen
+## Bestehende Daten aus der Datenbank
 
-### Datei: `src/components/schematic/SchematicEditor.tsx`
+Die folgenden Daten werden als JSON-Dateien im Projekt hinterlegt (unter `src/data/`), damit sie beim ersten Start automatisch in den localStorage geladen werden:
 
-**1. `getShapeBounds` erweitern (Zeilen 767-792)**
+- **24 Komponenten** (z.B. Palletkessel, Gas-Kessel, BHKW, Waermepumpe, Pumpe, etc.) mit allen Shapes, Variationen und Einstellungen
+- **11 Gruppen** (z.B. test, 70499-2, 4 Heizkreise, H1-H4) mit Layout-Daten und Verbindungen
+- **5 Kategorien** (Erzeugung, Speicherung, Verteilung, Sicherheit, Hydraulik) mit Tags
+- **2 gespeicherte Plaene** (Schoefer, 70499-2) mit kompletten Zeichnungsdaten
+- **0 Projekte** (Tabelle ist leer)
 
-Polygon- und Polyline-Shapes mit `points`-Arrays korrekt beruecksichtigen:
+---
+
+## Dateien die ENTFERNT werden
+
+| Datei | Grund |
+|-------|-------|
+| `src/pages/Auth.tsx` | Login-Seite nicht mehr noetig |
+| `src/hooks/useAuth.tsx` | Authentifizierung entfaellt |
+| `src/lib/errorUtils.ts` | Nur fuer DB-/Auth-Fehlermeldungen genutzt |
+
+---
+
+## Dateien die NEU erstellt werden
+
+| Datei | Inhalt |
+|-------|--------|
+| `src/data/defaultComponents.ts` | Alle 24 Komponenten als TypeScript-Array exportiert |
+| `src/data/defaultGroups.ts` | Alle 11 Gruppen als TypeScript-Array exportiert |
+| `src/data/defaultCategories.ts` | Alle 5 Kategorien als TypeScript-Array exportiert |
+| `src/data/defaultSavedPlans.ts` | Alle 2 gespeicherten Plaene als TypeScript-Array exportiert |
+
+---
+
+## Dateien die UMGEBAUT werden
+
+### 1. `src/hooks/useComponents.tsx`
+- Supabase-Imports und Auth-Abhaengigkeit entfernen
+- Alle CRUD-Operationen auf localStorage umstellen
+- Beim ersten Start: Default-Daten aus `src/data/defaultComponents.ts` laden
+- Neue IDs per `crypto.randomUUID()` generieren
+
+### 2. `src/hooks/useComponentGroups.tsx`
+- Gleiche Umstellung wie useComponents
+- localStorage-Key: `schematic-editor-groups`
+
+### 3. `src/hooks/useGroupCategories.tsx`
+- Gleiche Umstellung
+- Default-Kategorien aus `src/data/defaultCategories.ts` statt DB-Seeding
+- localStorage-Key: `schematic-editor-categories`
+
+### 4. `src/hooks/useProjects.tsx`
+- Gleiche Umstellung
+- localStorage-Key: `schematic-editor-projects`
+
+### 5. `src/hooks/useSavedPlans.tsx`
+- Gleiche Umstellung
+- localStorage-Key: `schematic-editor-saved-plans`
+
+### 6. `src/pages/Index.tsx`
+- Auth-Check und Redirect entfernen
+- Direkt `<SchematicEditor />` rendern
+
+### 7. `src/App.tsx`
+- `AuthProvider` entfernen
+- `/auth`-Route entfernen
+- Supabase-Query-Client kann bleiben (wird ggf. fuer andere Zwecke genutzt)
+
+### 8. `src/components/schematic/SchematicEditor.tsx`
+- `useAuth` Import entfernen
+- `companyName` und `signOut` Referenzen entfernen
+- Abmelde-Button und Firmenname aus dem Header/Dropdown entfernen
+- Statischen Titel "Schema-Editor" / "Anlagen-Diagramm Zeichner" beibehalten
+
+---
+
+## Technische Details
+
+### localStorage-Schema
+
+Jeder Hook folgt demselben Muster:
 
 ```text
-for (const shape of boundaryShapes) {
-  if ((shape.type === 'polygon' || shape.type === 'polyline') && shape.points?.length) {
-    for (const p of shape.points) {
-      minX = Math.min(minX, p.x);
-      maxX = Math.max(maxX, p.x);
-      minY = Math.min(minY, p.y);
-      maxY = Math.max(maxY, p.y);
-    }
-  } else {
-    minX = Math.min(minX, shape.x);
-    maxX = Math.max(maxX, shape.x + shape.width);
-    minY = Math.min(minY, shape.y);
-    maxY = Math.max(maxY, shape.y + shape.height);
+1. Beim Laden: localStorage lesen
+2. Falls leer: Default-Daten aus src/data/ laden und in localStorage schreiben
+3. Bei CRUD: State + localStorage synchron aktualisieren
+4. IDs: crypto.randomUUID() fuer neue Eintraege
+```
+
+### Hilfsfunktion fuer localStorage-Persistenz
+
+```text
+function loadFromStorage<T>(key: string, defaults: T[]): T[] {
+  const stored = localStorage.getItem(key);
+  if (stored) {
+    try { return JSON.parse(stored); } catch { /* fall through */ }
   }
+  localStorage.setItem(key, JSON.stringify(defaults));
+  return defaults;
+}
+
+function saveToStorage<T>(key: string, data: T[]): void {
+  localStorage.setItem(key, JSON.stringify(data));
 }
 ```
 
-**2. Endpunkte an Koerperkanten clampen (nach Zeile 873)**
+### Datenmigration
 
-Nach der Berechnung von `toX`/`toY` auf die tatsaechlichen Koerpergrenzen der Zielkomponente begrenzen:
-
-```text
-// Clamp toX auf die tatsaechlichen Koerpergrenzen
-const targetLeft = labeledTile.gridX + labelBounds.minX;
-const targetRight = labeledTile.gridX + labelBounds.maxX;
-toX = Math.max(targetLeft, Math.min(targetRight, toX));
-```
-
-**3. Startpunkte clampen (nach Zeile 849)**
-
-Ebenso `fromY`/`fromX` auf die Quellkomponenten-Grenzen begrenzen:
-
-```text
-// Clamp fromY auf Quellkomponenten-Grenzen
-const autoTop = autoTile.gridY + autoBounds.minY;
-const autoBottom = autoTile.gridY + autoBounds.maxY;
-fromY = Math.max(autoTop, Math.min(autoBottom, fromY));
-
-// Clamp fromX analog
-const autoLeft = autoTile.gridX + autoBounds.minX;
-const autoRight = autoTile.gridX + autoBounds.maxX;
-fromX = Math.max(autoLeft, Math.min(autoRight, fromX));
-```
-
-**4. Spreading-Ergebnisse ebenfalls clampen (nach Zeilen 907 und 927)**
-
-Nach dem Spreading-Algorithmus die verschobenen Endpunkte nochmals auf die jeweiligen Komponentengrenzen begrenzen. Dafuer muessen die Bounds pro Ziel-Tile in einer Map zwischengespeichert werden, damit sie nach dem Spreading verfuegbar sind.
+- Die vollstaendigen JSON-Daten aller 24 Komponenten, 11 Gruppen, 5 Kategorien und 2 Plaene werden aus der Datenbank exportiert und als TypeScript-Konstanten in `src/data/` abgelegt
+- Shapes, Variationen, Layout-Daten und Verbindungen werden 1:1 uebernommen
+- Bestehende IDs bleiben erhalten, damit Referenzen (z.B. componentIds in Gruppen) konsistent bleiben
 
 ---
 
-## Zusammenfassung
+## Was NICHT geaendert wird
 
-| Stelle | Aenderung |
-|--------|-----------|
-| `getShapeBounds` | Polygon/Polyline `points`-Arrays einbeziehen |
-| Start-Endpunkt | `fromX`/`fromY` auf Quell-Bounds clampen |
-| Ziel-Endpunkt | `toX`/`toY` auf Ziel-Bounds clampen |
-| Spreading | Nach Versatz erneut auf Bounds clampen |
+- Alle UI-Komponenten (Canvas, Toolbar, Dialoge, etc.) bleiben unveraendert
+- Die Typen in `src/types/schematic.ts` bleiben identisch
+- Die gesamte Zeichenlogik, Export-Funktionen, Drag-and-Drop etc. sind nicht betroffen
+- `src/integrations/supabase/` Dateien werden nicht geloescht (sind auto-generiert), aber nicht mehr importiert
 
-Nur eine Datei betroffen: `src/components/schematic/SchematicEditor.tsx` (autoConnectionLines useMemo, Zeilen 747-933).
