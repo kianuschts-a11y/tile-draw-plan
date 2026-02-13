@@ -691,7 +691,8 @@ export function ComponentLibrary({
         />
       </div>
       
-      <ScrollArea className="flex-1 p-3">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-3">
         {activeTab === 'components' && (() => {
           const filtered = searchQuery
             ? sortedComponents.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -805,6 +806,7 @@ export function ComponentLibrary({
             )}
           </div>
         )}
+        </div>
       </ScrollArea>
 
       {/* Delete Component Confirmation Dialog */}
