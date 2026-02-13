@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import Lottie from "lottie-react";
 import lavaLogo from "@/assets/lava-logo.svg";
+import lavaLoading from "@/assets/lava-loading.json";
 import { PDFDocument, PDFName, PDFArray, PDFString } from "pdf-lib";
 import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { AnnotationLine, AnnotationText, LineStyle } from "@/types/annotations";
@@ -2141,10 +2143,20 @@ export function SchematicEditor() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleZoomIn, handleZoomOut, handleResetView, handleExportClick]);
 
-  if (componentsLoading) {
+  const [splashDone, setSplashDone] = useState(false);
+
+  if (!splashDone || componentsLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-muted-foreground">Komponenten werden geladen...</div>
+      <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
+        <Lottie
+          animationData={lavaLoading}
+          loop={false}
+          onComplete={() => setSplashDone(true)}
+          style={{ width: 200, height: 200 }}
+        />
+        {splashDone && componentsLoading && (
+          <p className="text-sm text-muted-foreground animate-fade-in">Komponenten werden geladen...</p>
+        )}
       </div>
     );
   }
