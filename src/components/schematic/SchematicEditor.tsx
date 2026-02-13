@@ -2154,10 +2154,7 @@ export function SchematicEditor() {
       <header className="toolbar-panel h-14 border-b flex items-center px-4 gap-4">
         <div className="flex items-center gap-3">
           <img src={lavaLogo} alt="LAVA Logo" className="h-8" />
-          <div>
-            <h1 className="font-semibold text-sm">Schema-Editor</h1>
-            <p className="text-xs text-muted-foreground">Anlagen-Diagramm Zeichner</p>
-          </div>
+          <h1 className="font-semibold text-sm whitespace-nowrap">Anlagen-Diagramm Zeichner</h1>
         </div>
         <div className="h-8 w-px bg-border mx-2" />
         <PaperSettings
