@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import Lottie from "lottie-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import lavaLogo from "@/assets/lava-logo.svg";
-import lavaLoading from "@/assets/lava-loading.json";
 import { PDFDocument, PDFName, PDFArray, PDFString } from "pdf-lib";
 import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { AnnotationLine, AnnotationText, LineStyle } from "@/types/annotations";
@@ -2145,13 +2144,20 @@ export function SchematicEditor() {
 
   const [splashDone, setSplashDone] = useState(false);
 
+  const dotLottieRefCallback = useCallback((dotLottie: any) => {
+    if (dotLottie) {
+      dotLottie.addEventListener('complete', () => setSplashDone(true));
+    }
+  }, []);
+
   if (!splashDone || componentsLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
-        <Lottie
-          animationData={lavaLoading}
+        <DotLottieReact
+          src="/lava-loading.lottie"
+          autoplay
           loop={false}
-          onComplete={() => setSplashDone(true)}
+          dotLottieRefCallback={dotLottieRefCallback}
           style={{ width: 200, height: 200 }}
         />
         {splashDone && componentsLoading && (
