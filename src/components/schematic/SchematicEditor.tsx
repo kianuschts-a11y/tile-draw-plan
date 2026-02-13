@@ -2152,11 +2152,11 @@ export function SchematicEditor() {
   return (
     <div className="flex flex-col h-screen bg-background no-select">
       <header className="toolbar-panel h-14 border-b flex items-center px-4 gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-5">
           <img src={lavaLogo} alt="LAVA Logo" className="h-8" />
           <h1 className="font-semibold text-xs leading-tight max-w-[100px]">Anlagen-Diagramm Zeichner</h1>
         </div>
-        <div className="h-8 w-px bg-border mx-2" />
+        <div className="h-8 w-px bg-border mx-4" />
         <PaperSettings
           paperFormat={canvasState.paperFormat}
           orientation={canvasState.orientation}
