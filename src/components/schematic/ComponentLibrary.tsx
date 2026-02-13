@@ -569,7 +569,7 @@ export function ComponentLibrary({
   };
 
   return (
-    <div className="toolbar-panel border-l w-64 flex flex-col">
+    <div className="toolbar-panel border-l w-64 flex flex-col overflow-hidden">
       <div className="p-3 border-b">
         <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as LibraryTab)}>
           <TabsList className="w-full grid grid-cols-3">
@@ -585,11 +585,6 @@ export function ComponentLibrary({
           {activeTab === 'components' && (
             <>
               <div className="flex gap-1">
-                {components.length > 0 && (
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => setClearAllConfirmOpen(true)}>
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                )}
                 <Button size="sm" variant="outline" className="h-7 gap-1" onClick={onCreateNew}>
                   <Plus className="w-3 h-3" />
                   Neu
@@ -847,24 +842,6 @@ export function ComponentLibrary({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Clear All Confirmation Dialog */}
-      <AlertDialog open={clearAllConfirmOpen} onOpenChange={setClearAllConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Alle Komponenten löschen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Möchten Sie wirklich alle {components.length} Komponenten löschen? 
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmClearAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Alle löschen
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Group Info Dialog */}
       <GroupInfoDialog
