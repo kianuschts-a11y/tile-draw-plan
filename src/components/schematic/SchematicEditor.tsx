@@ -2157,6 +2157,7 @@ export function SchematicEditor() {
           src="/lava-loading.lottie"
           autoplay
           loop={false}
+          speed={1.11}
           dotLottieRefCallback={dotLottieRefCallback}
           style={{ width: 400, height: 400 }}
         />
