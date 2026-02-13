@@ -2144,10 +2144,9 @@ export function SchematicEditor() {
 
   const [splashDone, setSplashDone] = useState(false);
 
-  const dotLottieRefCallback = useCallback((dotLottie: any) => {
-    if (dotLottie) {
-      dotLottie.addEventListener('complete', () => setSplashDone(true));
-    }
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashDone(true), 4500);
+    return () => clearTimeout(timer);
   }, []);
 
   if (!splashDone || componentsLoading) {
@@ -2157,8 +2156,6 @@ export function SchematicEditor() {
           src="/lava-loading.lottie"
           autoplay
           loop={false}
-          speed={1.11}
-          dotLottieRefCallback={dotLottieRefCallback}
           style={{ width: 400, height: 400 }}
         />
         {splashDone && componentsLoading && (
