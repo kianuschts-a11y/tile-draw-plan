@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import lavaLogo from "@/assets/lava-logo.svg";
 import { PDFDocument, PDFName, PDFArray, PDFString } from "pdf-lib";
 import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { AnnotationLine, AnnotationText, LineStyle } from "@/types/annotations";
@@ -2152,14 +2153,7 @@ export function SchematicEditor() {
     <div className="flex flex-col h-screen bg-background no-select">
       <header className="toolbar-panel h-14 border-b flex items-center px-4 gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <svg className="w-5 h-5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-            </svg>
-          </div>
+          <img src={lavaLogo} alt="LAVA Logo" className="h-8" />
           <div>
             <h1 className="font-semibold text-sm">Schema-Editor</h1>
             <p className="text-xs text-muted-foreground">Anlagen-Diagramm Zeichner</p>
