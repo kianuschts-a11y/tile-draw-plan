@@ -16,14 +16,13 @@ import { Messkonzept } from "./Messkonzept";
 import { ExportGroupDialog } from "./ExportGroupDialog";
 import { GroupCategoryDialog } from "./GroupCategoryDialog";
 import { CategoryManagerDialog } from "./CategoryManagerDialog";
-// Auth removed - local storage only
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
 import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans";
 import { useGroupCategories } from "@/hooks/useGroupCategories";
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
-import { LogOut, Menu, User, Building2, Package } from "lucide-react";
+import { Menu, Package } from "lucide-react";
 import { isConnectionBlock, CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 
 // Helper to find component by ID, checking both custom components and connection blocks
@@ -43,21 +42,13 @@ interface HistoryEntry {
   annotationLines: AnnotationLine[];
   annotationTexts: AnnotationText[];
 }
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
 
 export function SchematicEditor() {
-  // Auth removed - no login required
+  
   const { 
     components, 
     loading: componentsLoading,
@@ -2205,8 +2196,6 @@ export function SchematicEditor() {
           <Package className="w-4 h-4" />
           Komponenten wählen
         </Button>
-        <div className="h-8 w-px bg-border mx-2" />
-        {/* Menu dropdown removed - no auth needed */}
       </header>
 
       <div className="flex flex-1 overflow-hidden">
