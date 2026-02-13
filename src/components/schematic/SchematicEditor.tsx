@@ -2152,13 +2152,13 @@ export function SchematicEditor() {
 
   if (!splashDone || componentsLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
+      <div className="flex flex-col items-center justify-center h-screen gap-4" style={{ backgroundColor: '#ffffff' }}>
         <DotLottieReact
           src="/lava-loading.lottie"
           autoplay
           loop={false}
           dotLottieRefCallback={dotLottieRefCallback}
-          style={{ width: 200, height: 200 }}
+          style={{ width: 400, height: 400 }}
         />
         {splashDone && componentsLoading && (
           <p className="text-sm text-muted-foreground animate-fade-in">Komponenten werden geladen...</p>
