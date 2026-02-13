@@ -2145,7 +2145,7 @@ export function SchematicEditor() {
   const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setSplashDone(true), 4500);
+    const timer = setTimeout(() => setSplashDone(true), 4000);
     return () => clearTimeout(timer);
   }, []);
 
