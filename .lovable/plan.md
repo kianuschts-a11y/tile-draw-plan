@@ -1,31 +1,124 @@
 
-## Dreieck-Anschluss-Problem beheben
 
-### Ursache
+## M.O.P CSV-Export und Export-Dialog Umbenennung
 
-Dreiecke in Komponenten verwenden eine `rotation`-Eigenschaft (z.B. 180°, 270°), um ihre Ausrichtung zu bestimmen. Die SVG-Darstellung dreht das Dreieck korrekt ueber ein `transform="rotate(...)"`. Jedoch ignoriert die Anschlusslinien-Berechnung in `connectionUtils.ts` die `rotation`-Eigenschaft komplett. Sie versucht stattdessen die Ausrichtung anhand des Breite/Hoehe-Verhaeltnisses zu erraten - was fast immer falsch ist.
+### Uebersicht
 
-Das fuehrt dazu, dass die Anschlusslinie an der falschen Kante stoppt oder durch das Dreieck hindurchgeht.
+Es wird eine CSV-Export-Funktion hinzugefuegt, die Projektdaten in der hierarchischen Struktur ausgibt, die M.O.P Technisches Objektmanagement erwartet. Zusaetzlich wird der Button "Zeichnung exportieren" zu "Exportieren" umbenannt und die CSV-Option im Export-Dialog integriert.
 
-### Loesung
+### M.O.P Baumstruktur (aus den Screenshots)
 
-Die Funktion `getShapeEdges` in `connectionUtils.ts` wird so angepasst, dass sie bei Dreiecken (und allen anderen Formen) die `rotation`-Eigenschaft beruecksichtigt:
+```text
+1 - Projekte
+  2 - Energielieferung
+    5 - Realisierung          (Objekte hier)
+    6 - Betrieb
+    8 - Beendet
+  3 - Fernwaermeoptimierung
+    50 - Realisierung
+    60 - Betrieb
+    70 - Beendet
+  4 - Energiemonitoring
+    500 - Realisierung
+    600 - Betrieb
+    700 - Beendet
+```
 
-1. Die Dreieck-Punkte werden immer als "Spitze oben, Basis unten" definiert (wie in der SVG-Darstellung)
-2. Falls `shape.rotation` gesetzt ist, werden alle Kantenpunkte um den Mittelpunkt der Shape rotiert
-3. Dies gilt universell fuer alle Shape-Typen mit Rotation
+Unter einem Status-Ordner liegt ein **Objekt** (Haus-Icon):
+`{Projektnummer}-1 - {Strasse}`
 
-### Technische Aenderung
+Darunter die **Technikzentrale**:
+`{Projektnummer} TZ - Technikzentrale`
 
-**Datei: `src/lib/connectionUtils.ts`**
+Darunter die **Komponenten** (aus der Stueckliste):
+`{Projektnummer} {Kuerzel} - {Komponentenname}`
 
-- Neue Hilfsfunktion `rotatePoint(px, py, cx, cy, angleDeg)` die einen Punkt um einen Mittelpunkt dreht
-- Am Ende von `getShapeEdges`: Falls `shape.rotation` gesetzt ist, werden alle Kantenpunkte durch `rotatePoint` transformiert
-- Der bisherige Code fuer Dreiecke wird vereinfacht: Keine Orientierungserkennung ueber Seitenverhaeltnis mehr, immer "Spitze oben" als Basis, Rotation uebernimmt die korrekte Ausrichtung
-- Die Funktion bekommt den `rotation`-Parameter aus dem Shape-Objekt
+Jede Komponente hat: Objektsymbol, Bezeichnung, Objektart ("Produkt"), Teil von ("1 - Projekte"), Hersteller (aus Extradaten).
 
-### Betroffene Dateien
+### Kuerzelliste (aus der hochgeladenen Excel-Datei)
+
+Die Kuerzelliste wird fest im Code hinterlegt und mappt Komponentennamen auf Abkuerzungen:
+- Technikzentrale -> TZ
+- BHKW -> BHKW
+- Waermepumpe -> WP
+- Gaskessel -> GK
+- Pufferspeicher -> PS
+- Wechselrichter -> WR
+- usw.
+
+### Technische Aenderungen
+
+#### 1. Neue Datei: `src/data/mopAbbreviations.ts`
+
+Enthaelt die Kuerzelliste als Lookup-Map und eine Funktion, die den besten Match fuer einen Komponentennamen findet.
+
+```
+ABBREVIATIONS = {
+  "Waermenetz": "WN",
+  "Technikzentrale": "TZ",
+  "BHKW": "BHKW",
+  "Gaskessel": "GK",
+  "Pufferspeicher": "PS",
+  ...
+}
+```
+
+#### 2. Neue Datei: `src/lib/mopCsvExport.ts`
+
+Kernlogik fuer den CSV-Export. Erhaelt als Parameter:
+- Projektnummer (aus Projektname extrahiert)
+- Strasse (separates Eingabefeld)
+- Bereich (Energielieferung / Fernwaermeoptimierung / Energiemonitoring)
+- Status (Realisierung / Betrieb / Beendet)
+- Trennzeichen (auswaehlbar: Semikolon oder Komma)
+- Komponenten-Daten aus der Stueckliste (Name, Menge, Marke/Hersteller)
+
+Erzeugt eine CSV-Datei mit folgenden Spalten (pro Zeile = ein Objekt in M.O.P):
+- Ebene (Hierarchie-Tiefe)
+- Objektnummer
+- Objektsymbol (z.B. ObjektSymbol 8)
+- Bezeichnung
+- Objektart
+- Teil_von
+- Hersteller (nur bei Komponenten)
+- Kuerzel
+
+Die Hierarchie wird flach als nummerierte Zeilen abgebildet.
+
+#### 3. Neue Datei: `src/components/schematic/MopExportDialog.tsx`
+
+Ein Dialog mit folgenden Eingabefeldern:
+- **Projektnummer**: Wird automatisch aus dem Projektnamen extrahiert (editierbar)
+- **Strasse/Adresse**: Eingabefeld
+- **Bereich**: Dropdown mit Energielieferung, Fernwaermeoptimierung, Energiemonitoring
+- **Status**: Dropdown mit Realisierung, Betrieb, Beendet
+- **Trennzeichen**: Dropdown mit Semikolon, Komma, Tab
+- Vorschau der ersten Zeilen
+
+Button "CSV exportieren" loest den Download aus.
+
+#### 4. Aenderung: `src/components/schematic/ExportGroupDialog.tsx`
+
+- Neuer Checkbox-Eintrag "M.O.P Import (CSV)" neben Zeichnung, Stueckliste, Messkonzept
+- Wenn aktiviert, wird beim Exportieren der MopExportDialog geoeffnet
+
+#### 5. Aenderung: `src/components/schematic/HeaderActions.tsx`
+
+- Tooltip von "Zeichnung exportieren (E)" zu "Exportieren (E)" aendern
+
+#### 6. Aenderung: `src/components/schematic/SchematicEditor.tsx`
+
+- MopExportDialog einbinden und State verwalten
+- Stuecklisten-Daten (tiles, projectMarken etc.) an den neuen Dialog weitergeben
+
+### Zusammenfassung der Dateien
 
 | Datei | Aenderung |
 |---|---|
-| `src/lib/connectionUtils.ts` | `rotatePoint` Hilfsfunktion hinzufuegen; `getShapeEdges` vereinfachen und Rotation auf alle Kanten anwenden |
+| `src/data/mopAbbreviations.ts` | Neue Datei - Kuerzelliste als Map |
+| `src/lib/mopCsvExport.ts` | Neue Datei - CSV-Generierungslogik |
+| `src/components/schematic/MopExportDialog.tsx` | Neue Datei - Export-Dialog mit Eingabefeldern |
+| `src/components/schematic/ExportGroupDialog.tsx` | CSV-Checkbox hinzufuegen |
+| `src/components/schematic/HeaderActions.tsx` | Tooltip umbenennen |
+| `src/components/schematic/SchematicEditor.tsx` | MopExportDialog integrieren |
+
