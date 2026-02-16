@@ -385,9 +385,12 @@ export function SchematicEditor() {
   // Keyboard-Shortcuts für Undo/Redo und Rotation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle shortcuts when typing in input fields
+      // Don't handle shortcuts when typing in input fields or when a dialog is open
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+      if (target.closest('[role="dialog"]') || document.querySelector('[role="dialog"]')) {
         return;
       }
       
@@ -2317,6 +2320,7 @@ export function SchematicEditor() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
+      if ((e.target as HTMLElement).closest('[role="dialog"]') || document.querySelector('[role="dialog"]')) return;
       switch (e.key.toLowerCase()) {
         case 'v': setActiveTool('select'); break;
         case 'c': setActiveTool('connect'); break;

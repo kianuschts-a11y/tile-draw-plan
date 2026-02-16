@@ -1323,6 +1323,7 @@ export function Canvas({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
+      if ((e.target as HTMLElement).closest?.('[role="dialog"]') || document.querySelector('[role="dialog"]')) return;
       
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTileIds.size > 0) {
         // Also remove connections involving deleted tiles
