@@ -705,3 +705,59 @@ export function areCellsAdjacent(
 export function generateConnectionId(): string {
   return Math.random().toString(36).substring(2, 11);
 }
+
+/**
+ * Rotate all shapes by tileRotation around the component center.
+ * This transforms shape coordinates to match the visual SVG rotation
+ * applied at the tile level, so connection line intersection detection
+ * works correctly with rotated components.
+ */
+export function rotateShapesForTile(
+  shapes: Shape[],
+  tileRotation: number,
+  tileWidth: number,
+  tileHeight: number
+): Shape[] {
+  if (!tileRotation) return shapes;
+  
+  // Component center in "cell units" (pixel-proportional space)
+  const pxCx = tileWidth / 2;
+  const pxCy = tileHeight / 2;
+  
+  return shapes.map(shape => {
+    // Convert normalized coords to cell-unit space for correct aspect ratio
+    const px = shape.x * tileWidth;
+    const py = shape.y * tileHeight;
+    const pw = shape.width * tileWidth;
+    const ph = shape.height * tileHeight;
+    
+    // Rotate shape center around component center
+    const sCx = px + pw / 2;
+    const sCy = py + ph / 2;
+    const newCenter = rotatePoint(sCx, sCy, pxCx, pxCy, tileRotation);
+    
+    // New top-left position (keep same pixel dimensions)
+    const newPx = newCenter.x - pw / 2;
+    const newPy = newCenter.y - ph / 2;
+    
+    const result: Shape = {
+      ...shape,
+      x: newPx / tileWidth,
+      y: newPy / tileHeight,
+      // Combine tile rotation with shape's own rotation
+      rotation: (((shape.rotation || 0) + tileRotation) % 360) || undefined,
+    };
+    
+    // Rotate polyline/polygon points directly
+    if (shape.points) {
+      result.points = shape.points.map(p => {
+        const ppx = p.x * tileWidth;
+        const ppy = p.y * tileHeight;
+        const rp = rotatePoint(ppx, ppy, pxCx, pxCy, tileRotation);
+        return { x: rp.x / tileWidth, y: rp.y / tileHeight };
+      });
+    }
+    
+    return result;
+  });
+}

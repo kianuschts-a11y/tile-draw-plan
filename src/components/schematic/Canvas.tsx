@@ -4,7 +4,7 @@ import { AnnotationLine, AnnotationText, LineStyle } from "@/types/annotations";
 import { ShapeRenderer } from "./ShapeRenderer";
 import { TitleBlock } from "./TitleBlock";
 import { MainToolType } from "./Toolbar";
-import { generateSingleConnectionLine, areCellsAdjacent, generateConnectionId } from "@/lib/connectionUtils";
+import { generateSingleConnectionLine, areCellsAdjacent, generateConnectionId, rotateShapesForTile } from "@/lib/connectionUtils";
 import { CONNECTION_BLOCKS, isConnectionBlock } from "@/lib/connectionBlocks";
 
 function generateTileId(): string {
@@ -1359,14 +1359,24 @@ export function Canvas({
     const tileConnections = connections.filter(c => c.fromTileId === tile.id);
     const connectionShapeGroups: { shapes: Shape[], color: string }[] = [];
     
+    // Rotate shapes by tile rotation so intersection detection matches visual positions
+    const tileW = tile.component.width || 1;
+    const tileH = tile.component.height || 1;
+    const rotatedShapes = rotateShapesForTile(
+      tile.component.shapes,
+      tile.rotation || 0,
+      tileW,
+      tileH
+    );
+    
     for (const conn of tileConnections) {
       const lineShapes = generateSingleConnectionLine(
-        tile.component.shapes,
+        rotatedShapes,
         conn.fromCellX,
         conn.fromCellY,
         conn.fromSide,
-        tile.component.width || 1,
-        tile.component.height || 1
+        tileW,
+        tileH
       );
       connectionShapeGroups.push({ shapes: lineShapes, color: conn.color || '#000000' });
     }
@@ -1375,12 +1385,12 @@ export function Canvas({
     const toConnections = connections.filter(c => c.toTileId === tile.id);
     for (const conn of toConnections) {
       const lineShapes = generateSingleConnectionLine(
-        tile.component.shapes,
+        rotatedShapes,
         conn.toCellX,
         conn.toCellY,
         conn.toSide,
-        tile.component.width || 1,
-        tile.component.height || 1
+        tileW,
+        tileH
       );
       connectionShapeGroups.push({ shapes: lineShapes, color: conn.color || '#000000' });
     }
