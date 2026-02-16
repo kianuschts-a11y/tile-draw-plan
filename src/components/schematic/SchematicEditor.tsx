@@ -16,6 +16,8 @@ import { HeaderActions } from "./HeaderActions";
 import { BillOfMaterials } from "./BillOfMaterials";
 import { Messkonzept } from "./Messkonzept";
 import { ExportGroupDialog } from "./ExportGroupDialog";
+import { MopExportDialog } from "./MopExportDialog";
+import { MopComponent } from "@/lib/mopCsvExport";
 import { GroupCategoryDialog } from "./GroupCategoryDialog";
 import { CategoryManagerDialog } from "./CategoryManagerDialog";
 import { useComponents } from "@/hooks/useComponents";
@@ -116,6 +118,7 @@ export function SchematicEditor() {
   const [isBOMOpen, setIsBOMOpen] = useState(false);
   const [isMesskonzeptOpen, setIsMesskonzeptOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isMopExportOpen, setIsMopExportOpen] = useState(false);
   // Auto-generated labels for tiles (tileId -> { label, color })
   const [tileLabels, setTileLabels] = useState<Map<string, { label: string; color: string }>>(new Map());
   
@@ -2623,10 +2626,38 @@ export function SchematicEditor() {
         onExportPdf={handleExportPdfOnly}
         onExportBOMExcel={handleExportBOMExcel}
         onExportMesskonzeptExcel={handleExportMesskonzeptExcel}
+        onExportMopCsv={() => { setIsExportDialogOpen(false); setIsMopExportOpen(true); }}
         onSaveProjectAndExportImage={handleSaveProjectAndExportImage}
         onSaveProjectAndExportPdf={handleSaveProjectAndExportPdf}
         hasTiles={tiles.filter(t => !isConnectionBlock(t.component)).length >= 2}
         hasMesskonzeptItems={hasMesskonzeptItems}
+      />
+
+      <MopExportDialog
+        open={isMopExportOpen}
+        onClose={() => setIsMopExportOpen(false)}
+        projectName={titleBlockData.projekt || ''}
+        components={(() => {
+          const componentCounts = new Map<string, { name: string; count: number; marke: string }>();
+          for (const tile of tiles) {
+            if (isConnectionBlock(tile.component)) continue;
+            const existing = componentCounts.get(tile.component.id);
+            if (existing) {
+              existing.count++;
+            } else {
+              componentCounts.set(tile.component.id, {
+                name: tile.component.name,
+                count: 1,
+                marke: projectMarken.get(tile.component.id) || '',
+              });
+            }
+          }
+          return Array.from(componentCounts.values()).map(c => ({
+            name: c.name,
+            quantity: c.count,
+            marke: c.marke,
+          }));
+        })()}
       />
 
       <GroupCategoryDialog
