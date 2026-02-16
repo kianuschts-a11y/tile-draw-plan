@@ -11,8 +11,8 @@ export interface AnnotationLine {
 
 export interface AnnotationText {
   id: string;
-  gridX: number; // Grid cell position
-  gridY: number;
+  x: number; // Pixel position (canvas coordinates)
+  y: number;
   text: string;
   fontSize: number;
   color: string;

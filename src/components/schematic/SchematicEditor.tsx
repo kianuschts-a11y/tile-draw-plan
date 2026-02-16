@@ -1002,7 +1002,14 @@ export function SchematicEditor() {
 
   const handleAnnotationTextMove = useCallback((id: string, dx: number, dy: number) => {
     setAnnotationTexts(prev => prev.map(text => 
-      text.id === id ? { ...text, gridX: text.gridX + dx, gridY: text.gridY + dy } : text
+      text.id === id ? { ...text, x: text.x + dx, y: text.y + dy } : text
+    ));
+    scheduleSave();
+  }, [scheduleSave]);
+
+  const handleAnnotationTextUpdate = useCallback((id: string, updates: { color?: string; fontSize?: number }) => {
+    setAnnotationTexts(prev => prev.map(text => 
+      text.id === id ? { ...text, ...updates } : text
     ));
     scheduleSave();
   }, [scheduleSave]);
@@ -2240,6 +2247,15 @@ export function SchematicEditor() {
           onAnnotationColorChange={setAnnotationColor}
           annotationFontSize={annotationFontSize}
           onAnnotationFontSizeChange={setAnnotationFontSize}
+          selectedAnnotationText={
+            selectedAnnotationId && selectedAnnotationType === 'text'
+              ? (() => {
+                  const t = annotationTexts.find(t => t.id === selectedAnnotationId);
+                  return t ? { id: t.id, color: t.color, fontSize: t.fontSize } : null;
+                })()
+              : null
+          }
+          onAnnotationTextUpdate={handleAnnotationTextUpdate}
         />
 
         <div className="flex-1 overflow-hidden schematic-canvas">
