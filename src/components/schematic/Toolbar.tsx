@@ -224,6 +224,14 @@ export function Toolbar({
         onClick={() => onToolChange('arrow')}
         disabled={isGroupMode}
       />
+
+      {/* Auto-Label Button */}
+      <ToolButton
+        icon={Tag}
+        label="Beschriftungen einfügen"
+        onClick={onAutoLabel}
+        disabled={!hasLabelableComponents || isGroupMode}
+      />
       
       <Separator className="my-1 w-8" />
       
@@ -312,14 +320,6 @@ export function Toolbar({
           </div>
         )}
       </div>
-      
-      {/* Auto-Label Button */}
-      <ToolButton
-        icon={Tag}
-        label="Beschriftungen einfügen"
-        onClick={onAutoLabel}
-        disabled={!hasLabelableComponents || isGroupMode}
-      />
 
       {/* Save Project Button */}
       {onSaveProject && (
