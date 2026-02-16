@@ -60,6 +60,7 @@ export function generateMopCsv(params: MopExportParams): string {
   const { projektNummer, strasse, bereich, status, delimiter, components } = params;
   const bereichNr = BEREICH_NUMMERN[bereich];
   const statusNr = STATUS_NUMMERN[bereich][status];
+  const objNr = `${projektNummer}-1`;
 
   const rows: CsvRow[] = [];
 
@@ -75,71 +76,79 @@ export function generateMopCsv(params: MopExportParams): string {
     Kuerzel: '',
   });
 
-  // Ebene 2: Bereich (z.B. Energielieferung)
+  // Ebene 2: Bereich
+  const bereichBezeichnung = `${bereichNr} - ${bereich}`;
   rows.push({
     Ebene: 2,
     Objektnummer: String(bereichNr),
-    Objektsymbol: '',
-    Bezeichnung: `${bereichNr} - ${bereich}`,
-    Objektart: '',
+    Objektsymbol: 'ObjektSymbol 8',
+    Bezeichnung: bereichBezeichnung,
+    Objektart: 'Produkt',
     Teil_von: '1 - Projekte',
     Hersteller: '',
     Kuerzel: '',
   });
 
-  // Ebene 3: Status (z.B. Realisierung)
+  // Ebene 3: Status
+  const statusBezeichnung = `${statusNr} - ${status}`;
   rows.push({
     Ebene: 3,
     Objektnummer: String(statusNr),
     Objektsymbol: '',
-    Bezeichnung: `${statusNr} - ${status}`,
+    Bezeichnung: statusBezeichnung,
     Objektart: '',
-    Teil_von: `${bereichNr} - ${bereich}`,
+    Teil_von: bereichBezeichnung,
     Hersteller: '',
     Kuerzel: '',
   });
 
   // Ebene 4: Objekt (Haus)
-  const objektBezeichnung = `${projektNummer}-1 - ${strasse}`;
+  const objektBezeichnung = `${objNr} - ${strasse}`;
   rows.push({
     Ebene: 4,
-    Objektnummer: `${projektNummer}-1`,
+    Objektnummer: objNr,
     Objektsymbol: 'ObjektSymbol 8',
     Bezeichnung: objektBezeichnung,
     Objektart: '',
-    Teil_von: `${statusNr} - ${status}`,
+    Teil_von: statusBezeichnung,
     Hersteller: '',
     Kuerzel: '',
   });
 
   // Ebene 5: Technikzentrale
-  const tzBezeichnung = `${projektNummer} TZ - Technikzentrale`;
+  const tzBezeichnung = `${objNr} TZ - Technikzentrale`;
   rows.push({
     Ebene: 5,
-    Objektnummer: `${projektNummer} TZ`,
+    Objektnummer: `${objNr} TZ`,
     Objektsymbol: '',
     Bezeichnung: tzBezeichnung,
     Objektart: 'Produkt',
-    Teil_von: '1 - Projekte',
+    Teil_von: objektBezeichnung,
     Hersteller: '',
     Kuerzel: 'TZ',
   });
 
-  // Ebene 6: Komponenten
+  // Ebene 6: Komponenten mit Mengenexpansion
   for (const comp of components) {
     const kuerzel = findAbbreviation(comp.name);
-    const bezeichnung = `${projektNummer} ${kuerzel} - ${comp.name}`;
+    const qty = Math.max(1, comp.quantity);
 
-    rows.push({
-      Ebene: 6,
-      Objektnummer: `${projektNummer} ${kuerzel}`,
-      Objektsymbol: '',
-      Bezeichnung: bezeichnung,
-      Objektart: 'Produkt',
-      Teil_von: '1 - Projekte',
-      Hersteller: comp.marke || '',
-      Kuerzel: kuerzel,
-    });
+    for (let i = 1; i <= qty; i++) {
+      const suffix = i === 1 ? '' : ` ${i}`;
+      const objektnummer = `${objNr} ${kuerzel}${suffix}`;
+      const bezeichnung = `${objektnummer} - ${comp.name}`;
+
+      rows.push({
+        Ebene: 6,
+        Objektnummer: objektnummer,
+        Objektsymbol: '',
+        Bezeichnung: bezeichnung,
+        Objektart: 'Produkt',
+        Teil_von: tzBezeichnung,
+        Hersteller: comp.marke || '',
+        Kuerzel: kuerzel,
+      });
+    }
   }
 
   // CSV generieren
