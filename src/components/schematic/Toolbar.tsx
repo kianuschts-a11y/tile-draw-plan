@@ -80,6 +80,9 @@ interface ToolbarProps {
   onAnnotationColorChange: (color: string) => void;
   annotationFontSize: number;
   onAnnotationFontSizeChange: (size: number) => void;
+  // Selected annotation text editing
+  selectedAnnotationText?: { id: string; color: string; fontSize: number } | null;
+  onAnnotationTextUpdate?: (id: string, updates: { color?: string; fontSize?: number }) => void;
 }
 
 export function Toolbar({
@@ -107,7 +110,9 @@ export function Toolbar({
   annotationColor,
   onAnnotationColorChange,
   annotationFontSize,
-  onAnnotationFontSizeChange
+  onAnnotationFontSizeChange,
+  selectedAnnotationText,
+  onAnnotationTextUpdate
 }: ToolbarProps) {
   const [groupName, setGroupName] = useState("");
 
@@ -395,6 +400,43 @@ export function Toolbar({
           </div>
         )}
       </div>
+      
+      {/* Selected text annotation editing panel */}
+      {selectedAnnotationText && activeTool === 'select' && (
+        <div className="relative">
+          <div className="absolute left-full ml-2 bottom-0 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
+            <p className="text-xs font-medium mb-2">Text bearbeiten</p>
+            {/* Color picker */}
+            <div className="grid grid-cols-4 gap-1 mb-2">
+              {TOOL_COLORS.map((color) => (
+                <button
+                  key={color.value}
+                  className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${
+                    selectedAnnotationText.color === color.value ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+                  }`}
+                  style={{ backgroundColor: color.value }}
+                  onClick={() => onAnnotationTextUpdate?.(selectedAnnotationText.id, { color: color.value })}
+                  title={color.label}
+                />
+              ))}
+            </div>
+            {/* Font size slider */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Schriftgröße</span>
+                <span className="text-xs font-medium">{selectedAnnotationText.fontSize}px</span>
+              </div>
+              <Slider
+                value={[selectedAnnotationText.fontSize]}
+                onValueChange={(v) => onAnnotationTextUpdate?.(selectedAnnotationText.id, { fontSize: v[0] })}
+                min={8}
+                max={48}
+                step={1}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       
     </div>
   );

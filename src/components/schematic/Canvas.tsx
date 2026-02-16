@@ -268,13 +268,13 @@ export function Canvas({
   // Annotation drawing state - grid-cell based like connection tool
   const [isDrawingAnnotationLine, setIsDrawingAnnotationLine] = useState(false);
   const [annotationLinePath, setAnnotationLinePath] = useState<{ gridX: number; gridY: number }[]>([]);
-  const [textInputPosition, setTextInputPosition] = useState<{ gridX: number; gridY: number } | null>(null);
+  const [textInputPosition, setTextInputPosition] = useState<{ x: number; y: number } | null>(null);
   const [textInputValue, setTextInputValue] = useState('');
   const textInputRef = useRef<HTMLInputElement>(null);
   const textInputMountedRef = useRef(false);
   // Annotation dragging
   const [isDraggingAnnotation, setIsDraggingAnnotation] = useState(false);
-  const [annotationDragStart, setAnnotationDragStart] = useState<{ gridX: number; gridY: number } | null>(null);
+  const [annotationDragStart, setAnnotationDragStart] = useState<{ x: number; y: number } | null>(null);
 
   // Calculate paper dimensions in pixels
   const paperSize = PAPER_SIZES[canvasState.paperFormat];
@@ -530,13 +530,12 @@ export function Canvas({
       return;
     }
 
-    // Annotation text placement - grid-cell based
+    // Annotation text placement - free positioning (pixel-based)
     if (activeTool === 'annotate-text') {
       // If already showing an input, don't reset it (let the input handle itself)
       if (textInputPosition) return;
       const { x, y } = getCanvasPosition(e);
-      const { gridX, gridY } = getGridFromCanvas(x, y);
-      setTextInputPosition({ gridX, gridY });
+      setTextInputPosition({ x, y });
       setTextInputValue('');
       return;
     }
@@ -618,20 +617,26 @@ export function Canvas({
       return;
     }
 
-    // Annotation dragging (grid-based)
+    // Annotation dragging (pixel-based for text, grid-based for lines)
     if (isDraggingAnnotation && selectedAnnotationId && annotationDragStart) {
       const { x, y } = getCanvasPosition(e);
-      const { gridX, gridY } = getGridFromCanvas(x, y);
-      const dx = gridX - annotationDragStart.gridX;
-      const dy = gridY - annotationDragStart.gridY;
-      if (dx !== 0 || dy !== 0) {
-        const isLine = annotationLines.some(l => l.id === selectedAnnotationId);
-        if (isLine) {
+      const isLine = annotationLines.some(l => l.id === selectedAnnotationId);
+      if (isLine) {
+        const { gridX, gridY } = getGridFromCanvas(x, y);
+        const startGrid = getGridFromCanvas(annotationDragStart.x, annotationDragStart.y);
+        const dx = gridX - startGrid.gridX;
+        const dy = gridY - startGrid.gridY;
+        if (dx !== 0 || dy !== 0) {
           onAnnotationLineMove?.(selectedAnnotationId, dx, dy);
-        } else {
-          onAnnotationTextMove?.(selectedAnnotationId, dx, dy);
+          setAnnotationDragStart({ x, y });
         }
-        setAnnotationDragStart({ gridX, gridY });
+      } else {
+        const dx = x - annotationDragStart.x;
+        const dy = y - annotationDragStart.y;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+          onAnnotationTextMove?.(selectedAnnotationId, dx, dy);
+          setAnnotationDragStart({ x, y });
+        }
       }
       return;
     }
@@ -1703,13 +1708,12 @@ export function Canvas({
                 stroke="transparent"
                 strokeWidth={Math.max(line.strokeWidth + 8, 12)}
                 onMouseDown={(e) => {
-                  e.stopPropagation();
                   if (activeTool === 'select') {
+                    e.stopPropagation();
                     onAnnotationSelect?.(line.id, 'line');
                     const { x, y } = getCanvasPosition(e);
-                    const { gridX, gridY } = getGridFromCanvas(x, y);
                     setIsDraggingAnnotation(true);
-                    setAnnotationDragStart({ gridX, gridY });
+                    setAnnotationDragStart({ x, y });
                   }
                 }}
                 style={{ cursor: activeTool === 'select' ? 'move' : 'inherit' }}
@@ -1740,41 +1744,45 @@ export function Canvas({
           return (
             <g key={`ann-text-${text.id}`}>
               <text
-                x={(text.gridX + 0.5) * tileSize}
-                y={(text.gridY + 0.5) * tileSize}
+                x={text.x}
+                y={text.y}
                 fontSize={text.fontSize}
                 fontWeight={text.fontWeight || 'normal'}
                 fill={text.color}
                 fontFamily="sans-serif"
                 dominantBaseline="middle"
-                textAnchor="middle"
+                textAnchor="start"
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   if (activeTool === 'select') {
                     onAnnotationSelect?.(text.id, 'text');
                     const pos = getCanvasPosition(e);
-                    const grid = getGridFromCanvas(pos.x, pos.y);
                     setIsDraggingAnnotation(true);
-                    setAnnotationDragStart({ gridX: grid.gridX, gridY: grid.gridY });
+                    setAnnotationDragStart({ x: pos.x, y: pos.y });
                   }
                 }}
                 style={{ cursor: activeTool === 'select' ? 'move' : 'inherit', userSelect: 'none' }}
               >
                 {text.text}
               </text>
-              {isSelected && (
-                <rect
-                  x={text.gridX * tileSize}
-                  y={text.gridY * tileSize}
-                  width={tileSize}
-                  height={tileSize}
-                  fill="none"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 2"
-                  rx={2}
-                />
-              )}
+              {isSelected && (() => {
+                // Estimate text bounding box
+                const approxWidth = text.text.length * text.fontSize * 0.6;
+                const approxHeight = text.fontSize * 1.4;
+                return (
+                  <rect
+                    x={text.x - 2}
+                    y={text.y - approxHeight / 2 - 2}
+                    width={approxWidth + 4}
+                    height={approxHeight + 4}
+                    fill="none"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 2"
+                    rx={2}
+                  />
+                );
+              })()}
             </g>
           );
         })}
@@ -1801,8 +1809,8 @@ export function Canvas({
         {/* Text input for annotation text placement */}
         {textInputPosition && (
           <foreignObject
-            x={textInputPosition.gridX * tileSize}
-            y={textInputPosition.gridY * tileSize}
+            x={textInputPosition.x}
+            y={textInputPosition.y - annotationFontSize / 2}
             width={Math.max(200, 8 * tileSize)}
             height={Math.max(annotationFontSize + 16, tileSize)}
             data-export-ignore="true"
@@ -1829,8 +1837,8 @@ export function Canvas({
                   if (e.key === 'Enter') {
                     if (textInputValue.trim()) {
                       onAnnotationTextCreate?.({
-                        gridX: textInputPosition.gridX,
-                        gridY: textInputPosition.gridY,
+                        x: textInputPosition.x,
+                        y: textInputPosition.y,
                         text: textInputValue.trim(),
                         fontSize: annotationFontSize,
                         color: annotationColor,
@@ -1859,8 +1867,8 @@ export function Canvas({
                       const currentValue = textInputRef.current?.value?.trim();
                       if (currentValue) {
                         onAnnotationTextCreate?.({
-                          gridX: prev.gridX,
-                          gridY: prev.gridY,
+                          x: prev.x,
+                          y: prev.y,
                           text: currentValue,
                           fontSize: annotationFontSize,
                           color: annotationColor,
