@@ -290,8 +290,37 @@ export function SchematicEditor() {
   }, []);
 
   const handleResetView = useCallback(() => {
-    setCanvasState(prev => ({ ...prev, zoom: 1, panX: 50, panY: 50 }));
-  }, []);
+    // Calculate zoom to fit the entire paper in the viewport
+    const container = document.querySelector('.schematic-canvas');
+    if (!container) {
+      setCanvasState(prev => ({ ...prev, zoom: 0.8, panX: 50, panY: 50 }));
+      return;
+    }
+    
+    const containerRect = container.getBoundingClientRect();
+    const paperSize = PAPER_SIZES[canvasState.paperFormat];
+    const paperWidthMM = canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width;
+    const paperHeightMM = canvasState.orientation === 'landscape' ? paperSize.width : paperSize.height;
+    const paperWidthPx = Math.floor((paperWidthMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    const paperHeightPx = Math.floor((paperHeightMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    
+    const padding = 40; // px padding around paper
+    const availableWidth = containerRect.width - padding * 2;
+    const availableHeight = containerRect.height - padding * 2;
+    
+    const zoom = Math.min(availableWidth / paperWidthPx, availableHeight / paperHeightPx, 1.5);
+    const panX = (containerRect.width - paperWidthPx * zoom) / 2;
+    const panY = (containerRect.height - paperHeightPx * zoom) / 2;
+    
+    // Enable smooth transition
+    const svgGroup = document.querySelector('.schematic-canvas svg > g') as SVGGElement;
+    if (svgGroup) {
+      svgGroup.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+      setTimeout(() => { svgGroup.style.transition = ''; }, 450);
+    }
+    
+    setCanvasState(prev => ({ ...prev, zoom, panX, panY }));
+  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
 
   const handleDelete = useCallback(() => {
     // Delete selected annotation (line or text)
