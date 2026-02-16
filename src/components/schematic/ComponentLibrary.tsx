@@ -35,6 +35,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { GroupInfoDialog } from "./GroupInfoDialog";
+import { ProjectInfoDialog } from "./ProjectInfoDialog";
 import { PlanPreview } from "./PlanPreview";
 
 type LibraryTab = 'components' | 'groups' | 'projects';
@@ -61,6 +62,8 @@ interface ComponentLibraryProps {
   categories?: GroupCategory[];
   savedPlans?: SavedPlanData[];
   onDeletePlan?: (id: string) => void;
+  onOpenPlan?: (plan: SavedPlanData) => void;
+  onUsePlanAsTemplate?: (plan: SavedPlanData) => void;
   filterCategory?: string;
   onFilterCategoryChange?: (cat: string) => void;
   filterTag?: string;
@@ -225,6 +228,8 @@ export function ComponentLibrary({
   categories,
   savedPlans,
   onDeletePlan,
+  onOpenPlan,
+  onUsePlanAsTemplate,
   filterCategory,
   onFilterCategoryChange,
   filterTag,
@@ -239,6 +244,8 @@ export function ComponentLibrary({
   const [deleteGroupConfirmOpen, setDeleteGroupConfirmOpen] = useState(false);
   const [infoGroup, setInfoGroup] = useState<ComponentGroup | null>(null);
   const [infoDialogOpen, setInfoDialogOpen] = useState(false);
+  const [infoPlan, setInfoPlan] = useState<SavedPlanData | null>(null);
+  const [infoPlanDialogOpen, setInfoPlanDialogOpen] = useState(false);
   const [renameGroup, setRenameGroup] = useState<ComponentGroup | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -733,41 +740,79 @@ export function ComponentLibrary({
           return filteredPlans.length > 0 ? (
             <div className="flex flex-col gap-3">
               {filteredPlans.map(plan => (
-                <div
-                  key={plan.id}
-                  className="relative group border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-grab"
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('application/json', JSON.stringify({
-                      isSavedPlan: true,
-                      planId: plan.id
-                    }));
-                    e.dataTransfer.effectAllowed = 'copy';
-                  }}
-                >
-                  <div className="flex items-start gap-2">
-                    <div className="flex-shrink-0">
-                      <PlanPreview plan={plan} components={components} maxSize={80} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{plan.name}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {plan.componentQuantities.length} Komponente{plan.componentQuantities.length !== 1 ? 'n' : ''} · {plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('de-DE') : ''}
-                      </p>
-                    </div>
-                  </div>
-                  {onDeletePlan && (
-                    <button
-                      className="absolute top-2 right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeletePlan(plan.id);
+                <ContextMenu key={plan.id}>
+                  <ContextMenuTrigger>
+                    <div
+                      className="relative group border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-grab"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/json', JSON.stringify({
+                          isSavedPlan: true,
+                          planId: plan.id
+                        }));
+                        e.dataTransfer.effectAllowed = 'copy';
                       }}
                     >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
+                      <div className="flex items-start gap-2">
+                        <div className="flex-shrink-0">
+                          <PlanPreview plan={plan} components={components} maxSize={80} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{plan.name}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {plan.componentQuantities.length} Komponente{plan.componentQuantities.length !== 1 ? 'n' : ''}
+                            {plan.paperFormat && ` · ${plan.paperFormat}`}
+                            {plan.orientation && ` ${plan.orientation === 'landscape' ? 'Quer' : 'Hoch'}`}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('de-DE') : ''}
+                          </p>
+                        </div>
+                        <button
+                          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-muted transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInfoPlan(plan);
+                            setInfoPlanDialogOpen(true);
+                          }}
+                          title="Informationen"
+                        >
+                          <Info className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    {onOpenPlan && (
+                      <ContextMenuItem onClick={() => onOpenPlan(plan)}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Öffnen
+                      </ContextMenuItem>
+                    )}
+                    {onUsePlanAsTemplate && (
+                      <ContextMenuItem onClick={() => onUsePlanAsTemplate(plan)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Als Vorlage verwenden
+                      </ContextMenuItem>
+                    )}
+                    <ContextMenuItem onClick={() => { setInfoPlan(plan); setInfoPlanDialogOpen(true); }}>
+                      <Info className="w-4 h-4 mr-2" />
+                      Informationen
+                    </ContextMenuItem>
+                    {onDeletePlan && (
+                      <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          onClick={() => onDeletePlan(plan.id)}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Löschen
+                        </ContextMenuItem>
+                      </>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
               ))}
             </div>
           ) : (
@@ -849,6 +894,14 @@ export function ComponentLibrary({
         components={components}
         open={infoDialogOpen}
         onOpenChange={setInfoDialogOpen}
+      />
+
+      {/* Project Info Dialog */}
+      <ProjectInfoDialog
+        plan={infoPlan}
+        components={components}
+        open={infoPlanDialogOpen}
+        onOpenChange={setInfoPlanDialogOpen}
       />
 
       {/* Rename Group Dialog */}

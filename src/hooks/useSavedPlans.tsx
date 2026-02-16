@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { ComponentQuantity, CellConnection } from "@/types/schematic";
+import { ComponentQuantity, CellConnection, PaperFormat, Orientation, TitleBlockData } from "@/types/schematic";
+import { AnnotationLine, AnnotationText } from "@/types/annotations";
 import { PlacedTile } from "@/components/schematic/Canvas";
 import { DEFAULT_SAVED_PLANS } from "@/data/defaultSavedPlans";
 import { loadFromStorage, saveToStorage } from "@/lib/localStorage";
@@ -8,6 +9,21 @@ import { toast } from "sonner";
 export interface DrawingData {
   tiles: PlacedTile[];
   connections: CellConnection[];
+  annotationLines?: AnnotationLine[];
+  annotationTexts?: AnnotationText[];
+  tileLabels?: Record<string, { label: string; color: string }>;
+}
+
+export interface SavedPlanMetadata {
+  paperFormat?: PaperFormat;
+  orientation?: Orientation;
+  titleBlockData?: TitleBlockData;
+  projectDescriptions?: Record<string, string[]>;
+  projectKategorien?: Record<string, string>;
+  projectMarken?: Record<string, string>;
+  projectModelle?: Record<string, string>;
+  projectPreise?: Record<string, number>;
+  projectCustomFields?: Record<string, Record<string, string | number>>;
 }
 
 export interface SavedPlanData {
@@ -18,6 +34,16 @@ export interface SavedPlanData {
   matchedGroupId?: string;
   createdAt?: string;
   updatedAt?: string;
+  // Extended metadata
+  paperFormat?: PaperFormat;
+  orientation?: Orientation;
+  titleBlockData?: TitleBlockData;
+  projectDescriptions?: Record<string, string[]>;
+  projectKategorien?: Record<string, string>;
+  projectMarken?: Record<string, string>;
+  projectModelle?: Record<string, string>;
+  projectPreise?: Record<string, number>;
+  projectCustomFields?: Record<string, Record<string, string | number>>;
 }
 
 const STORAGE_KEY = 'schematic-editor-saved-plans';
@@ -33,11 +59,12 @@ export function useSavedPlans() {
   }, []);
 
   const savePlan = useCallback(async (
-    name: string, componentQuantities: ComponentQuantity[], drawingData: DrawingData, matchedGroupId?: string
+    name: string, componentQuantities: ComponentQuantity[], drawingData: DrawingData, matchedGroupId?: string, metadata?: SavedPlanMetadata
   ): Promise<SavedPlanData | null> => {
     const newPlan: SavedPlanData = {
       id: crypto.randomUUID(), name, componentQuantities, drawingData, matchedGroupId,
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      ...metadata
     };
     persist([newPlan, ...savedPlans]);
     toast.success('Plan gespeichert');

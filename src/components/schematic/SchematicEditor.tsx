@@ -20,12 +20,13 @@ import { GroupCategoryDialog } from "./GroupCategoryDialog";
 import { CategoryManagerDialog } from "./CategoryManagerDialog";
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
-import { useSavedPlans, SavedPlanData, DrawingData } from "@/hooks/useSavedPlans";
+import { useSavedPlans, SavedPlanData, DrawingData, SavedPlanMetadata } from "@/hooks/useSavedPlans";
 import { useGroupCategories } from "@/hooks/useGroupCategories";
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import { Menu, Package } from "lucide-react";
 import { isConnectionBlock, CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
+import { toast } from "sonner";
 
 // Helper to find component by ID, checking both custom components and connection blocks
 function findComponentById(componentId: string, components: Component[]): Component | undefined {
@@ -1806,9 +1807,8 @@ export function SchematicEditor() {
     return false;
   }, [tiles, tileLabels]);
 
-  // Handle save project + export image from dialog
-  const handleSaveProjectAndExportImage = useCallback(async (projectName: string) => {
-    // Save as saved_plan (project) instead of group
+  // Helper: collect all current state for saving
+  const collectSaveData = useCallback(() => {
     const componentCounts = new Map<string, number>();
     for (const tile of tiles) {
       if (!isConnectionBlock(tile.component)) {
@@ -1818,43 +1818,184 @@ export function SchematicEditor() {
     const componentQuantities: ComponentQuantity[] = Array.from(componentCounts.entries()).map(([componentId, quantity]) => ({
       componentId, quantity
     }));
-    const drawingData: DrawingData = { tiles, connections };
-    await savePlan(projectName, componentQuantities, drawingData);
+    // Serialize tileLabels Map to plain object
+    const tileLabelsObj: Record<string, { label: string; color: string }> = {};
+    tileLabels.forEach((v, k) => { tileLabelsObj[k] = v; });
+
+    const drawingData: DrawingData = {
+      tiles, connections,
+      annotationLines: annotationLines.length > 0 ? annotationLines : undefined,
+      annotationTexts: annotationTexts.length > 0 ? annotationTexts : undefined,
+      tileLabels: Object.keys(tileLabelsObj).length > 0 ? tileLabelsObj : undefined,
+    };
+    // Serialize Maps to plain objects for metadata
+    const mapToObj = <V,>(m: Map<string, V>): Record<string, V> | undefined => {
+      if (m.size === 0) return undefined;
+      const obj: Record<string, V> = {};
+      m.forEach((v, k) => { obj[k] = v; });
+      return obj;
+    };
+    const metadata: SavedPlanMetadata = {
+      paperFormat: canvasState.paperFormat,
+      orientation: canvasState.orientation,
+      titleBlockData: titleBlockData.enabled ? titleBlockData : undefined,
+      projectDescriptions: mapToObj(projectDescriptions),
+      projectKategorien: mapToObj(projectKategorien),
+      projectMarken: mapToObj(projectMarken),
+      projectModelle: mapToObj(projectModelle),
+      projectPreise: mapToObj(projectPreise),
+      projectCustomFields: mapToObj(projectCustomFields),
+    };
+    return { componentQuantities, drawingData, metadata };
+  }, [tiles, connections, annotationLines, annotationTexts, tileLabels, canvasState.paperFormat, canvasState.orientation, titleBlockData, projectDescriptions, projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields]);
+
+  // Handle save project + export image from dialog
+  const handleSaveProjectAndExportImage = useCallback(async (projectName: string) => {
+    const { componentQuantities, drawingData, metadata } = collectSaveData();
+    await savePlan(projectName, componentQuantities, drawingData, undefined, metadata);
     setIsExportDialogOpen(false);
     handleExport();
-  }, [tiles, connections, savePlan, handleExport]);
+  }, [collectSaveData, savePlan, handleExport]);
 
   // Handle save project + export PDF from dialog
   const handleSaveProjectAndExportPdf = useCallback(async (projectName: string, pdfOptions?: { includeBOM?: boolean; includeMesskonzept?: boolean }) => {
-    const componentCounts = new Map<string, number>();
-    for (const tile of tiles) {
-      if (!isConnectionBlock(tile.component)) {
-        componentCounts.set(tile.component.id, (componentCounts.get(tile.component.id) || 0) + 1);
-      }
-    }
-    const componentQuantities: ComponentQuantity[] = Array.from(componentCounts.entries()).map(([componentId, quantity]) => ({
-      componentId, quantity
-    }));
-    const drawingData: DrawingData = { tiles, connections };
-    await savePlan(projectName, componentQuantities, drawingData);
+    const { componentQuantities, drawingData, metadata } = collectSaveData();
+    await savePlan(projectName, componentQuantities, drawingData, undefined, metadata);
     setIsExportDialogOpen(false);
     handleExportPdf(pdfOptions);
-  }, [tiles, connections, savePlan, handleExportPdf]);
+  }, [collectSaveData, savePlan, handleExportPdf]);
 
   // Handle save project from toolbar (without export)
   const handleSaveProjectFromToolbar = useCallback(async (projectName: string) => {
-    const componentCounts = new Map<string, number>();
-    for (const tile of tiles) {
-      if (!isConnectionBlock(tile.component)) {
-        componentCounts.set(tile.component.id, (componentCounts.get(tile.component.id) || 0) + 1);
+    const { componentQuantities, drawingData, metadata } = collectSaveData();
+    await savePlan(projectName, componentQuantities, drawingData, undefined, metadata);
+  }, [collectSaveData, savePlan]);
+
+  // Open a saved plan - replaces everything on canvas
+  const handleOpenPlan = useCallback((plan: SavedPlanData) => {
+    // Clear canvas
+    setTilesInternal([]);
+    setConnectionsInternal([]);
+    setAnnotationLines([]);
+    setAnnotationTexts([]);
+    setTileLabels(new Map());
+    setSelectedTileIds(new Set());
+    setSelectedAnnotationId(null);
+    setSelectedAnnotationType(null);
+    setExcessTileIds(new Set());
+
+    // Restore paper format and orientation
+    if (plan.paperFormat || plan.orientation) {
+      setCanvasState(prev => ({
+        ...prev,
+        ...(plan.paperFormat ? { paperFormat: plan.paperFormat } : {}),
+        ...(plan.orientation ? { orientation: plan.orientation } : {}),
+      }));
+    }
+
+    // Restore title block
+    if (plan.titleBlockData) {
+      setTitleBlockData(plan.titleBlockData);
+    } else {
+      setTitleBlockData({ enabled: false, projekt: '', zeichnungsNr: '', blattNr: '1', blattzahl: '1', aenderungen: '', gezeichnet: { name: '', datum: '' }, geprueft: { name: '', datum: '' } });
+    }
+
+    // Restore tiles and connections
+    if (plan.drawingData?.tiles) {
+      setTilesInternal(JSON.parse(JSON.stringify(plan.drawingData.tiles)));
+    }
+    if (plan.drawingData?.connections) {
+      setConnectionsInternal(JSON.parse(JSON.stringify(plan.drawingData.connections)));
+    }
+
+    // Restore annotations
+    if (plan.drawingData?.annotationLines) {
+      setAnnotationLines(JSON.parse(JSON.stringify(plan.drawingData.annotationLines)));
+    }
+    if (plan.drawingData?.annotationTexts) {
+      setAnnotationTexts(JSON.parse(JSON.stringify(plan.drawingData.annotationTexts)));
+    }
+
+    // Restore tile labels
+    if (plan.drawingData?.tileLabels) {
+      const labelsMap = new Map<string, { label: string; color: string }>();
+      for (const [k, v] of Object.entries(plan.drawingData.tileLabels)) {
+        labelsMap.set(k, v);
+      }
+      setTileLabels(labelsMap);
+    }
+
+    // Restore BOM metadata
+    const objToMap = <V,>(obj?: Record<string, V>): Map<string, V> => {
+      const m = new Map<string, V>();
+      if (obj) Object.entries(obj).forEach(([k, v]) => m.set(k, v));
+      return m;
+    };
+    setProjectDescriptions(objToMap(plan.projectDescriptions));
+    setProjectKategorien(objToMap(plan.projectKategorien));
+    setProjectMarken(objToMap(plan.projectMarken));
+    setProjectModelle(objToMap(plan.projectModelle));
+    setProjectPreise(objToMap(plan.projectPreise));
+    setProjectCustomFields(objToMap(plan.projectCustomFields));
+
+    // Restore quantities
+    const qMap = new Map<string, number>();
+    for (const cq of plan.componentQuantities) {
+      qMap.set(cq.componentId, cq.quantity);
+    }
+    setProjectQuantities(qMap);
+    setProjectOriginalQuantities(new Map(qMap));
+
+    // Reset history
+    historyRef.current = [{ tiles: [], connections: [], annotationLines: [], annotationTexts: [] }];
+    historyIndexRef.current = 0;
+
+    // Reset view after short delay to let state settle
+    setTimeout(() => handleResetView(), 100);
+
+    toast.success(`Projekt "${plan.name}" geöffnet`);
+  }, [handleResetView]);
+
+  // Use plan as template - adds to existing canvas with new IDs
+  const handleUsePlanAsTemplate = useCallback((plan: SavedPlanData) => {
+    if (!plan.drawingData?.tiles || plan.drawingData.tiles.length === 0) return;
+
+    const planTiles = plan.drawingData.tiles;
+    const planConnections = plan.drawingData.connections || [];
+
+    const minX = Math.min(...planTiles.map(t => t.gridX));
+    const minY = Math.min(...planTiles.map(t => t.gridY));
+    const maxGridY = tiles.length > 0 ? Math.max(...tiles.map(t => t.gridY + (t.component.height || 1))) + 1 : 0;
+
+    const oldToNewIdMap = new Map<string, string>();
+    const newTiles: PlacedTile[] = [];
+
+    for (const tile of planTiles) {
+      const newId = generateId();
+      oldToNewIdMap.set(tile.id, newId);
+      newTiles.push({
+        id: newId,
+        component: tile.component,
+        gridX: tile.gridX - minX,
+        gridY: maxGridY + (tile.gridY - minY),
+        rotation: tile.rotation
+      });
+    }
+
+    const newConnections: CellConnection[] = [];
+    for (const conn of planConnections) {
+      const newFromId = oldToNewIdMap.get(conn.fromTileId);
+      const newToId = oldToNewIdMap.get(conn.toTileId);
+      if (newFromId && newToId) {
+        newConnections.push({ ...conn, id: generateId(), fromTileId: newFromId, toTileId: newToId });
       }
     }
-    const componentQuantities: ComponentQuantity[] = Array.from(componentCounts.entries()).map(([componentId, quantity]) => ({
-      componentId, quantity
-    }));
-    const drawingData: DrawingData = { tiles, connections };
-    await savePlan(projectName, componentQuantities, drawingData);
-  }, [tiles, connections, savePlan]);
+
+    setTiles(prev => [...prev, ...newTiles]);
+    setConnections(prev => [...prev, ...newConnections]);
+    setSelectedTileIds(new Set(newTiles.map(t => t.id)));
+    toast.success(`Vorlage "${plan.name}" eingefügt`);
+  }, [tiles]);
 
   // Handle export image only from dialog
   const handleExportImageOnly = useCallback(() => {
@@ -2362,6 +2503,8 @@ export function SchematicEditor() {
           categories={categories}
           savedPlans={savedPlans}
           onDeletePlan={deletePlan}
+          onOpenPlan={handleOpenPlan}
+          onUsePlanAsTemplate={handleUsePlanAsTemplate}
           filterCategory={filterCategory}
           onFilterCategoryChange={setFilterCategory}
           filterTag={filterTag}
