@@ -14,7 +14,8 @@ import {
   ArrowRight,
   Tag,
   Minus,
-  Type
+  Type,
+  Package
 } from "lucide-react";
 import { ToolButton } from "./ToolButton";
 import { Separator } from "@/components/ui/separator";
@@ -81,8 +82,9 @@ interface ToolbarProps {
   annotationFontSize: number;
   onAnnotationFontSizeChange: (size: number) => void;
   // Selected annotation text editing
-  selectedAnnotationText?: { id: string; color: string; fontSize: number } | null;
-  onAnnotationTextUpdate?: (id: string, updates: { color?: string; fontSize?: number }) => void;
+  selectedAnnotationText?: { id: string; color: string; fontSize: number; text: string } | null;
+  onAnnotationTextUpdate?: (id: string, updates: { color?: string; fontSize?: number; text?: string }) => void;
+  onSaveProject?: (name: string) => void;
 }
 
 export function Toolbar({
@@ -112,7 +114,8 @@ export function Toolbar({
   annotationFontSize,
   onAnnotationFontSizeChange,
   selectedAnnotationText,
-  onAnnotationTextUpdate
+  onAnnotationTextUpdate,
+  onSaveProject
 }: ToolbarProps) {
   const [groupName, setGroupName] = useState("");
 
@@ -287,6 +290,23 @@ export function Toolbar({
                 <Save className="w-3 h-3" />
               </Button>
             </div>
+            {onSaveProject && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 w-full mt-2 gap-1 text-xs"
+                onClick={() => {
+                  if (groupName.trim()) {
+                    onSaveProject(groupName.trim());
+                    setGroupName("");
+                  }
+                }}
+                disabled={!groupName.trim()}
+              >
+                <Package className="w-3 h-3" />
+                Projekt speichern
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -406,6 +426,13 @@ export function Toolbar({
         <div className="relative">
           <div className="absolute left-full ml-2 bottom-0 bg-background border rounded-lg shadow-lg p-2 min-w-[180px] z-50">
             <p className="text-xs font-medium mb-2">Text bearbeiten</p>
+            {/* Text content input */}
+            <Input
+              value={selectedAnnotationText.text}
+              onChange={(e) => onAnnotationTextUpdate?.(selectedAnnotationText.id, { text: e.target.value })}
+              placeholder="Text eingeben..."
+              className="h-7 text-sm mb-2"
+            />
             {/* Color picker */}
             <div className="grid grid-cols-4 gap-1 mb-2">
               {TOOL_COLORS.map((color) => (

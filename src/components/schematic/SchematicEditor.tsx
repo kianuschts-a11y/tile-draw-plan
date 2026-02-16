@@ -1007,7 +1007,7 @@ export function SchematicEditor() {
     scheduleSave();
   }, [scheduleSave]);
 
-  const handleAnnotationTextUpdate = useCallback((id: string, updates: { color?: string; fontSize?: number }) => {
+  const handleAnnotationTextUpdate = useCallback((id: string, updates: { color?: string; fontSize?: number; text?: string }) => {
     setAnnotationTexts(prev => prev.map(text => 
       text.id === id ? { ...text, ...updates } : text
     ));
@@ -1812,6 +1812,21 @@ export function SchematicEditor() {
     handleExportPdf(pdfOptions);
   }, [tiles, connections, savePlan, handleExportPdf]);
 
+  // Handle save project from toolbar (without export)
+  const handleSaveProjectFromToolbar = useCallback(async (projectName: string) => {
+    const componentCounts = new Map<string, number>();
+    for (const tile of tiles) {
+      if (!isConnectionBlock(tile.component)) {
+        componentCounts.set(tile.component.id, (componentCounts.get(tile.component.id) || 0) + 1);
+      }
+    }
+    const componentQuantities: ComponentQuantity[] = Array.from(componentCounts.entries()).map(([componentId, quantity]) => ({
+      componentId, quantity
+    }));
+    const drawingData: DrawingData = { tiles, connections };
+    await savePlan(projectName, componentQuantities, drawingData);
+  }, [tiles, connections, savePlan]);
+
   // Handle export image only from dialog
   const handleExportImageOnly = useCallback(() => {
     setIsExportDialogOpen(false);
@@ -2251,11 +2266,12 @@ export function SchematicEditor() {
             selectedAnnotationId && selectedAnnotationType === 'text'
               ? (() => {
                   const t = annotationTexts.find(t => t.id === selectedAnnotationId);
-                  return t ? { id: t.id, color: t.color, fontSize: t.fontSize } : null;
+                  return t ? { id: t.id, color: t.color, fontSize: t.fontSize, text: t.text } : null;
                 })()
               : null
           }
           onAnnotationTextUpdate={handleAnnotationTextUpdate}
+          onSaveProject={handleSaveProjectFromToolbar}
         />
 
         <div className="flex-1 overflow-hidden schematic-canvas">
