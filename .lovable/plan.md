@@ -1,124 +1,67 @@
 
 
-## M.O.P CSV-Export und Export-Dialog Umbenennung
+## Korrektur des M.O.P CSV-Exports
 
-### Uebersicht
+### Gefundene Fehler
 
-Es wird eine CSV-Export-Funktion hinzugefuegt, die Projektdaten in der hierarchischen Struktur ausgibt, die M.O.P Technisches Objektmanagement erwartet. Zusaetzlich wird der Button "Zeichnung exportieren" zu "Exportieren" umbenannt und die CSV-Option im Export-Dialog integriert.
+Vergleich der exportierten CSV mit der M.O.P-Baumstruktur aus den Screenshots ergibt folgende Abweichungen:
 
-### M.O.P Baumstruktur (aus den Screenshots)
+| Problem | Aktuell (falsch) | Korrekt (laut Screenshots) |
+|---|---|---|
+| Objektnummer TZ | `1234 TZ` | `1234-1 TZ` |
+| Objektnummer Komponenten | `1234 GK` | `1234-1 GK` |
+| Teil_von TZ | `1 - Projekte` | `1234-1 - {Strasse}` (Objekt/Haus) |
+| Teil_von Komponenten | `1 - Projekte` | `1234-1 TZ - Technikzentrale` |
+| Mengenexpansion | 1 Zeile fuer 3 Pufferspeicher | 3 Zeilen: PS, PS 2, PS 3 |
+| Bezeichnung TZ | `1234 TZ - Technikzentrale` | `1234-1 TZ - Technikzentrale` |
+| Bezeichnung Komp. | `1234 GK - Gas Kessel` | `1234-1 GK - Gas Kessel` |
+| Bereich Objektsymbol | leer | `ObjektSymbol 8` |
+| Bereich Objektart | leer | `Produkt` |
+
+### Korrekte Hierarchie (Teil_von-Kette)
 
 ```text
 1 - Projekte
-  2 - Energielieferung
-    5 - Realisierung          (Objekte hier)
-    6 - Betrieb
-    8 - Beendet
-  3 - Fernwaermeoptimierung
-    50 - Realisierung
-    60 - Betrieb
-    70 - Beendet
-  4 - Energiemonitoring
-    500 - Realisierung
-    600 - Betrieb
-    700 - Beendet
+  2 - Energielieferung          (Teil_von: 1 - Projekte, Objektart: Produkt, ObjektSymbol 8)
+    5 - Realisierung            (Teil_von: 2 - Energielieferung)
+      1234-1 - Teststrasse      (Teil_von: 5 - Realisierung)
+        1234-1 TZ - TZ          (Teil_von: 1234-1 - Teststrasse)
+          1234-1 GK - Gas Kessel   (Teil_von: 1234-1 TZ - Technikzentrale)
+          1234-1 PS - Pufferspeicher
+          1234-1 PS 2 - Pufferspeicher
+          1234-1 PS 3 - Pufferspeicher
 ```
 
-Unter einem Status-Ordner liegt ein **Objekt** (Haus-Icon):
-`{Projektnummer}-1 - {Strasse}`
+### Mengenexpansion
 
-Darunter die **Technikzentrale**:
-`{Projektnummer} TZ - Technikzentrale`
-
-Darunter die **Komponenten** (aus der Stueckliste):
-`{Projektnummer} {Kuerzel} - {Komponentenname}`
-
-Jede Komponente hat: Objektsymbol, Bezeichnung, Objektart ("Produkt"), Teil von ("1 - Projekte"), Hersteller (aus Extradaten).
-
-### Kuerzelliste (aus der hochgeladenen Excel-Datei)
-
-Die Kuerzelliste wird fest im Code hinterlegt und mappt Komponentennamen auf Abkuerzungen:
-- Technikzentrale -> TZ
-- BHKW -> BHKW
-- Waermepumpe -> WP
-- Gaskessel -> GK
-- Pufferspeicher -> PS
-- Wechselrichter -> WR
-- usw.
+Wenn eine Komponente die Menge 3 hat, werden 3 separate Zeilen erzeugt:
+- `{projNr}-1 {Kuerzel} - {Name}` (erstes Stueck)
+- `{projNr}-1 {Kuerzel} 2 - {Name}` (zweites Stueck)
+- `{projNr}-1 {Kuerzel} 3 - {Name}` (drittes Stueck)
 
 ### Technische Aenderungen
 
-#### 1. Neue Datei: `src/data/mopAbbreviations.ts`
+Nur eine Datei muss geaendert werden: `src/lib/mopCsvExport.ts`
 
-Enthaelt die Kuerzelliste als Lookup-Map und eine Funktion, die den besten Match fuer einen Komponentennamen findet.
+1. **Objektnummern-Format**: Ueberall `{projNr}-1` statt `{projNr}` verwenden fuer TZ und Komponenten
+2. **Teil_von-Kette**: Korrekte Eltern-Kind-Beziehungen:
+   - TZ: `Teil_von` = Objekt-Bezeichnung
+   - Komponenten: `Teil_von` = TZ-Bezeichnung
+3. **Bereich-Zeile**: `Objektsymbol: ObjektSymbol 8` und `Objektart: Produkt` setzen
+4. **Mengenexpansion**: Schleife ueber `comp.quantity`, mit Nummerierung ab dem 2. Stueck
+5. **Eindeutige Kuerzel**: Wenn mehrere verschiedene Komponenten dasselbe Kuerzel haben, diese ebenfalls nummerieren
 
+### Erwartetes CSV-Ergebnis (Beispiel)
+
+```text
+Ebene;Objektnummer;Objektsymbol;Bezeichnung;Objektart;Teil_von;Hersteller;Kuerzel
+1;1;;1 - Projekte;;;;
+2;2;ObjektSymbol 8;2 - Energielieferung;Produkt;1 - Projekte;;
+3;5;;5 - Realisierung;;2 - Energielieferung;;
+4;1234-1;ObjektSymbol 8;1234-1 - Teststrasse;;5 - Realisierung;;
+5;1234-1 TZ;;1234-1 TZ - Technikzentrale;Produkt;1234-1 - Teststrasse;;TZ
+6;1234-1 GK;;1234-1 GK - Gas Kessel;Produkt;1234-1 TZ - Technikzentrale;;GK
+6;1234-1 PS;;1234-1 PS - Pufferspeicher;Produkt;1234-1 TZ - Technikzentrale;;PS
+6;1234-1 PS 2;;1234-1 PS 2 - Pufferspeicher;Produkt;1234-1 TZ - Technikzentrale;;PS
+6;1234-1 BHKW;;1234-1 BHKW - BHKW;Produkt;1234-1 TZ - Technikzentrale;Vaillant;BHKW
 ```
-ABBREVIATIONS = {
-  "Waermenetz": "WN",
-  "Technikzentrale": "TZ",
-  "BHKW": "BHKW",
-  "Gaskessel": "GK",
-  "Pufferspeicher": "PS",
-  ...
-}
-```
-
-#### 2. Neue Datei: `src/lib/mopCsvExport.ts`
-
-Kernlogik fuer den CSV-Export. Erhaelt als Parameter:
-- Projektnummer (aus Projektname extrahiert)
-- Strasse (separates Eingabefeld)
-- Bereich (Energielieferung / Fernwaermeoptimierung / Energiemonitoring)
-- Status (Realisierung / Betrieb / Beendet)
-- Trennzeichen (auswaehlbar: Semikolon oder Komma)
-- Komponenten-Daten aus der Stueckliste (Name, Menge, Marke/Hersteller)
-
-Erzeugt eine CSV-Datei mit folgenden Spalten (pro Zeile = ein Objekt in M.O.P):
-- Ebene (Hierarchie-Tiefe)
-- Objektnummer
-- Objektsymbol (z.B. ObjektSymbol 8)
-- Bezeichnung
-- Objektart
-- Teil_von
-- Hersteller (nur bei Komponenten)
-- Kuerzel
-
-Die Hierarchie wird flach als nummerierte Zeilen abgebildet.
-
-#### 3. Neue Datei: `src/components/schematic/MopExportDialog.tsx`
-
-Ein Dialog mit folgenden Eingabefeldern:
-- **Projektnummer**: Wird automatisch aus dem Projektnamen extrahiert (editierbar)
-- **Strasse/Adresse**: Eingabefeld
-- **Bereich**: Dropdown mit Energielieferung, Fernwaermeoptimierung, Energiemonitoring
-- **Status**: Dropdown mit Realisierung, Betrieb, Beendet
-- **Trennzeichen**: Dropdown mit Semikolon, Komma, Tab
-- Vorschau der ersten Zeilen
-
-Button "CSV exportieren" loest den Download aus.
-
-#### 4. Aenderung: `src/components/schematic/ExportGroupDialog.tsx`
-
-- Neuer Checkbox-Eintrag "M.O.P Import (CSV)" neben Zeichnung, Stueckliste, Messkonzept
-- Wenn aktiviert, wird beim Exportieren der MopExportDialog geoeffnet
-
-#### 5. Aenderung: `src/components/schematic/HeaderActions.tsx`
-
-- Tooltip von "Zeichnung exportieren (E)" zu "Exportieren (E)" aendern
-
-#### 6. Aenderung: `src/components/schematic/SchematicEditor.tsx`
-
-- MopExportDialog einbinden und State verwalten
-- Stuecklisten-Daten (tiles, projectMarken etc.) an den neuen Dialog weitergeben
-
-### Zusammenfassung der Dateien
-
-| Datei | Aenderung |
-|---|---|
-| `src/data/mopAbbreviations.ts` | Neue Datei - Kuerzelliste als Map |
-| `src/lib/mopCsvExport.ts` | Neue Datei - CSV-Generierungslogik |
-| `src/components/schematic/MopExportDialog.tsx` | Neue Datei - Export-Dialog mit Eingabefeldern |
-| `src/components/schematic/ExportGroupDialog.tsx` | CSV-Checkbox hinzufuegen |
-| `src/components/schematic/HeaderActions.tsx` | Tooltip umbenennen |
-| `src/components/schematic/SchematicEditor.tsx` | MopExportDialog integrieren |
-
