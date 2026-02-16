@@ -77,7 +77,7 @@ export function HeaderActions({
             <Download className="w-4 h-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Zeichnung exportieren (E)</TooltipContent>
+        <TooltipContent>Exportieren (E)</TooltipContent>
       </Tooltip>
       
       <Tooltip>

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FolderPlus, Download, Image, FileText, CheckCircle2, FileSpreadsheet, Activity } from "lucide-react";
+import { FolderPlus, Download, Image, FileText, CheckCircle2, FileSpreadsheet, Activity, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type DrawingFormat = 'image' | 'pdf';
@@ -21,6 +21,7 @@ interface ExportGroupDialogProps {
   onExportPdf: (options?: PdfOptions) => void;
   onExportBOMExcel: () => void;
   onExportMesskonzeptExcel: () => void;
+  onExportMopCsv: () => void;
   onSaveProjectAndExportImage: (projectName: string) => void;
   onSaveProjectAndExportPdf: (projectName: string, options?: PdfOptions) => void;
   hasTiles: boolean;
@@ -34,6 +35,7 @@ export function ExportGroupDialog({
   onExportPdf,
   onExportBOMExcel,
   onExportMesskonzeptExcel,
+  onExportMopCsv,
   onSaveProjectAndExportImage,
   onSaveProjectAndExportPdf,
   hasTiles,
@@ -47,8 +49,14 @@ export function ExportGroupDialog({
   const [exportDrawing, setExportDrawing] = useState(true);
   const [exportBOM, setExportBOM] = useState(true);
   const [exportMesskonzept, setExportMesskonzept] = useState(false);
+  const [exportMopCsv, setExportMopCsv] = useState(false);
 
   const handleExport = () => {
+    // Trigger M.O.P CSV export if selected
+    if (exportMopCsv) {
+      onExportMopCsv();
+    }
+
     const isPdf = drawingFormat === 'pdf';
     const pdfOptions: PdfOptions = {
       includeBOM: exportBOM,
@@ -97,7 +105,7 @@ export function ExportGroupDialog({
     onClose();
   };
 
-  const hasAnyExportSelected = exportDrawing || exportBOM || exportMesskonzept;
+  const hasAnyExportSelected = exportDrawing || exportBOM || exportMesskonzept || exportMopCsv;
   const canExport = hasAnyExportSelected && (!saveAsProject || projectName.trim().length > 0);
 
   // Determine what the user will get
@@ -246,6 +254,27 @@ export function ExportGroupDialog({
                 Messkonzept
                 <span className="text-xs text-muted-foreground font-normal ml-auto">
                   {!hasMesskonzeptItems ? 'Keine Messpunkte' : messkonzeptInPdf ? 'In PDF enthalten' : 'Excel'}
+                </span>
+              </Label>
+            </div>
+
+            {/* M.O.P CSV Export */}
+            <div
+              className={cn(
+                "flex items-center gap-3 rounded-lg border p-3 transition-colors",
+                exportMopCsv ? "border-primary/50 bg-primary/5" : "border-border"
+              )}
+            >
+              <Checkbox
+                id="export-mop-csv"
+                checked={exportMopCsv}
+                onCheckedChange={(checked) => setExportMopCsv(checked === true)}
+              />
+              <Label htmlFor="export-mop-csv" className="text-sm font-medium cursor-pointer flex items-center gap-2 flex-1">
+                <Database className="w-4 h-4 text-muted-foreground" />
+                M.O.P Import
+                <span className="text-xs text-muted-foreground font-normal ml-auto">
+                  CSV
                 </span>
               </Label>
             </div>
