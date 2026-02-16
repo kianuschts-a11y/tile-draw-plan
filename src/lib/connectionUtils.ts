@@ -33,111 +33,116 @@ function lineSegmentIntersection(
 }
 
 /**
- * Get all edges of a shape as line segments
+ * Rotate a point around a center by a given angle in degrees
+ */
+function rotatePoint(px: number, py: number, cx: number, cy: number, angleDeg: number): { x: number; y: number } {
+  const rad = (Math.PI / 180) * angleDeg;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return {
+    x: cos * (px - cx) - sin * (py - cy) + cx,
+    y: sin * (px - cx) + cos * (py - cy) + cy
+  };
+}
+
+/**
+ * Get all edges of a shape as line segments.
+ * If the shape has a rotation, all edge points are rotated around the shape center.
  */
 function getShapeEdges(shape: Shape): Array<{ x1: number; y1: number; x2: number; y2: number }> {
   const { x, y, width, height, type } = shape;
   
+  let edges: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+  
   switch (type) {
     case 'rectangle':
-      return [
-        { x1: x, y1: y, x2: x + width, y2: y },           // Top
-        { x1: x + width, y1: y, x2: x + width, y2: y + height }, // Right
-        { x1: x + width, y1: y + height, x2: x, y2: y + height }, // Bottom
-        { x1: x, y1: y + height, x2: x, y2: y }           // Left
+      edges = [
+        { x1: x, y1: y, x2: x + width, y2: y },
+        { x1: x + width, y1: y, x2: x + width, y2: y + height },
+        { x1: x + width, y1: y + height, x2: x, y2: y + height },
+        { x1: x, y1: y + height, x2: x, y2: y }
       ];
+      break;
       
     case 'triangle':
-      // Determine triangle orientation based on aspect ratio and shape dimensions
-      // Check if the shape has a rotation or specific pattern
-      // Default: apex at top center (pointing up)
-      // We'll detect orientation based on width vs height ratio
-      const isWide = width > height * 1.5;
-      const isTall = height > width * 1.5;
-      
-      if (isWide) {
-        // Horizontal triangle - apex pointing right
-        return [
-          { x1: x, y1: y, x2: x + width, y2: y + height / 2 },           // Top edge to apex
-          { x1: x + width, y1: y + height / 2, x2: x, y2: y + height },  // Apex to bottom
-          { x1: x, y1: y + height, x2: x, y2: y }                         // Left edge (base)
-        ];
-      } else if (isTall) {
-        // Vertical triangle - apex at top
-        return [
-          { x1: x + width / 2, y1: y, x2: x, y2: y + height },           // Left edge
-          { x1: x + width / 2, y1: y, x2: x + width, y2: y + height },   // Right edge
-          { x1: x, y1: y + height, x2: x + width, y2: y + height }       // Bottom edge
-        ];
-      } else {
-        // Square-ish triangle - default to apex at top
-        return [
-          { x1: x + width / 2, y1: y, x2: x, y2: y + height },           // Left edge
-          { x1: x + width / 2, y1: y, x2: x + width, y2: y + height },   // Right edge
-          { x1: x, y1: y + height, x2: x + width, y2: y + height }       // Bottom edge
-        ];
-      }
+      // Always define as apex-top, base-bottom (matches SVG in ShapeRenderer)
+      // Rotation property handles the actual orientation
+      edges = [
+        { x1: x + width / 2, y1: y, x2: x, y2: y + height },
+        { x1: x + width / 2, y1: y, x2: x + width, y2: y + height },
+        { x1: x, y1: y + height, x2: x + width, y2: y + height }
+      ];
+      break;
       
     case 'diamond':
-      return [
-        { x1: x + width / 2, y1: y, x2: x + width, y2: y + height / 2 },     // Top-right
-        { x1: x + width, y1: y + height / 2, x2: x + width / 2, y2: y + height }, // Bottom-right
-        { x1: x + width / 2, y1: y + height, x2: x, y2: y + height / 2 },    // Bottom-left
-        { x1: x, y1: y + height / 2, x2: x + width / 2, y2: y }              // Top-left
+      edges = [
+        { x1: x + width / 2, y1: y, x2: x + width, y2: y + height / 2 },
+        { x1: x + width, y1: y + height / 2, x2: x + width / 2, y2: y + height },
+        { x1: x + width / 2, y1: y + height, x2: x, y2: y + height / 2 },
+        { x1: x, y1: y + height / 2, x2: x + width / 2, y2: y }
       ];
+      break;
       
     case 'line':
-      // A line is itself an edge
-      return [{ x1: x, y1: y, x2: x + width, y2: y + height }];
+      edges = [{ x1: x, y1: y, x2: x + width, y2: y + height }];
+      break;
       
     case 'polyline':
-      // Use the actual polyline points if available
       if (shape.points && shape.points.length >= 2) {
-        const edges: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+        edges = [];
         for (let i = 0; i < shape.points.length - 1; i++) {
           edges.push({
-            x1: shape.points[i].x,
-            y1: shape.points[i].y,
-            x2: shape.points[i + 1].x,
-            y2: shape.points[i + 1].y
+            x1: shape.points[i].x, y1: shape.points[i].y,
+            x2: shape.points[i + 1].x, y2: shape.points[i + 1].y
           });
         }
-        return edges;
+      } else {
+        edges = [{ x1: x, y1: y, x2: x + width, y2: y + height }];
       }
-      return [{ x1: x, y1: y, x2: x + width, y2: y + height }];
+      break;
       
     case 'polygon':
-      // Use the actual polygon points to create edges
       if (shape.points && shape.points.length >= 3) {
-        const edges: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+        edges = [];
         for (let i = 0; i < shape.points.length; i++) {
           const next = (i + 1) % shape.points.length;
           edges.push({
-            x1: shape.points[i].x,
-            y1: shape.points[i].y,
-            x2: shape.points[next].x,
-            y2: shape.points[next].y
+            x1: shape.points[i].x, y1: shape.points[i].y,
+            x2: shape.points[next].x, y2: shape.points[next].y
           });
         }
-        return edges;
+      } else {
+        edges = [
+          { x1: x, y1: y, x2: x + width, y2: y },
+          { x1: x + width, y1: y, x2: x + width, y2: y + height },
+          { x1: x + width, y1: y + height, x2: x, y2: y + height },
+          { x1: x, y1: y + height, x2: x, y2: y }
+        ];
       }
-      // Fallback to bounding box if no points
-      return [
-        { x1: x, y1: y, x2: x + width, y2: y },
-        { x1: x + width, y1: y, x2: x + width, y2: y + height },
-        { x1: x + width, y1: y + height, x2: x, y2: y + height },
-        { x1: x, y1: y + height, x2: x, y2: y }
-      ];
+      break;
       
     default:
-      // For other shapes (circle, ellipse, etc.), approximate with bounding box
-      return [
+      edges = [
         { x1: x, y1: y, x2: x + width, y2: y },
         { x1: x + width, y1: y, x2: x + width, y2: y + height },
         { x1: x + width, y1: y + height, x2: x, y2: y + height },
         { x1: x, y1: y + height, x2: x, y2: y }
       ];
+      break;
   }
+  
+  // Apply rotation to all edge points if shape has rotation
+  if (shape.rotation) {
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    edges = edges.map(edge => {
+      const p1 = rotatePoint(edge.x1, edge.y1, cx, cy, shape.rotation!);
+      const p2 = rotatePoint(edge.x2, edge.y2, cx, cy, shape.rotation!);
+      return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+    });
+  }
+  
+  return edges;
 }
 
 /**
