@@ -1603,16 +1603,25 @@ export function Canvas({
                 width={compWidth}
                 height={compHeight}
                 fill={
-                  isSelected 
-                    ? "hsl(var(--primary) / 0.1)" 
-                    : isExcess
-                      ? "hsl(0, 84%, 50%, 0.1)"
-                      : "hsl(var(--muted) / 0.3)"
+                  isExcess
+                    ? "hsl(0, 84%, 50%, 0.1)"
+                    : "hsl(var(--muted) / 0.3)"
                 }
-                stroke={strokeColor}
+                stroke={isExcess ? strokeColor : "transparent"}
                 strokeWidth={isExcess ? 3 : 2}
                 strokeDasharray={strokeDasharray}
               />
+              {/* Selection highlight - excluded from export */}
+              {isSelected && (
+                <rect
+                  data-export-ignore="true"
+                  width={compWidth}
+                  height={compHeight}
+                  fill="hsl(var(--primary) / 0.1)"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                />
+              )}
               {/* Component shapes - rotated around center */}
               <g transform={rotation !== 0 ? `rotate(${rotation}, ${centerX}, ${centerY})` : undefined}>
                 {renderTileShapes(tile)}
@@ -1729,10 +1738,10 @@ export function Canvas({
                 pointerEvents="none"
               />
               {isSelected && line.path.length > 0 && (
-                <>
+                <g data-export-ignore="true">
                   <circle cx={(line.path[0].gridX + 0.5) * tileSize} cy={(line.path[0].gridY + 0.5) * tileSize} r={4} fill="hsl(var(--primary))" />
                   <circle cx={(line.path[line.path.length - 1].gridX + 0.5) * tileSize} cy={(line.path[line.path.length - 1].gridY + 0.5) * tileSize} r={4} fill="hsl(var(--primary))" />
-                </>
+                </g>
               )}
             </g>
           );
@@ -1771,6 +1780,7 @@ export function Canvas({
                 const approxHeight = text.fontSize * 1.4;
                 return (
                   <rect
+                    data-export-ignore="true"
                     x={text.x - 2}
                     y={text.y - approxHeight / 2 - 2}
                     width={approxWidth + 4}
