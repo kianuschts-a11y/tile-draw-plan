@@ -519,7 +519,15 @@ export function Canvas({
   }, [connections, tiles]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 1) return;
+
+    // Middle mouse button - start panning regardless of active tool
+    if (e.button === 1) {
+      e.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - canvasState.panX, y: e.clientY - canvasState.panY });
+      return;
+    }
 
     // Annotation line drawing - grid-cell based like connection tool
     if (activeTool === 'annotate-line') {
@@ -1476,6 +1484,32 @@ export function Canvas({
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onWheel={(e) => {
+        e.preventDefault();
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        
+        // Mouse position relative to SVG element
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Zoom factor
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.min(Math.max(canvasState.zoom * delta, 0.1), 6);
+        
+        // Adjust pan so zoom centers on mouse position
+        const scale = newZoom / canvasState.zoom;
+        const newPanX = mouseX - (mouseX - canvasState.panX) * scale;
+        const newPanY = mouseY - (mouseY - canvasState.panY) * scale;
+        
+        onCanvasStateChange({
+          ...canvasState,
+          zoom: newZoom,
+          panX: newPanX,
+          panY: newPanY
+        });
+      }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <defs>
         <pattern
