@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,10 +31,11 @@ export function MopExportDialog({ open, onClose, projectName, components }: MopE
   const [delimiter, setDelimiter] = useState<CsvDelimiter>(";");
 
   // Update project number when dialog opens with new project name
-  const prevProjectName = useState(projectName)[0];
-  if (projectName !== prevProjectName && open) {
-    setProjektNummer(extractProjectNumber(projectName));
-  }
+  useEffect(() => {
+    if (open) {
+      setProjektNummer(extractProjectNumber(projectName));
+    }
+  }, [open, projectName]);
 
   const canExport = projektNummer.trim().length > 0 && strasse.trim().length > 0;
 
