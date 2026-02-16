@@ -276,7 +276,38 @@ export function Canvas({
   const [isDraggingAnnotation, setIsDraggingAnnotation] = useState(false);
   const [annotationDragStart, setAnnotationDragStart] = useState<{ x: number; y: number } | null>(null);
 
-  // Calculate paper dimensions in pixels
+  // Wheel zoom with non-passive listener to prevent page scroll
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const rect = svg.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.min(Math.max(canvasState.zoom * delta, 0.1), 6);
+      
+      const scale = newZoom / canvasState.zoom;
+      const newPanX = mouseX - (mouseX - canvasState.panX) * scale;
+      const newPanY = mouseY - (mouseY - canvasState.panY) * scale;
+      
+      onCanvasStateChange({
+        ...canvasState,
+        zoom: newZoom,
+        panX: newPanX,
+        panY: newPanY
+      });
+    };
+    
+    svg.addEventListener('wheel', handleWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', handleWheel);
+  }, [canvasState, onCanvasStateChange]);
+
   const paperSize = PAPER_SIZES[canvasState.paperFormat];
   const paperWidth = canvasState.orientation === 'portrait' 
     ? paperSize.width * MM_TO_PX 
@@ -1484,31 +1515,6 @@ export function Canvas({
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onWheel={(e) => {
-        e.preventDefault();
-        const rect = svgRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        
-        // Mouse position relative to SVG element
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        
-        // Zoom factor
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        const newZoom = Math.min(Math.max(canvasState.zoom * delta, 0.1), 6);
-        
-        // Adjust pan so zoom centers on mouse position
-        const scale = newZoom / canvasState.zoom;
-        const newPanX = mouseX - (mouseX - canvasState.panX) * scale;
-        const newPanY = mouseY - (mouseY - canvasState.panY) * scale;
-        
-        onCanvasStateChange({
-          ...canvasState,
-          zoom: newZoom,
-          panX: newPanX,
-          panY: newPanY
-        });
-      }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <defs>

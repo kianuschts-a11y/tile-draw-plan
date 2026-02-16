@@ -118,6 +118,8 @@ export function Toolbar({
   onSaveProject
 }: ToolbarProps) {
   const [groupName, setGroupName] = useState("");
+  const [projectName, setProjectName] = useState("");
+  const [showProjectSave, setShowProjectSave] = useState(false);
 
   const handleSaveGroup = () => {
     if (groupName.trim() && selectedTileCount >= 2) {
@@ -318,6 +320,61 @@ export function Toolbar({
         onClick={onAutoLabel}
         disabled={!hasLabelableComponents || isGroupMode}
       />
+
+      {/* Save Project Button */}
+      {onSaveProject && (
+        <div className="relative">
+          <ToolButton
+            icon={Package}
+            label="Projekt speichern"
+            isActive={showProjectSave}
+            onClick={() => setShowProjectSave(!showProjectSave)}
+            disabled={isGroupMode}
+          />
+          {showProjectSave && (
+            <div className="absolute left-full ml-2 top-0 bg-background border rounded-lg shadow-lg p-2 min-w-[220px] z-50">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-medium text-sm">Projekt speichern</span>
+                <button 
+                  onClick={() => { setShowProjectSave(false); setProjectName(""); }}
+                  className="p-1 hover:bg-muted rounded ml-auto"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Projektname"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="flex-1 h-8 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && projectName.trim()) {
+                      onSaveProject(projectName.trim());
+                      setProjectName("");
+                      setShowProjectSave(false);
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={() => {
+                    if (projectName.trim()) {
+                      onSaveProject(projectName.trim());
+                      setProjectName("");
+                      setShowProjectSave(false);
+                    }
+                  }}
+                  disabled={!projectName.trim()}
+                >
+                  <Save className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       
       <Separator className="my-1 w-8" />
       
