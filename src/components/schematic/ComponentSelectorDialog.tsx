@@ -884,17 +884,16 @@ export function ComponentSelectorDialog({
                   <Upload className="w-3 h-3" />
                   Import
                 </Button>
-                {quantities.size > 0 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 text-xs text-destructive"
-                    onClick={clearAll}
-                  >
-                    <X className="w-3 h-3 mr-1" />
-                    Zurücksetzen
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs text-destructive"
+                  onClick={clearAll}
+                  disabled={quantities.size === 0}
+                >
+                  <X className="w-3 h-3 mr-1" />
+                  Zurücksetzen
+                </Button>
               </div>
             </div>
             
