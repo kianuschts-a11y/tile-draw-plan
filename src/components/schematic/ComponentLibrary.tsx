@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Component, Shape, ComponentGroup, GroupCategory } from "@/types/schematic";
+import { AppSettings } from "./SettingsDialog";
 import { GroupPreview } from "./GroupPreview";
 import { SavedPlanData } from "@/hooks/useSavedPlans";
 import { PlacedTile } from "./Canvas";
@@ -70,6 +71,7 @@ interface ComponentLibraryProps {
   filterTag?: string;
   onFilterTagChange?: (tag: string) => void;
   onManageCategories?: () => void;
+  appSettings?: AppSettings;
 }
 
 function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
@@ -235,7 +237,8 @@ export function ComponentLibrary({
   onFilterCategoryChange,
   filterTag,
   onFilterTagChange,
-  onManageCategories
+  onManageCategories,
+  appSettings
 }: ComponentLibraryProps) {
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -823,6 +826,7 @@ export function ComponentLibrary({
         components={components}
         open={infoDialogOpen}
         onOpenChange={setInfoDialogOpen}
+        settings={appSettings}
       />
 
       {/* Project Info Dialog */}
@@ -831,6 +835,7 @@ export function ComponentLibrary({
         components={components}
         open={infoPlanDialogOpen}
         onOpenChange={setInfoPlanDialogOpen}
+        settings={appSettings}
       />
 
       {/* Rename Group Dialog */}
