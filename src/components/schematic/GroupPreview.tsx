@@ -1,5 +1,6 @@
 import { ComponentGroup, Component, Shape, GroupConnectionData } from "@/types/schematic";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
+import { generateSingleConnectionLine } from "@/lib/connectionUtils";
 import { Folder } from "lucide-react";
 
 interface GroupPreviewProps {
@@ -151,6 +152,71 @@ function getConnectionBlockColors(
   return { horizontalColor, verticalColor };
 }
 
+/**
+ * Generate connection-to-body lines for a non-connection-block tile.
+ * Uses generateSingleConnectionLine to compute where lines from cell edges
+ * meet the component's shapes, then returns scaled SVG elements.
+ */
+function renderTileConnectionLines(
+  tileIndex: number,
+  comp: Component,
+  tileW: number,
+  tileH: number,
+  connections: GroupConnectionData[],
+  connectionStrokeWidth: number
+): React.ReactNode[] {
+  const elements: React.ReactNode[] = [];
+  const compW = comp.width || 1;
+  const compH = comp.height || 1;
+
+  for (const conn of connections) {
+    // Check "from" side
+    if (conn.fromTileIndex === tileIndex) {
+      const lineShapes = generateSingleConnectionLine(
+        comp.shapes, conn.fromCellX, conn.fromCellY, conn.fromSide, compW, compH
+      );
+      for (let i = 0; i < lineShapes.length; i++) {
+        const s = lineShapes[i];
+        elements.push(
+          <line
+            key={`cl-from-${conn.fromTileIndex}-${conn.toTileIndex}-${i}`}
+            x1={s.x * tileW}
+            y1={s.y * tileH}
+            x2={(s.x + s.width) * tileW}
+            y2={(s.y + s.height) * tileH}
+            stroke={conn.color || '#293341'}
+            strokeWidth={connectionStrokeWidth}
+            strokeLinecap="round"
+          />
+        );
+      }
+    }
+    // Check "to" side
+    if (conn.toTileIndex === tileIndex) {
+      const lineShapes = generateSingleConnectionLine(
+        comp.shapes, conn.toCellX, conn.toCellY, conn.toSide, compW, compH
+      );
+      for (let i = 0; i < lineShapes.length; i++) {
+        const s = lineShapes[i];
+        elements.push(
+          <line
+            key={`cl-to-${conn.fromTileIndex}-${conn.toTileIndex}-${i}`}
+            x1={s.x * tileW}
+            y1={s.y * tileH}
+            x2={(s.x + s.width) * tileW}
+            y2={(s.y + s.height) * tileH}
+            stroke={conn.color || '#293341'}
+            strokeWidth={connectionStrokeWidth}
+            strokeLinecap="round"
+          />
+        );
+      }
+    }
+  }
+
+  return elements;
+}
+
 export function GroupPreview({ group, components, maxSize = 100, showBorder = false }: GroupPreviewProps) {
   const hasLayout = group.layoutData?.tiles && group.layoutData.tiles.length > 0;
   
@@ -182,6 +248,7 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
   const padding = 4;
   const availableSize = maxSize - padding * 2;
   const scale = Math.min(availableSize / totalWidth, availableSize / totalHeight, 20);
+  const connectionStrokeWidth = Math.max(0.5, scale * 0.04);
   
   const svgWidth = totalWidth * scale + padding * 2;
   const svgHeight = totalHeight * scale + padding * 2;
@@ -222,8 +289,8 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
               strokeWidth={0.5}
               strokeDasharray="2,1"
             />
+            {/* Render component shapes */}
             {comp.shapes.map((shape, shapeIdx) => {
-              // For connection blocks, color shapes based on their direction
               let strokeOverride: string | undefined;
               if (isConnBlock) {
                 const shapeId = shape.id || '';
@@ -239,10 +306,12 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
                 <g key={shapeIdx}>{renderShape(shape, tileW, tileH, strokeOverride)}</g>
               );
             })}
+            {/* Render connection-to-body lines for non-connection-block tiles */}
+            {!isConnBlock && renderTileConnectionLines(idx, comp, tileW, tileH, connections, connectionStrokeWidth)}
           </g>
         );
       })}
-      {/* Render connection lines between tiles */}
+      {/* Render connection lines between tiles (edge-to-edge) */}
       {connections.map((conn, connIdx) => {
         const fromTile = tiles[conn.fromTileIndex];
         const toTile = tiles[conn.toTileIndex];
@@ -287,7 +356,7 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
             x2={p2.x}
             y2={p2.y}
             stroke={conn.color || '#293341'}
-            strokeWidth={Math.max(0.5, scale * 0.04)}
+            strokeWidth={connectionStrokeWidth}
             strokeLinecap="round"
           />
         );
