@@ -31,6 +31,7 @@ interface MesskonzeptProps {
   projectKategorien: Map<string, string>;
   projectMarken: Map<string, string>;
   projectModelle: Map<string, string>;
+  excludedCategories?: string[];
 }
 
 export function Messkonzept({
@@ -43,6 +44,7 @@ export function Messkonzept({
   projectKategorien,
   projectMarken,
   projectModelle,
+  excludedCategories = [],
 }: MesskonzeptProps) {
   // Build list of all labeled tiles
   const items: MesskonzeptItem[] = useMemo(() => {
@@ -55,6 +57,13 @@ export function Messkonzept({
 
       const componentDef = components.find(c => c.id === tile.component.id);
       const kategorie = tile.component.category || projectKategorien.get(tile.component.id) || '';
+      
+      // Apply category filter
+      if (excludedCategories.length > 0) {
+        const catName = kategorie || '__uncategorized__';
+        if (excludedCategories.includes(catName)) continue;
+      }
+      
       const marke = projectMarken.get(tile.component.id) || '';
       const modell = projectModelle.get(tile.component.id) || '';
 
@@ -81,7 +90,7 @@ export function Messkonzept({
     });
 
     return result;
-  }, [tiles, tileLabels, components, projectKategorien, projectMarken, projectModelle]);
+  }, [tiles, tileLabels, components, projectKategorien, projectMarken, projectModelle, excludedCategories]);
 
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();

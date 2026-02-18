@@ -19,6 +19,7 @@ import { ExportGroupDialog } from "./ExportGroupDialog";
 import { MopExportDialog } from "./MopExportDialog";
 import { MopComponent } from "@/lib/mopCsvExport";
 import { GroupCategoryDialog } from "./GroupCategoryDialog";
+import { SettingsDialog, AppSettings, loadSettings, saveSettings } from "./SettingsDialog";
 import { CategoryManagerDialog } from "./CategoryManagerDialog";
 import { useComponents } from "@/hooks/useComponents";
 import { useComponentGroups } from "@/hooks/useComponentGroups";
@@ -91,6 +92,8 @@ export function SchematicEditor() {
   const [libraryTab, setLibraryTab] = useState<'components' | 'groups' | 'projects'>('components');
   const [isGroupCategoryDialogOpen, setIsGroupCategoryDialogOpen] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [appSettings, setAppSettings] = useState<AppSettings>(loadSettings);
   const [filterCategory, setFilterCategory] = useState<string>("");
   const [filterTag, setFilterTag] = useState<string>("");
   const [pendingGroupData, setPendingGroupData] = useState<{ componentIds: string[]; layoutData: GroupLayoutData } | null>(null);
@@ -2391,6 +2394,7 @@ export function SchematicEditor() {
           onExport={handleExportClick}
           onOpenBOM={() => setIsBOMOpen(true)}
           onOpenMesskonzept={() => setIsMesskonzeptOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
         <div className="h-8 w-px bg-border mx-2" />
         <Button
@@ -2605,6 +2609,7 @@ export function SchematicEditor() {
         projectMarken={projectMarken}
         projectModelle={projectModelle}
         projectCustomFields={projectCustomFields}
+        excludedCategories={appSettings.bomCategoryFilter}
       />
 
       <Messkonzept
@@ -2617,6 +2622,7 @@ export function SchematicEditor() {
         projectKategorien={projectKategorien}
         projectMarken={projectMarken}
         projectModelle={projectModelle}
+        excludedCategories={appSettings.messkonzeptCategoryFilter}
       />
 
       <ExportGroupDialog
@@ -2676,6 +2682,17 @@ export function SchematicEditor() {
         onCreateCategory={createCategory}
         onUpdateCategory={updateCategory}
         onDeleteCategory={deleteCategory}
+      />
+
+      <SettingsDialog
+        open={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        categories={categories}
+        onCreateCategory={createCategory}
+        onUpdateCategory={updateCategory}
+        onDeleteCategory={deleteCategory}
+        settings={appSettings}
+        onSettingsChange={setAppSettings}
       />
     </div>
   );
