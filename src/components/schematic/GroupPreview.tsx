@@ -1,4 +1,4 @@
-import { ComponentGroup, Component, Shape } from "@/types/schematic";
+import { ComponentGroup, Component, Shape, GroupConnectionData } from "@/types/schematic";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { Folder } from "lucide-react";
 
@@ -9,7 +9,7 @@ interface GroupPreviewProps {
   showBorder?: boolean;
 }
 
-function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
+function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50, strokeOverride?: string) {
   const x = shape.x * scaleX;
   const y = shape.y * scaleY;
   const width = shape.width * scaleX;
@@ -17,9 +17,10 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
   const refScale = Math.min(scaleX, scaleY);
   const sw = shape.strokeWidth ? shape.strokeWidth * refScale : 1.5;
 
+  const baseStroke = strokeOverride || shape.stroke || 'hsl(220, 25%, 20%)';
   const style = {
     fill: shape.fillColor || shape.fill || 'none',
-    stroke: 'hsl(220, 25%, 20%)',
+    stroke: baseStroke,
     strokeWidth: Math.max(0.5, sw)
   };
 
@@ -50,8 +51,28 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
         const cy = midY + shape.curveOffset.y * scaleY;
         element = <path d={`M ${lx1} ${ly1} Q ${cx} ${cy} ${lx2} ${ly2}`} fill="none" stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" />;
       } else {
-        element = <line x1={x} y1={y} x2={x + width} y2={y + height} {...style} strokeLinecap="round" />;
+        element = <line x1={x} y1={y} x2={x + width} y2={y + height} stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" />;
       }
+      break;
+    }
+    case 'arrow': {
+      const ax1 = x;
+      const ay1 = y;
+      const ax2 = x + width;
+      const ay2 = y + height;
+      const arrowSize = shape.arrowSize ? shape.arrowSize * refScale : Math.max(4, sw * 4);
+      const endAngle = Math.atan2(ay2 - ay1, ax2 - ax1);
+      const arrowAngle = Math.PI / 6;
+      const ahx1 = ax2 - arrowSize * Math.cos(endAngle - arrowAngle);
+      const ahy1 = ay2 - arrowSize * Math.sin(endAngle - arrowAngle);
+      const ahx2 = ax2 - arrowSize * Math.cos(endAngle + arrowAngle);
+      const ahy2 = ay2 - arrowSize * Math.sin(endAngle + arrowAngle);
+      element = (
+        <g>
+          <line x1={ax1} y1={ay1} x2={ax2} y2={ay2} stroke={style.stroke} strokeWidth={style.strokeWidth} strokeLinecap="round" />
+          <polyline points={`${ahx1},${ahy1} ${ax2},${ay2} ${ahx2},${ahy2}`} stroke={style.stroke} fill="none" strokeWidth={style.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      );
       break;
     }
     case 'triangle':
@@ -60,6 +81,29 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
     case 'diamond':
       element = <polygon points={`${x + width / 2},${y} ${x + width},${y + height / 2} ${x + width / 2},${y + height} ${x},${y + height / 2}`} {...style} />;
       break;
+    case 'polygon':
+      if (!shape.points || shape.points.length < 3) return null;
+      element = <polygon points={shape.points.map(p => `${p.x * scaleX},${p.y * scaleY}`).join(' ')} {...style} />;
+      break;
+    case 'polyline':
+      if (!shape.points || shape.points.length < 2) return null;
+      element = <polyline points={shape.points.map(p => `${p.x * scaleX},${p.y * scaleY}`).join(' ')} stroke={style.stroke} strokeWidth={style.strokeWidth} fill="none" />;
+      break;
+    case 'arc': {
+      const rx = width / 2;
+      const ry = height / 2;
+      const acx = x + rx;
+      const acy = y + ry;
+      const startRad = ((shape.startAngle || 0) * Math.PI) / 180;
+      const endRad = ((shape.endAngle || 180) * Math.PI) / 180;
+      const ax1 = acx + rx * Math.cos(startRad);
+      const ay1 = acy + ry * Math.sin(startRad);
+      const ax2 = acx + rx * Math.cos(endRad);
+      const ay2 = acy + ry * Math.sin(endRad);
+      const largeArc = (shape.endAngle || 180) - (shape.startAngle || 0) > 180 ? 1 : 0;
+      element = <path d={`M ${ax1} ${ay1} A ${rx} ${ry} 0 ${largeArc} 1 ${ax2} ${ay2}`} stroke={style.stroke} strokeWidth={style.strokeWidth} fill="none" />;
+      break;
+    }
     case 'text':
       if (shape.text) {
         const fs = shape.fontSize ? shape.fontSize * refScale : 10;
@@ -71,13 +115,40 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
       }
       break;
     default:
-      element = <rect x={x} y={y} width={width} height={height} {...style} />;
+      break;
   }
 
+  if (!element) return null;
   if (rotationTransform) {
     return <g transform={rotationTransform}>{element}</g>;
   }
   return element;
+}
+
+/**
+ * Determine the colors for a connection block's horizontal and vertical shapes
+ * based on which connections touch this tile.
+ */
+function getConnectionBlockColors(
+  tileIndex: number,
+  connections: GroupConnectionData[]
+): { horizontalColor?: string; verticalColor?: string } {
+  let horizontalColor: string | undefined;
+  let verticalColor: string | undefined;
+
+  for (const conn of connections) {
+    if (conn.fromTileIndex === tileIndex || conn.toTileIndex === tileIndex) {
+      const side = conn.fromTileIndex === tileIndex ? conn.fromSide : conn.toSide;
+      const color = conn.color || '#293341';
+      if (side === 'left' || side === 'right') {
+        if (!horizontalColor) horizontalColor = color;
+      } else {
+        if (!verticalColor) verticalColor = color;
+      }
+    }
+  }
+
+  return { horizontalColor, verticalColor };
 }
 
 export function GroupPreview({ group, components, maxSize = 100, showBorder = false }: GroupPreviewProps) {
@@ -94,24 +165,20 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
     );
   }
   
-  // Calculate bounds of the layout based on component sizes
   const tiles = group.layoutData.tiles;
+  const connections = group.layoutData.connections || [];
   let totalWidth = 0;
   let totalHeight = 0;
   
   tiles.forEach(tile => {
-    // Check both custom components and connection blocks
     const comp = components.find(c => c.id === tile.componentId) 
       || CONNECTION_BLOCKS.find(c => c.id === tile.componentId);
     if (comp) {
-      const tileRight = tile.relativeX + (comp.width || 1);
-      const tileBottom = tile.relativeY + (comp.height || 1);
-      totalWidth = Math.max(totalWidth, tileRight);
-      totalHeight = Math.max(totalHeight, tileBottom);
+      totalWidth = Math.max(totalWidth, tile.relativeX + (comp.width || 1));
+      totalHeight = Math.max(totalHeight, tile.relativeY + (comp.height || 1));
     }
   });
   
-  // Calculate scale to fit in preview area
   const padding = 4;
   const availableSize = maxSize - padding * 2;
   const scale = Math.min(availableSize / totalWidth, availableSize / totalHeight, 20);
@@ -126,7 +193,6 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
       className={showBorder ? "border border-dashed border-muted-foreground/30 rounded" : ""}
     >
       {tiles.map((tile, idx) => {
-        // Check both custom components and connection blocks
         const comp = components.find(c => c.id === tile.componentId)
           || CONNECTION_BLOCKS.find(c => c.id === tile.componentId);
         if (!comp) return null;
@@ -136,8 +202,13 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
         const tileW = (comp.width || 1) * scale;
         const tileH = (comp.height || 1) * scale;
         
-        const shapeScaleX = tileW;
-        const shapeScaleY = tileH;
+        const isConnBlock = comp.id.startsWith('connection-');
+
+        // For connection blocks, determine colors from connections
+        let blockColors: { horizontalColor?: string; verticalColor?: string } = {};
+        if (isConnBlock) {
+          blockColors = getConnectionBlockColors(idx, connections);
+        }
         
         return (
           <g key={idx} transform={`translate(${tileX}, ${tileY})`}>
@@ -151,14 +222,28 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
               strokeWidth={0.5}
               strokeDasharray="2,1"
             />
-            {comp.shapes.map((shape, shapeIdx) => (
-              <g key={shapeIdx}>{renderShape(shape, shapeScaleX, shapeScaleY)}</g>
-            ))}
+            {comp.shapes.map((shape, shapeIdx) => {
+              // For connection blocks, color shapes based on their direction
+              let strokeOverride: string | undefined;
+              if (isConnBlock) {
+                const shapeId = shape.id || '';
+                if (shapeId.endsWith('-h')) {
+                  strokeOverride = blockColors.horizontalColor;
+                } else if (shapeId.endsWith('-v')) {
+                  strokeOverride = blockColors.verticalColor;
+                } else {
+                  strokeOverride = blockColors.horizontalColor || blockColors.verticalColor;
+                }
+              }
+              return (
+                <g key={shapeIdx}>{renderShape(shape, tileW, tileH, strokeOverride)}</g>
+              );
+            })}
           </g>
         );
       })}
-      {/* Render connection lines */}
-      {group.layoutData?.connections?.map((conn, connIdx) => {
+      {/* Render connection lines between tiles */}
+      {connections.map((conn, connIdx) => {
         const fromTile = tiles[conn.fromTileIndex];
         const toTile = tiles[conn.toTileIndex];
         if (!fromTile || !toTile) return null;
@@ -169,26 +254,16 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
           || CONNECTION_BLOCKS.find(c => c.id === toTile.componentId);
         if (!fromComp || !toComp) return null;
 
-        const fromTileX = padding + fromTile.relativeX * scale;
-        const fromTileY = padding + fromTile.relativeY * scale;
-        const fromTileW = (fromComp.width || 1) * scale;
-        const fromTileH = (fromComp.height || 1) * scale;
-
-        const toTileX = padding + toTile.relativeX * scale;
-        const toTileY = padding + toTile.relativeY * scale;
-        const toTileW = (toComp.width || 1) * scale;
-        const toTileH = (toComp.height || 1) * scale;
-
-        // Calculate connection point positions on the tile edges
-        let x1: number, y1: number, x2: number, y2: number;
-
         const getConnectionPoint = (
-          tileX: number, tileY: number, tileW: number, tileH: number,
-          compWidth: number, compHeight: number,
+          relX: number, relY: number, compW: number, compH: number,
           cellX: number, cellY: number, side: string
         ) => {
-          const cellW = tileW / compWidth;
-          const cellH = tileH / compHeight;
+          const tileX = padding + relX * scale;
+          const tileY = padding + relY * scale;
+          const tileW = compW * scale;
+          const tileH = compH * scale;
+          const cellW = tileW / compW;
+          const cellH = tileH / compH;
           const cx = tileX + cellX * cellW + cellW / 2;
           const cy = tileY + cellY * cellH + cellH / 2;
 
@@ -201,8 +276,8 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
           }
         };
 
-        const p1 = getConnectionPoint(fromTileX, fromTileY, fromTileW, fromTileH, fromComp.width || 1, fromComp.height || 1, conn.fromCellX, conn.fromCellY, conn.fromSide);
-        const p2 = getConnectionPoint(toTileX, toTileY, toTileW, toTileH, toComp.width || 1, toComp.height || 1, conn.toCellX, conn.toCellY, conn.toSide);
+        const p1 = getConnectionPoint(fromTile.relativeX, fromTile.relativeY, fromComp.width || 1, fromComp.height || 1, conn.fromCellX, conn.fromCellY, conn.fromSide);
+        const p2 = getConnectionPoint(toTile.relativeX, toTile.relativeY, toComp.width || 1, toComp.height || 1, conn.toCellX, conn.toCellY, conn.toSide);
 
         return (
           <line
@@ -211,7 +286,7 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
             y1={p1.y}
             x2={p2.x}
             y2={p2.y}
-            stroke={conn.color || 'hsl(220, 25%, 20%)'}
+            stroke={conn.color || '#293341'}
             strokeWidth={Math.max(0.5, scale * 0.04)}
             strokeLinecap="round"
           />
