@@ -9,12 +9,14 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
+import { AppSettings } from "./SettingsDialog";
 
 interface ProjectInfoDialogProps {
   plan: SavedPlanData | null;
   components: Component[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  settings?: AppSettings;
 }
 
 function findComponentById(componentId: string, components: Component[]): Component | undefined {
@@ -23,23 +25,31 @@ function findComponentById(componentId: string, components: Component[]): Compon
   return CONNECTION_BLOCKS.find(c => c.id === componentId);
 }
 
-export function ProjectInfoDialog({ plan, components, open, onOpenChange }: ProjectInfoDialogProps) {
+function shouldShowComponent(comp: Component | undefined, settings?: AppSettings): boolean {
+  if (!comp || !settings) return true;
+  const isConn = comp.id.startsWith('connection-');
+  const isMeasurement = !!comp.labelingEnabled;
+
+  if (isConn) return settings.groupInfo.showConnectionComponents;
+  if (isMeasurement) return settings.groupInfo.showMeasurementInstruments;
+  return settings.groupInfo.showComponents;
+}
+
+export function ProjectInfoDialog({ plan, components, open, onOpenChange, settings }: ProjectInfoDialogProps) {
   if (!plan) return null;
 
-  // Build component list from componentQuantities
-  const componentList = plan.componentQuantities.map(cq => {
-    const component = findComponentById(cq.componentId, components);
-    return {
-      id: cq.componentId,
-      name: component?.name || 'Unbekannt',
-      count: cq.quantity
-    };
-  });
+  const componentList = plan.componentQuantities
+    .map(cq => {
+      const component = findComponentById(cq.componentId, components);
+      return { id: cq.componentId, name: component?.name || 'Unbekannt', count: cq.quantity, component };
+    })
+    .filter(({ component }) => shouldShowComponent(component, settings));
 
   const totalTiles = plan.drawingData?.tiles?.length || 0;
   const connectionCount = plan.drawingData?.connections?.length || 0;
   const annotationLineCount = plan.drawingData?.annotationLines?.length || 0;
   const annotationTextCount = plan.drawingData?.annotationTexts?.length || 0;
+  const showConnectionLines = settings ? settings.groupInfo.showConnectionLines : true;
 
   const formatMap: Record<string, string> = {
     'A5': 'A5', 'A4': 'A4', 'A3': 'A3', 'A2': 'A2', 'A1': 'A1',
@@ -110,7 +120,7 @@ export function ProjectInfoDialog({ plan, components, open, onOpenChange }: Proj
 
           {/* Stats */}
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            {connectionCount > 0 && (
+            {showConnectionLines && connectionCount > 0 && (
               <span>{connectionCount} Verbindung{connectionCount !== 1 ? 'en' : ''}</span>
             )}
             {annotationLineCount > 0 && (

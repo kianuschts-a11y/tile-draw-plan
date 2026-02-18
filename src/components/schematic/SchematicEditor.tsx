@@ -2521,6 +2521,7 @@ export function SchematicEditor() {
           filterTag={filterTag}
           onFilterTagChange={setFilterTag}
           onManageCategories={() => setIsCategoryManagerOpen(true)}
+          appSettings={appSettings}
         />
       </div>
 

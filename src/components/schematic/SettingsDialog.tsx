@@ -144,7 +144,7 @@ export function SettingsDialog({
 
         <Tabs defaultValue="groupInfo" className="flex-1 flex flex-col min-h-0">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="groupInfo">Gruppeninfo</TabsTrigger>
+            <TabsTrigger value="groupInfo">Gruppen-/Projektinfo</TabsTrigger>
             <TabsTrigger value="categories">Kategorien</TabsTrigger>
             <TabsTrigger value="filters">Listen-Filter</TabsTrigger>
           </TabsList>
@@ -152,7 +152,7 @@ export function SettingsDialog({
           {/* Tab: Gruppeninfo */}
           <TabsContent value="groupInfo" className="flex-1 overflow-auto space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Welche Elemente sollen in den Gruppeninformationen angezeigt werden?
+              Welche Elemente sollen in den Gruppen- und Projektinformationen angezeigt werden?
             </p>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
