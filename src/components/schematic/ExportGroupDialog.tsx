@@ -278,10 +278,10 @@ export function ExportGroupDialog({
               onCheckedChange={setExportBOM}
               bundled={bundleAsPdf}
               bundledFormat="PDF"
-              formats={['Excel']}
-              selectedFormat="Excel"
-              onFormatChange={() => setBomFormat('excel')}
-              onQuickDownload={() => onExportBOMExcel()}
+              formats={['Excel', 'PDF']}
+              selectedFormat={bomFormat === 'excel' ? 'Excel' : 'PDF'}
+              onFormatChange={(f) => setBomFormat(f === 'PDF' ? 'pdf' : 'excel')}
+              onQuickDownload={(f) => f === 'PDF' ? downloadBOM('pdf') : onExportBOMExcel()}
             />
             {exportBOM && (
               <Collapsible open={bomSettingsOpen} onOpenChange={setBomSettingsOpen}>
@@ -327,10 +327,10 @@ export function ExportGroupDialog({
             disabledReason="Keine Messpunkte"
             bundled={bundleAsPdf}
             bundledFormat="PDF"
-            formats={['Excel']}
-            selectedFormat="Excel"
-            onFormatChange={() => setMesskonzeptFormat('excel')}
-            onQuickDownload={() => onExportMesskonzeptExcel()}
+            formats={['Excel', 'PDF']}
+            selectedFormat={messkonzeptFormat === 'excel' ? 'Excel' : 'PDF'}
+            onFormatChange={(f) => setMesskonzeptFormat(f === 'PDF' ? 'pdf' : 'excel')}
+            onQuickDownload={(f) => f === 'PDF' ? downloadMesskonzept('pdf') : onExportMesskonzeptExcel()}
           />
 
           {/* --- M.O.P CSV --- */}
@@ -489,11 +489,10 @@ function ExportItemRow({
           <button
             type="button"
             onClick={() => onQuickDownload(displayFormat)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+            className="flex items-center text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
             title={`${label} als ${displayFormat} herunterladen`}
           >
             <Download className="w-3.5 h-3.5" />
-            <span>{displayFormat}</span>
           </button>
         </div>
       )}
