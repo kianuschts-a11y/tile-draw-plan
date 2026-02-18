@@ -300,23 +300,6 @@ export function Toolbar({
                 <Save className="w-3 h-3" />
               </Button>
             </div>
-            {onSaveProject && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 w-full mt-2 gap-1 text-xs"
-                onClick={() => {
-                  if (groupName.trim()) {
-                    onSaveProject(groupName.trim());
-                    setGroupName("");
-                  }
-                }}
-                disabled={!groupName.trim()}
-              >
-                <Package className="w-3 h-3" />
-                Projekt speichern
-              </Button>
-            )}
           </div>
         )}
       </div>
