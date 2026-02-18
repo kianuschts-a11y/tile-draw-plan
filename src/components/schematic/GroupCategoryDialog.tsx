@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Settings2, X } from "lucide-react";
+import { Settings2, X, Plus } from "lucide-react";
 import { GroupCategory } from "@/types/schematic";
 
 interface GroupCategoryDialogProps {
@@ -14,6 +14,7 @@ interface GroupCategoryDialogProps {
   onConfirm: (name: string, category?: string, tags?: string[]) => void;
   categories: GroupCategory[];
   onManageCategories: () => void;
+  onAddTagToCategory?: (categoryId: string, tag: string) => void;
   initialName?: string;
 }
 
@@ -23,10 +24,12 @@ export function GroupCategoryDialog({
   onConfirm,
   categories,
   onManageCategories,
+  onAddTagToCategory,
   initialName,
 }: GroupCategoryDialogProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState("");
 
   const groupName = initialName || "";
 
@@ -52,7 +55,20 @@ export function GroupCategoryDialog({
   const resetAndClose = () => {
     setSelectedCategory("");
     setSelectedTags([]);
+    setNewTagInput("");
     onClose();
+  };
+
+  const handleAddNewTag = () => {
+    const tag = newTagInput.trim();
+    if (!tag || !selectedCategoryObj) return;
+    if (!availableTags.includes(tag)) {
+      onAddTagToCategory?.(selectedCategoryObj.id, tag);
+    }
+    if (!selectedTags.includes(tag)) {
+      setSelectedTags(prev => [...prev, tag]);
+    }
+    setNewTagInput("");
   };
 
   const handleCategoryChange = (value: string) => {
@@ -95,21 +111,42 @@ export function GroupCategoryDialog({
             </Select>
           </div>
 
-          {availableTags.length > 0 && (
+          {selectedCategoryObj && (
             <div className="space-y-2">
               <Label>Tags (optional)</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {availableTags.map(tag => (
-                  <Badge
-                    key={tag}
-                    variant={selectedTags.includes(tag) ? "default" : "outline"}
-                    className="cursor-pointer text-xs"
-                    onClick={() => toggleTag(tag)}
-                  >
-                    {tag}
-                    {selectedTags.includes(tag) && <X className="w-3 h-3 ml-1" />}
-                  </Badge>
-                ))}
+              {availableTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {availableTags.map(tag => (
+                    <Badge
+                      key={tag}
+                      variant={selectedTags.includes(tag) ? "default" : "outline"}
+                      className="cursor-pointer text-xs"
+                      onClick={() => toggleTag(tag)}
+                    >
+                      {tag}
+                      {selectedTags.includes(tag) && <X className="w-3 h-3 ml-1" />}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Neues Tag..."
+                  value={newTagInput}
+                  onChange={e => setNewTagInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAddNewTag())}
+                  className="h-8 text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={handleAddNewTag}
+                  disabled={!newTagInput.trim()}
+                >
+                  <Plus className="w-3 h-3" />
+                </Button>
               </div>
             </div>
           )}

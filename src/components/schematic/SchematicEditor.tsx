@@ -2672,6 +2672,12 @@ export function SchematicEditor() {
         onConfirm={handleConfirmGroupWithCategory}
         categories={categories}
         onManageCategories={() => setIsCategoryManagerOpen(true)}
+        onAddTagToCategory={(categoryId, tag) => {
+          const cat = categories.find(c => c.id === categoryId);
+          if (cat && !cat.tags.includes(tag)) {
+            updateCategory(cat.id, cat.name, [...cat.tags, tag]);
+          }
+        }}
         initialName={pendingGroupName}
       />
 
