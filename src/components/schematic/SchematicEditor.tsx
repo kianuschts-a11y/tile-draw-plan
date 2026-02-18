@@ -2345,11 +2345,23 @@ export function SchematicEditor() {
   }, [handleZoomIn, handleZoomOut, handleResetView, handleExportClick]);
 
   const [splashDone, setSplashDone] = useState(false);
+  const [initialViewReset, setInitialViewReset] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setSplashDone(true), 4000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Auto-reset view after splash screen completes and canvas is rendered
+  useEffect(() => {
+    if (splashDone && !componentsLoading && !initialViewReset) {
+      const timer = setTimeout(() => {
+        handleResetView();
+        setInitialViewReset(true);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [splashDone, componentsLoading, initialViewReset, handleResetView]);
 
   if (!splashDone || componentsLoading) {
     return (
