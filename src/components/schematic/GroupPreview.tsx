@@ -136,13 +136,11 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
         const tileW = (comp.width || 1) * scale;
         const tileH = (comp.height || 1) * scale;
         
-        // Calculate scale factors for shapes within this tile
         const shapeScaleX = tileW;
         const shapeScaleY = tileH;
         
         return (
           <g key={idx} transform={`translate(${tileX}, ${tileY})`}>
-            {/* Tile background */}
             <rect
               x={0}
               y={0}
@@ -153,11 +151,70 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
               strokeWidth={0.5}
               strokeDasharray="2,1"
             />
-            {/* Render component shapes */}
             {comp.shapes.map((shape, shapeIdx) => (
               <g key={shapeIdx}>{renderShape(shape, shapeScaleX, shapeScaleY)}</g>
             ))}
           </g>
+        );
+      })}
+      {/* Render connection lines */}
+      {group.layoutData?.connections?.map((conn, connIdx) => {
+        const fromTile = tiles[conn.fromTileIndex];
+        const toTile = tiles[conn.toTileIndex];
+        if (!fromTile || !toTile) return null;
+
+        const fromComp = components.find(c => c.id === fromTile.componentId)
+          || CONNECTION_BLOCKS.find(c => c.id === fromTile.componentId);
+        const toComp = components.find(c => c.id === toTile.componentId)
+          || CONNECTION_BLOCKS.find(c => c.id === toTile.componentId);
+        if (!fromComp || !toComp) return null;
+
+        const fromTileX = padding + fromTile.relativeX * scale;
+        const fromTileY = padding + fromTile.relativeY * scale;
+        const fromTileW = (fromComp.width || 1) * scale;
+        const fromTileH = (fromComp.height || 1) * scale;
+
+        const toTileX = padding + toTile.relativeX * scale;
+        const toTileY = padding + toTile.relativeY * scale;
+        const toTileW = (toComp.width || 1) * scale;
+        const toTileH = (toComp.height || 1) * scale;
+
+        // Calculate connection point positions on the tile edges
+        let x1: number, y1: number, x2: number, y2: number;
+
+        const getConnectionPoint = (
+          tileX: number, tileY: number, tileW: number, tileH: number,
+          compWidth: number, compHeight: number,
+          cellX: number, cellY: number, side: string
+        ) => {
+          const cellW = tileW / compWidth;
+          const cellH = tileH / compHeight;
+          const cx = tileX + cellX * cellW + cellW / 2;
+          const cy = tileY + cellY * cellH + cellH / 2;
+
+          switch (side) {
+            case 'left': return { x: tileX + cellX * cellW, y: cy };
+            case 'right': return { x: tileX + (cellX + 1) * cellW, y: cy };
+            case 'top': return { x: cx, y: tileY + cellY * cellH };
+            case 'bottom': return { x: cx, y: tileY + (cellY + 1) * cellH };
+            default: return { x: cx, y: cy };
+          }
+        };
+
+        const p1 = getConnectionPoint(fromTileX, fromTileY, fromTileW, fromTileH, fromComp.width || 1, fromComp.height || 1, conn.fromCellX, conn.fromCellY, conn.fromSide);
+        const p2 = getConnectionPoint(toTileX, toTileY, toTileW, toTileH, toComp.width || 1, toComp.height || 1, conn.toCellX, conn.toCellY, conn.toSide);
+
+        return (
+          <line
+            key={`conn-${connIdx}`}
+            x1={p1.x}
+            y1={p1.y}
+            x2={p2.x}
+            y2={p2.y}
+            stroke={conn.color || 'hsl(220, 25%, 20%)'}
+            strokeWidth={Math.max(0.5, scale * 0.04)}
+            strokeLinecap="round"
+          />
         );
       })}
     </svg>
