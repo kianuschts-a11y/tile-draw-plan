@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Component, Shape, ComponentGroup, GroupCategory } from "@/types/schematic";
+import { GroupPreview } from "./GroupPreview";
 import { SavedPlanData } from "@/hooks/useSavedPlans";
 import { PlacedTile } from "./Canvas";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -442,80 +443,8 @@ export function ComponentLibrary({
     const hasLayout = group.layoutData && group.layoutData.tiles.length > 0;
     
     // Render a mini preview of the group layout with actual component shapes
-    const renderGroupPreview = () => {
-      if (!hasLayout || !group.layoutData) {
-        return (
-          <div className="w-[80px] h-[80px] flex items-center justify-center">
-            <Folder className="w-8 h-8 text-muted-foreground" />
-          </div>
-        );
-      }
-      
-      // Calculate bounds of the layout based on component sizes
-      const tiles = group.layoutData.tiles;
-      let totalWidth = 0;
-      let totalHeight = 0;
-      
-      tiles.forEach(tile => {
-        // Check both custom components and connection blocks
-        const comp = components.find(c => c.id === tile.componentId) 
-          || CONNECTION_BLOCKS.find(c => c.id === tile.componentId);
-        if (comp) {
-          const tileRight = tile.relativeX + (comp.width || 1);
-          const tileBottom = tile.relativeY + (comp.height || 1);
-          totalWidth = Math.max(totalWidth, tileRight);
-          totalHeight = Math.max(totalHeight, tileBottom);
-        }
-      });
-      
-      // Calculate scale to fit in preview area (max 100x100)
-      const maxPreviewSize = 100;
-      const padding = 4;
-      const availableSize = maxPreviewSize - padding * 2;
-      const scale = Math.min(availableSize / totalWidth, availableSize / totalHeight, 30);
-      
-      const svgWidth = totalWidth * scale + padding * 2;
-      const svgHeight = totalHeight * scale + padding * 2;
-      
-      return (
-        <svg width={svgWidth} height={svgHeight}>
-          {tiles.map((tile, idx) => {
-            // Check both custom components and connection blocks
-            const comp = components.find(c => c.id === tile.componentId)
-              || CONNECTION_BLOCKS.find(c => c.id === tile.componentId);
-            if (!comp) return null;
-            
-            const tileX = padding + tile.relativeX * scale;
-            const tileY = padding + tile.relativeY * scale;
-            const tileW = (comp.width || 1) * scale;
-            const tileH = (comp.height || 1) * scale;
-            
-            // Calculate scale factors for shapes within this tile
-            const shapeScaleX = tileW;
-            const shapeScaleY = tileH;
-            
-            return (
-              <g key={idx} transform={`translate(${tileX}, ${tileY})`}>
-                {/* Tile background */}
-                <rect
-                  x={0}
-                  y={0}
-                  width={tileW}
-                  height={tileH}
-                  fill="white"
-                  stroke="hsl(var(--border))"
-                  strokeWidth={0.5}
-                  strokeDasharray="2,1"
-                />
-                {/* Render component shapes */}
-                {comp.shapes.map((shape, shapeIdx) => (
-                  <g key={shapeIdx}>{renderShape(shape, shapeScaleX, shapeScaleY)}</g>
-                ))}
-              </g>
-            );
-          })}
-        </svg>
-      );
+    const renderGroupPreviewContent = () => {
+      return <GroupPreview group={group} components={components} maxSize={100} />;
     };
     
     return (
@@ -534,7 +463,7 @@ export function ComponentLibrary({
             }}
           >
             <div className="min-w-[80px] min-h-[80px] flex items-center justify-center border border-dashed border-primary/50 rounded bg-white relative p-1">
-              {renderGroupPreview()}
+              {renderGroupPreviewContent()}
               <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
                 {group.layoutData?.tiles.length || group.componentIds.length}
               </div>
