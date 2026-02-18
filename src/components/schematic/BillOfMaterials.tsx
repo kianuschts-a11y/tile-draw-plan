@@ -62,6 +62,7 @@ interface BillOfMaterialsProps {
   projectMarken: Map<string, string>;
   projectModelle: Map<string, string>;
   projectCustomFields: Map<string, Record<string, string | number>>;
+  excludedCategories?: string[];
 }
 
 export function BillOfMaterials({ 
@@ -76,7 +77,8 @@ export function BillOfMaterials({
   projectPreise,
   projectMarken,
   projectModelle,
-  projectCustomFields
+  projectCustomFields,
+  excludedCategories = []
 }: BillOfMaterialsProps) {
   
   // Get all unique custom field keys from project data
@@ -201,6 +203,12 @@ export function BillOfMaterials({
       const preis = projectPreise.get(id) || 0;
       const customFields = projectCustomFields.get(id) || {};
       
+      // Apply category filter
+      if (excludedCategories.length > 0) {
+        const catName = kategorie || '__uncategorized__';
+        if (excludedCategories.includes(catName)) continue;
+      }
+      
       items.push({
         position: position++,
         componentId: id,
@@ -216,7 +224,7 @@ export function BillOfMaterials({
     }
     
     return items;
-  }, [tiles, projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields]);
+  }, [tiles, projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields, excludedCategories]);
 
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
