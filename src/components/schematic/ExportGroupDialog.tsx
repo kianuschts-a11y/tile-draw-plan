@@ -19,7 +19,6 @@ interface PdfOptions {
   includeMesskonzept?: boolean;
 }
 
-// BOM column config (mirrors BillOfMaterials.tsx)
 interface ColumnConfig {
   id: string;
   label: string;
@@ -39,6 +38,9 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
 ];
 
 const BOM_COLUMNS_STORAGE_KEY = 'bom-column-visibility';
+
+type DrawingFormat = 'png' | 'pdf';
+type TableFormat = 'excel' | 'pdf';
 
 interface ExportGroupDialogProps {
   open: boolean;
@@ -71,13 +73,18 @@ export function ExportGroupDialog({
 }: ExportGroupDialogProps) {
   const [projectName, setProjectName] = useState("");
   const [saveAsProject, setSaveAsProject] = useState(false);
-  const [bundleAsPdf, setBundleAsPdf] = useState(true);
+  const [bundleAsPdf, setBundleAsPdf] = useState(false);
 
-  // Individual export toggles
+  // Individual toggles
   const [exportDrawing, setExportDrawing] = useState(true);
   const [exportBOM, setExportBOM] = useState(true);
   const [exportMesskonzept, setExportMesskonzept] = useState(false);
   const [exportMopCsv, setExportMopCsv] = useState(false);
+
+  // Per-document format (only used when NOT bundled)
+  const [drawingFormat, setDrawingFormat] = useState<DrawingFormat>('png');
+  const [bomFormat, setBomFormat] = useState<TableFormat>('excel');
+  const [messkonzeptFormat, setMesskonzeptFormat] = useState<TableFormat>('excel');
 
   // BOM column settings
   const [bomSettingsOpen, setBomSettingsOpen] = useState(false);
@@ -91,7 +98,6 @@ export function ExportGroupDialog({
     return defaults;
   });
 
-  // Persist column visibility
   useEffect(() => {
     try {
       localStorage.setItem(BOM_COLUMNS_STORAGE_KEY, JSON.stringify(columnVisibility));
@@ -107,10 +113,8 @@ export function ExportGroupDialog({
     }
     for (const key of customFieldKeys) {
       columns.push({
-        id: `custom_${key}`,
-        label: key,
-        visible: columnVisibility[`custom_${key}`] !== false,
-        isCustom: true,
+        id: `custom_${key}`, label: key,
+        visible: columnVisibility[`custom_${key}`] !== false, isCustom: true,
       });
     }
     for (let i = insertIndex; i < DEFAULT_COLUMNS.length; i++) {
@@ -124,38 +128,46 @@ export function ExportGroupDialog({
     setColumnVisibility(prev => ({ ...prev, [columnId]: !prev[columnId] }));
   };
 
-  // --- Quick individual downloads ---
-  const handleQuickDownloadDrawingPng = () => {
+  // --- Quick individual download (right-side button) ---
+  const downloadDrawing = (fmt: DrawingFormat) => {
     onClose();
-    onExportImage();
+    if (fmt === 'pdf') {
+      onExportPdf({ includeBOM: false, includeMesskonzept: false });
+    } else {
+      onExportImage();
+    }
   };
 
-  const handleQuickDownloadDrawingPdf = () => {
-    onClose();
-    onExportPdf({ includeBOM: false, includeMesskonzept: false });
+  const downloadBOM = (fmt: TableFormat) => {
+    if (fmt === 'excel') {
+      onExportBOMExcel();
+    } else {
+      // PDF = bundled PDF with only BOM
+      onClose();
+      onExportPdf({ includeBOM: true, includeMesskonzept: false });
+    }
   };
 
-  const handleQuickDownloadBOM = () => {
-    onExportBOMExcel();
+  const downloadMesskonzept = (fmt: TableFormat) => {
+    if (fmt === 'excel') {
+      onExportMesskonzeptExcel();
+    } else {
+      onClose();
+      onExportPdf({ includeBOM: false, includeMesskonzept: true });
+    }
   };
 
-  const handleQuickDownloadMesskonzept = () => {
-    onExportMesskonzeptExcel();
-  };
-
-  const handleQuickDownloadMop = () => {
+  const downloadMop = () => {
     onClose();
     onExportMopCsv();
   };
 
-  // --- Main export (bundled or individual) ---
+  // --- Main export button ---
   const handleExport = () => {
-    if (exportMopCsv) {
-      onExportMopCsv();
-    }
+    if (exportMopCsv) onExportMopCsv();
 
-    if (bundleAsPdf && (exportDrawing || exportBOM || exportMesskonzept)) {
-      // Bundle as multi-page PDF
+    if (bundleAsPdf) {
+      // Everything selected goes into one PDF
       const pdfOptions: PdfOptions = {
         includeBOM: exportBOM,
         includeMesskonzept: exportMesskonzept,
@@ -164,25 +176,41 @@ export function ExportGroupDialog({
         onSaveProjectAndExportPdf(projectName.trim(), pdfOptions);
       } else {
         onClose();
-        onExportPdf(pdfOptions);
+        if (exportDrawing || exportBOM || exportMesskonzept) {
+          onExportPdf(pdfOptions);
+        }
       }
     } else {
-      // Export individually
+      // Individual exports in chosen formats
       if (exportDrawing) {
         if (saveAsProject && projectName.trim()) {
-          onSaveProjectAndExportImage(projectName.trim());
+          if (drawingFormat === 'pdf') {
+            onSaveProjectAndExportPdf(projectName.trim(), { includeBOM: false, includeMesskonzept: false });
+          } else {
+            onSaveProjectAndExportImage(projectName.trim());
+          }
         } else {
           onClose();
-          onExportImage();
+          downloadDrawing(drawingFormat);
         }
       } else if (saveAsProject && projectName.trim()) {
-        // Save project without drawing export
         onSaveProjectAndExportImage(projectName.trim());
-      } else {
+      } else if (!exportBOM && !exportMesskonzept && !exportMopCsv) {
         onClose();
       }
-      if (exportBOM) onExportBOMExcel();
-      if (exportMesskonzept) onExportMesskonzeptExcel();
+
+      if (exportBOM) {
+        if (bomFormat === 'excel') onExportBOMExcel();
+        // bomFormat === 'pdf' not applicable standalone without drawing
+      }
+      if (exportMesskonzept) {
+        if (messkonzeptFormat === 'excel') onExportMesskonzeptExcel();
+      }
+
+      // Close if we haven't already
+      if (!exportDrawing && (exportBOM || exportMesskonzept)) {
+        // Excel downloads don't close, so close manually
+      }
     }
 
     setProjectName("");
@@ -198,7 +226,6 @@ export function ExportGroupDialog({
   const hasAnyExportSelected = exportDrawing || exportBOM || exportMesskonzept || exportMopCsv;
   const canExport = hasAnyExportSelected && (!saveAsProject || projectName.trim().length > 0);
 
-  // Count bundled items
   const bundledCount = (exportDrawing ? 1 : 0) + (exportBOM ? 1 : 0) + (exportMesskonzept ? 1 : 0);
 
   return (
@@ -223,47 +250,39 @@ export function ExportGroupDialog({
                 </p>
               </div>
             </div>
-            <Switch
-              checked={bundleAsPdf}
-              onCheckedChange={setBundleAsPdf}
-            />
+            <Switch checked={bundleAsPdf} onCheckedChange={setBundleAsPdf} />
           </div>
 
           <Separator />
 
           {/* --- Drawing --- */}
-          <ExportRow
+          <ExportItemRow
             icon={<Image className="w-4 h-4" />}
             label="Zeichnung"
-            format={bundleAsPdf && exportDrawing ? "PDF-Seite" : "PNG / PDF"}
             checked={exportDrawing}
             onCheckedChange={setExportDrawing}
-            onQuickDownload={handleQuickDownloadDrawingPng}
-            secondaryDownload={
-              <button
-                type="button"
-                onClick={handleQuickDownloadDrawingPdf}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
-                title="Als PDF herunterladen"
-              >
-                PDF
-              </button>
-            }
-            quickDownloadLabel="PNG"
+            bundled={bundleAsPdf}
+            bundledFormat="PDF"
+            formats={['PNG', 'PDF']}
+            selectedFormat={drawingFormat === 'png' ? 'PNG' : 'PDF'}
+            onFormatChange={(f) => setDrawingFormat(f === 'PNG' ? 'png' : 'pdf')}
+            onQuickDownload={(f) => downloadDrawing(f === 'PNG' ? 'png' : 'pdf')}
           />
 
           {/* --- BOM --- */}
           <div className="space-y-0">
-            <ExportRow
+            <ExportItemRow
               icon={<FileSpreadsheet className="w-4 h-4" />}
               label="Stückliste"
-              format={bundleAsPdf && exportBOM && exportDrawing ? "PDF-Seite" : "Excel"}
               checked={exportBOM}
               onCheckedChange={setExportBOM}
-              onQuickDownload={handleQuickDownloadBOM}
-              quickDownloadLabel="Excel"
+              bundled={bundleAsPdf}
+              bundledFormat="PDF"
+              formats={['Excel']}
+              selectedFormat="Excel"
+              onFormatChange={() => setBomFormat('excel')}
+              onQuickDownload={() => onExportBOMExcel()}
             />
-            {/* BOM column settings */}
             {exportBOM && (
               <Collapsible open={bomSettingsOpen} onOpenChange={setBomSettingsOpen}>
                 <CollapsibleTrigger asChild>
@@ -299,28 +318,34 @@ export function ExportGroupDialog({
           </div>
 
           {/* --- Messkonzept --- */}
-          <ExportRow
+          <ExportItemRow
             icon={<Activity className="w-4 h-4" />}
             label="Messkonzept"
-            format={bundleAsPdf && exportMesskonzept && exportDrawing ? "PDF-Seite" : "Excel"}
             checked={exportMesskonzept}
             onCheckedChange={setExportMesskonzept}
             disabled={!hasMesskonzeptItems}
             disabledReason="Keine Messpunkte"
-            onQuickDownload={handleQuickDownloadMesskonzept}
-            quickDownloadLabel="Excel"
+            bundled={bundleAsPdf}
+            bundledFormat="PDF"
+            formats={['Excel']}
+            selectedFormat="Excel"
+            onFormatChange={() => setMesskonzeptFormat('excel')}
+            onQuickDownload={() => onExportMesskonzeptExcel()}
           />
 
           {/* --- M.O.P CSV --- */}
-          <ExportRow
+          <ExportItemRow
             icon={<Database className="w-4 h-4" />}
             label="M.O.P Import"
-            format="CSV"
             checked={exportMopCsv}
             onCheckedChange={setExportMopCsv}
-            onQuickDownload={handleQuickDownloadMop}
-            quickDownloadLabel="CSV"
-            noBundleInfo
+            bundled={false}
+            bundledFormat=""
+            formats={['CSV']}
+            selectedFormat="CSV"
+            onFormatChange={() => {}}
+            onQuickDownload={() => downloadMop()}
+            alwaysIndividual
           />
 
           {/* Bundle info */}
@@ -370,11 +395,7 @@ export function ExportGroupDialog({
           <Button variant="ghost" onClick={handleClose}>
             Abbrechen
           </Button>
-          <Button
-            onClick={handleExport}
-            disabled={!canExport}
-            className="gap-2"
-          >
+          <Button onClick={handleExport} disabled={!canExport} className="gap-2">
             {saveAsProject ? <FolderPlus className="w-4 h-4" /> : <Download className="w-4 h-4" />}
             {saveAsProject
               ? "Speichern & exportieren"
@@ -389,34 +410,35 @@ export function ExportGroupDialog({
   );
 }
 
-// --- Reusable row component ---
+// --- Reusable row ---
 
-interface ExportRowProps {
+interface ExportItemRowProps {
   icon: React.ReactNode;
   label: string;
-  format: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
-  onQuickDownload: () => void;
-  quickDownloadLabel: string;
   disabled?: boolean;
   disabledReason?: string;
-  secondaryDownload?: React.ReactNode;
-  noBundleInfo?: boolean;
+  bundled: boolean;
+  bundledFormat: string;
+  formats: string[];
+  selectedFormat: string;
+  onFormatChange: (format: string) => void;
+  onQuickDownload: (format: string) => void;
+  alwaysIndividual?: boolean;
 }
 
-function ExportRow({
-  icon,
-  label,
-  format,
-  checked,
-  onCheckedChange,
-  onQuickDownload,
-  quickDownloadLabel,
-  disabled,
-  disabledReason,
-  secondaryDownload,
-}: ExportRowProps) {
+function ExportItemRow({
+  icon, label, checked, onCheckedChange,
+  disabled, disabledReason,
+  bundled, bundledFormat,
+  formats, selectedFormat,
+  onFormatChange, onQuickDownload,
+  alwaysIndividual,
+}: ExportItemRowProps) {
+  const isBundled = bundled && !alwaysIndividual;
+  const displayFormat = isBundled ? bundledFormat : selectedFormat;
+
   return (
     <div
       className={cn(
@@ -430,27 +452,49 @@ function ExportRow({
         onCheckedChange={(c) => onCheckedChange(c === true)}
         disabled={disabled}
       />
-      <div className="flex items-center gap-2 text-muted-foreground">
-        {icon}
-      </div>
-      <Label className={cn("text-sm font-medium flex-1", disabled && "cursor-not-allowed")}>
+      <div className="flex items-center gap-2 text-muted-foreground">{icon}</div>
+      <span className={cn("text-sm font-medium flex-1", disabled && "cursor-not-allowed")}>
         {label}
-      </Label>
-      <span className="text-xs text-muted-foreground">
-        {disabled ? disabledReason : format}
       </span>
-      {!disabled && (
+
+      {disabled ? (
+        <span className="text-xs text-muted-foreground">{disabledReason}</span>
+      ) : isBundled ? (
+        /* Bundled mode: just show "PDF" label */
+        <span className="text-xs text-muted-foreground">{bundledFormat}</span>
+      ) : (
+        /* Individual mode: format selector + download button */
         <div className="flex items-center gap-1.5">
+          {formats.length > 1 ? (
+            <div className="flex rounded-md border border-border overflow-hidden">
+              {formats.map(f => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => onFormatChange(f)}
+                  className={cn(
+                    "px-2 py-0.5 text-xs transition-colors",
+                    selectedFormat === f
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">{formats[0]}</span>
+          )}
           <button
             type="button"
-            onClick={onQuickDownload}
+            onClick={() => onQuickDownload(displayFormat)}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
-            title={`${label} als ${quickDownloadLabel} herunterladen`}
+            title={`${label} als ${displayFormat} herunterladen`}
           >
-            <Download className="w-3 h-3" />
-            <span>{quickDownloadLabel}</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>{displayFormat}</span>
           </button>
-          {secondaryDownload}
         </div>
       )}
     </div>
