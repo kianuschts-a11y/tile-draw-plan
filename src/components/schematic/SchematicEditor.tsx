@@ -2637,6 +2637,13 @@ export function SchematicEditor() {
         onSaveProjectAndExportPdf={handleSaveProjectAndExportPdf}
         hasTiles={tiles.filter(t => !isConnectionBlock(t.component)).length >= 2}
         hasMesskonzeptItems={hasMesskonzeptItems}
+        customFieldKeys={(() => {
+          const keys = new Set<string>();
+          for (const fields of projectCustomFields.values()) {
+            for (const key of Object.keys(fields)) keys.add(key);
+          }
+          return Array.from(keys);
+        })()}
       />
 
       <MopExportDialog

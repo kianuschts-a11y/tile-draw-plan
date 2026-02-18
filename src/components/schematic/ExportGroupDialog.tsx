@@ -1,18 +1,44 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FolderPlus, Download, Image, FileText, CheckCircle2, FileSpreadsheet, Activity, Database } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { FolderPlus, Download, Image, FileText, FileSpreadsheet, Activity, Database, Settings, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type DrawingFormat = 'image' | 'pdf';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface PdfOptions {
   includeBOM?: boolean;
   includeMesskonzept?: boolean;
 }
+
+// BOM column config (mirrors BillOfMaterials.tsx)
+interface ColumnConfig {
+  id: string;
+  label: string;
+  visible: boolean;
+  isCustom?: boolean;
+}
+
+const DEFAULT_COLUMNS: ColumnConfig[] = [
+  { id: 'position', label: 'Pos.', visible: true },
+  { id: 'name', label: 'Komponente', visible: true },
+  { id: 'kategorie', label: 'Kategorie', visible: true },
+  { id: 'marke', label: 'Marke', visible: true },
+  { id: 'modell', label: 'Modell', visible: true },
+  { id: 'quantity', label: 'Menge', visible: true },
+  { id: 'preis', label: 'Preis', visible: true },
+  { id: 'gesamtkosten', label: 'Gesamt', visible: true },
+];
+
+const BOM_COLUMNS_STORAGE_KEY = 'bom-column-visibility';
 
 interface ExportGroupDialogProps {
   open: boolean;
@@ -26,6 +52,7 @@ interface ExportGroupDialogProps {
   onSaveProjectAndExportPdf: (projectName: string, options?: PdfOptions) => void;
   hasTiles: boolean;
   hasMesskonzeptItems: boolean;
+  customFieldKeys?: string[];
 }
 
 export function ExportGroupDialog({
@@ -40,59 +67,122 @@ export function ExportGroupDialog({
   onSaveProjectAndExportPdf,
   hasTiles,
   hasMesskonzeptItems,
+  customFieldKeys = [],
 }: ExportGroupDialogProps) {
   const [projectName, setProjectName] = useState("");
   const [saveAsProject, setSaveAsProject] = useState(false);
-  const [drawingFormat, setDrawingFormat] = useState<DrawingFormat>('pdf');
-  
-  // Export checkboxes
+  const [bundleAsPdf, setBundleAsPdf] = useState(true);
+
+  // Individual export toggles
   const [exportDrawing, setExportDrawing] = useState(true);
   const [exportBOM, setExportBOM] = useState(true);
   const [exportMesskonzept, setExportMesskonzept] = useState(false);
   const [exportMopCsv, setExportMopCsv] = useState(false);
 
+  // BOM column settings
+  const [bomSettingsOpen, setBomSettingsOpen] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(BOM_COLUMNS_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    const defaults: Record<string, boolean> = {};
+    for (const col of DEFAULT_COLUMNS) defaults[col.id] = col.visible;
+    return defaults;
+  });
+
+  // Persist column visibility
+  useEffect(() => {
+    try {
+      localStorage.setItem(BOM_COLUMNS_STORAGE_KEY, JSON.stringify(columnVisibility));
+    } catch { /* ignore */ }
+  }, [columnVisibility]);
+
+  const allColumns = useMemo(() => {
+    const columns: ColumnConfig[] = [];
+    const insertIndex = DEFAULT_COLUMNS.findIndex(c => c.id === 'quantity');
+    for (let i = 0; i < insertIndex; i++) {
+      const col = DEFAULT_COLUMNS[i];
+      columns.push({ ...col, visible: columnVisibility[col.id] !== false });
+    }
+    for (const key of customFieldKeys) {
+      columns.push({
+        id: `custom_${key}`,
+        label: key,
+        visible: columnVisibility[`custom_${key}`] !== false,
+        isCustom: true,
+      });
+    }
+    for (let i = insertIndex; i < DEFAULT_COLUMNS.length; i++) {
+      const col = DEFAULT_COLUMNS[i];
+      columns.push({ ...col, visible: columnVisibility[col.id] !== false });
+    }
+    return columns;
+  }, [customFieldKeys, columnVisibility]);
+
+  const toggleColumnVisibility = (columnId: string) => {
+    setColumnVisibility(prev => ({ ...prev, [columnId]: !prev[columnId] }));
+  };
+
+  // --- Quick individual downloads ---
+  const handleQuickDownloadDrawingPng = () => {
+    onClose();
+    onExportImage();
+  };
+
+  const handleQuickDownloadDrawingPdf = () => {
+    onClose();
+    onExportPdf({ includeBOM: false, includeMesskonzept: false });
+  };
+
+  const handleQuickDownloadBOM = () => {
+    onExportBOMExcel();
+  };
+
+  const handleQuickDownloadMesskonzept = () => {
+    onExportMesskonzeptExcel();
+  };
+
+  const handleQuickDownloadMop = () => {
+    onClose();
+    onExportMopCsv();
+  };
+
+  // --- Main export (bundled or individual) ---
   const handleExport = () => {
-    // Trigger M.O.P CSV export if selected
     if (exportMopCsv) {
       onExportMopCsv();
     }
 
-    const isPdf = drawingFormat === 'pdf';
-    const pdfOptions: PdfOptions = {
-      includeBOM: exportBOM,
-      includeMesskonzept: exportMesskonzept,
-    };
-
-    // When PDF format is selected: BOM and Messkonzept are included as PDF pages
-    // When PNG format is selected: BOM and Messkonzept are exported as separate Excel files
-
-    if (exportDrawing) {
+    if (bundleAsPdf && (exportDrawing || exportBOM || exportMesskonzept)) {
+      // Bundle as multi-page PDF
+      const pdfOptions: PdfOptions = {
+        includeBOM: exportBOM,
+        includeMesskonzept: exportMesskonzept,
+      };
       if (saveAsProject && projectName.trim()) {
-        if (isPdf) {
-          onSaveProjectAndExportPdf(projectName.trim(), pdfOptions);
-        } else {
-          onSaveProjectAndExportImage(projectName.trim());
-          if (exportBOM) onExportBOMExcel();
-          if (exportMesskonzept) onExportMesskonzeptExcel();
-        }
+        onSaveProjectAndExportPdf(projectName.trim(), pdfOptions);
       } else {
-        if (isPdf) {
-          onExportPdf(pdfOptions);
-        } else {
-          onExportImage();
-          if (exportBOM) onExportBOMExcel();
-          if (exportMesskonzept) onExportMesskonzeptExcel();
-        }
+        onClose();
+        onExportPdf(pdfOptions);
       }
     } else {
-      if (exportBOM) onExportBOMExcel();
-      if (exportMesskonzept) onExportMesskonzeptExcel();
-      
-      if (saveAsProject && projectName.trim()) {
+      // Export individually
+      if (exportDrawing) {
+        if (saveAsProject && projectName.trim()) {
+          onSaveProjectAndExportImage(projectName.trim());
+        } else {
+          onClose();
+          onExportImage();
+        }
+      } else if (saveAsProject && projectName.trim()) {
+        // Save project without drawing export
         onSaveProjectAndExportImage(projectName.trim());
       } else {
         onClose();
       }
+      if (exportBOM) onExportBOMExcel();
+      if (exportMesskonzept) onExportMesskonzeptExcel();
     }
 
     setProjectName("");
@@ -108,28 +198,8 @@ export function ExportGroupDialog({
   const hasAnyExportSelected = exportDrawing || exportBOM || exportMesskonzept || exportMopCsv;
   const canExport = hasAnyExportSelected && (!saveAsProject || projectName.trim().length > 0);
 
-  // Determine what the user will get
-  const isPdf = drawingFormat === 'pdf' && exportDrawing;
-  const bomInPdf = isPdf && exportBOM;
-  const messkonzeptInPdf = isPdf && exportMesskonzept;
-
-  // Count output files
-  const fileCount = (() => {
-    let count = 0;
-    if (exportDrawing) count++; // PNG or PDF
-    if (exportBOM && !bomInPdf) count++; // Separate Excel
-    if (exportMesskonzept && !messkonzeptInPdf) count++; // Separate Excel
-    return count;
-  })();
-
-  // Count pages in PDF
-  const pdfPageCount = (() => {
-    if (!isPdf) return 0;
-    let pages = 1; // Drawing
-    if (bomInPdf) pages++;
-    if (messkonzeptInPdf) pages++;
-    return pages;
-  })();
+  // Count bundled items
+  const bundledCount = (exportDrawing ? 1 : 0) + (exportBOM ? 1 : 0) + (exportMesskonzept ? 1 : 0);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -137,159 +207,133 @@ export function ExportGroupDialog({
         <DialogHeader>
           <DialogTitle>Exportieren</DialogTitle>
           <DialogDescription>
-            Wählen Sie, was exportiert werden soll.
+            Wählen Sie die Dokumente und das Format für den Export.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 py-2">
-          {/* Export Items Selection */}
-          <div className="space-y-3">
-            {/* Drawing Export */}
-            <div
-              className={cn(
-                "flex items-start gap-3 rounded-lg border p-3 transition-colors",
-                exportDrawing ? "border-primary/50 bg-primary/5" : "border-border"
-              )}
-            >
-              <Checkbox
-                id="export-drawing"
-                checked={exportDrawing}
-                onCheckedChange={(checked) => setExportDrawing(checked === true)}
-                className="mt-0.5"
-              />
-              <div className="flex-1 space-y-2.5">
-                <Label htmlFor="export-drawing" className="text-sm font-medium cursor-pointer flex items-center gap-2">
-                  <Image className="w-4 h-4 text-muted-foreground" />
-                  Zeichnung
-                </Label>
-                
-                {/* Format Selection - only shown when drawing is checked */}
-                {exportDrawing && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDrawingFormat('pdf')}
-                      className={cn(
-                        "relative flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all text-sm",
-                        drawingFormat === 'pdf'
-                          ? "border-primary bg-primary/10"
-                          : "border-border hover:border-muted-foreground/30"
-                      )}
-                    >
-                      {drawingFormat === 'pdf' && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                      )}
-                      <div>
-                        <p className="font-medium">PDF</p>
-                        <p className="text-xs text-muted-foreground">Interaktiv</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDrawingFormat('image')}
-                      className={cn(
-                        "relative flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all text-sm",
-                        drawingFormat === 'image'
-                          ? "border-primary bg-primary/10"
-                          : "border-border hover:border-muted-foreground/30"
-                      )}
-                    >
-                      {drawingFormat === 'image' && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                      )}
-                      <div>
-                        <p className="font-medium">PNG</p>
-                        <p className="text-xs text-muted-foreground">Hochauflösend</p>
-                      </div>
-                    </button>
-                  </div>
-                )}
+        <div className="space-y-3 py-2">
+          {/* Bundle toggle */}
+          <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Gebündeltes PDF</p>
+                <p className="text-xs text-muted-foreground">
+                  Zeichnung, Stückliste & Messkonzept als ein Dokument
+                </p>
               </div>
             </div>
-
-            {/* BOM Export */}
-            <div
-              className={cn(
-                "flex items-center gap-3 rounded-lg border p-3 transition-colors",
-                exportBOM ? "border-primary/50 bg-primary/5" : "border-border"
-              )}
-            >
-              <Checkbox
-                id="export-bom"
-                checked={exportBOM}
-                onCheckedChange={(checked) => setExportBOM(checked === true)}
-              />
-              <Label htmlFor="export-bom" className="text-sm font-medium cursor-pointer flex items-center gap-2 flex-1">
-                <FileSpreadsheet className="w-4 h-4 text-muted-foreground" />
-                Stückliste
-                <span className="text-xs text-muted-foreground font-normal ml-auto">
-                  {bomInPdf ? 'In PDF enthalten' : 'Excel'}
-                </span>
-              </Label>
-            </div>
-
-            {/* Messkonzept Export */}
-            <div
-              className={cn(
-                "flex items-center gap-3 rounded-lg border p-3 transition-colors",
-                exportMesskonzept ? "border-primary/50 bg-primary/5" : "border-border",
-                !hasMesskonzeptItems && "opacity-50"
-              )}
-            >
-              <Checkbox
-                id="export-messkonzept"
-                checked={exportMesskonzept}
-                onCheckedChange={(checked) => setExportMesskonzept(checked === true)}
-                disabled={!hasMesskonzeptItems}
-              />
-              <Label 
-                htmlFor="export-messkonzept" 
-                className={cn(
-                  "text-sm font-medium cursor-pointer flex items-center gap-2 flex-1",
-                  !hasMesskonzeptItems && "cursor-not-allowed"
-                )}
-              >
-                <Activity className="w-4 h-4 text-muted-foreground" />
-                Messkonzept
-                <span className="text-xs text-muted-foreground font-normal ml-auto">
-                  {!hasMesskonzeptItems ? 'Keine Messpunkte' : messkonzeptInPdf ? 'In PDF enthalten' : 'Excel'}
-                </span>
-              </Label>
-            </div>
-
-            {/* M.O.P CSV Export */}
-            <div
-              className={cn(
-                "flex items-center gap-3 rounded-lg border p-3 transition-colors",
-                exportMopCsv ? "border-primary/50 bg-primary/5" : "border-border"
-              )}
-            >
-              <Checkbox
-                id="export-mop-csv"
-                checked={exportMopCsv}
-                onCheckedChange={(checked) => setExportMopCsv(checked === true)}
-              />
-              <Label htmlFor="export-mop-csv" className="text-sm font-medium cursor-pointer flex items-center gap-2 flex-1">
-                <Database className="w-4 h-4 text-muted-foreground" />
-                M.O.P Import
-                <span className="text-xs text-muted-foreground font-normal ml-auto">
-                  CSV
-                </span>
-              </Label>
-            </div>
+            <Switch
+              checked={bundleAsPdf}
+              onCheckedChange={setBundleAsPdf}
+            />
           </div>
 
-          {/* Info about combined PDF */}
-          {isPdf && (bomInPdf || messkonzeptInPdf) && (
+          <Separator />
+
+          {/* --- Drawing --- */}
+          <ExportRow
+            icon={<Image className="w-4 h-4" />}
+            label="Zeichnung"
+            format={bundleAsPdf && exportDrawing ? "PDF-Seite" : "PNG / PDF"}
+            checked={exportDrawing}
+            onCheckedChange={setExportDrawing}
+            onQuickDownload={handleQuickDownloadDrawingPng}
+            secondaryDownload={
+              <button
+                type="button"
+                onClick={handleQuickDownloadDrawingPdf}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                title="Als PDF herunterladen"
+              >
+                PDF
+              </button>
+            }
+            quickDownloadLabel="PNG"
+          />
+
+          {/* --- BOM --- */}
+          <div className="space-y-0">
+            <ExportRow
+              icon={<FileSpreadsheet className="w-4 h-4" />}
+              label="Stückliste"
+              format={bundleAsPdf && exportBOM && exportDrawing ? "PDF-Seite" : "Excel"}
+              checked={exportBOM}
+              onCheckedChange={setExportBOM}
+              onQuickDownload={handleQuickDownloadBOM}
+              quickDownloadLabel="Excel"
+            />
+            {/* BOM column settings */}
+            {exportBOM && (
+              <Collapsible open={bomSettingsOpen} onOpenChange={setBomSettingsOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors ml-10 mt-1 mb-1"
+                  >
+                    <Settings className="w-3 h-3" />
+                    Spalten konfigurieren
+                    {bomSettingsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="ml-10 grid grid-cols-2 gap-1.5 pb-2">
+                    {allColumns.map(col => (
+                      <div key={col.id} className="flex items-center gap-1.5">
+                        <Checkbox
+                          id={`export-col-${col.id}`}
+                          checked={col.visible}
+                          onCheckedChange={() => toggleColumnVisibility(col.id)}
+                          className="h-3.5 w-3.5"
+                        />
+                        <Label htmlFor={`export-col-${col.id}`} className="text-xs cursor-pointer">
+                          {col.label}
+                          {col.isCustom && <span className="text-muted-foreground ml-0.5">(Import)</span>}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
+
+          {/* --- Messkonzept --- */}
+          <ExportRow
+            icon={<Activity className="w-4 h-4" />}
+            label="Messkonzept"
+            format={bundleAsPdf && exportMesskonzept && exportDrawing ? "PDF-Seite" : "Excel"}
+            checked={exportMesskonzept}
+            onCheckedChange={setExportMesskonzept}
+            disabled={!hasMesskonzeptItems}
+            disabledReason="Keine Messpunkte"
+            onQuickDownload={handleQuickDownloadMesskonzept}
+            quickDownloadLabel="Excel"
+          />
+
+          {/* --- M.O.P CSV --- */}
+          <ExportRow
+            icon={<Database className="w-4 h-4" />}
+            label="M.O.P Import"
+            format="CSV"
+            checked={exportMopCsv}
+            onCheckedChange={setExportMopCsv}
+            onQuickDownload={handleQuickDownloadMop}
+            quickDownloadLabel="CSV"
+            noBundleInfo
+          />
+
+          {/* Bundle info */}
+          {bundleAsPdf && bundledCount >= 2 && (
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-              Zeichnung{bomInPdf ? ', Stückliste' : ''}{messkonzeptInPdf ? ', Messkonzept' : ''} werden als {pdfPageCount}-seitiges PDF exportiert.
+              {bundledCount} Dokumente werden als gebündeltes PDF exportiert.
+              {exportMopCsv && " M.O.P CSV wird separat exportiert."}
             </p>
           )}
 
-          {/* Save as Project Section */}
+          {/* Save as project */}
           {hasTiles && (
-            <div className="space-y-2.5 border-t pt-4">
+            <div className="space-y-2.5 border-t pt-3">
               <div className="flex items-center gap-2.5">
                 <Checkbox
                   id="save-as-project"
@@ -308,9 +352,7 @@ export function ExportGroupDialog({
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && canExport) {
-                        handleExport();
-                      }
+                      if (e.key === "Enter" && canExport) handleExport();
                     }}
                     autoFocus
                     className="text-sm"
@@ -335,14 +377,82 @@ export function ExportGroupDialog({
           >
             {saveAsProject ? <FolderPlus className="w-4 h-4" /> : <Download className="w-4 h-4" />}
             {saveAsProject
-              ? `Speichern & exportieren`
-              : fileCount > 1
-                ? `${fileCount} Dateien exportieren`
-                : `Exportieren`
+              ? "Speichern & exportieren"
+              : bundleAsPdf && bundledCount >= 2
+                ? "Als PDF exportieren"
+                : "Exportieren"
             }
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// --- Reusable row component ---
+
+interface ExportRowProps {
+  icon: React.ReactNode;
+  label: string;
+  format: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  onQuickDownload: () => void;
+  quickDownloadLabel: string;
+  disabled?: boolean;
+  disabledReason?: string;
+  secondaryDownload?: React.ReactNode;
+  noBundleInfo?: boolean;
+}
+
+function ExportRow({
+  icon,
+  label,
+  format,
+  checked,
+  onCheckedChange,
+  onQuickDownload,
+  quickDownloadLabel,
+  disabled,
+  disabledReason,
+  secondaryDownload,
+}: ExportRowProps) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-lg border p-3 transition-colors",
+        checked ? "border-primary/50 bg-primary/5" : "border-border",
+        disabled && "opacity-50"
+      )}
+    >
+      <Checkbox
+        checked={checked}
+        onCheckedChange={(c) => onCheckedChange(c === true)}
+        disabled={disabled}
+      />
+      <div className="flex items-center gap-2 text-muted-foreground">
+        {icon}
+      </div>
+      <Label className={cn("text-sm font-medium flex-1", disabled && "cursor-not-allowed")}>
+        {label}
+      </Label>
+      <span className="text-xs text-muted-foreground">
+        {disabled ? disabledReason : format}
+      </span>
+      {!disabled && (
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onQuickDownload}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+            title={`${label} als ${quickDownloadLabel} herunterladen`}
+          >
+            <Download className="w-3 h-3" />
+            <span>{quickDownloadLabel}</span>
+          </button>
+          {secondaryDownload}
+        </div>
+      )}
+    </div>
   );
 }
