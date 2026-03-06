@@ -2404,8 +2404,6 @@ export function SchematicEditor() {
           onZoomOut={handleZoomOut}
           onResetView={handleResetView}
           onExport={handleExportClick}
-          onOpenBOM={() => setIsBOMOpen(true)}
-          onOpenMesskonzept={() => setIsMesskonzeptOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
         <div className="h-8 w-px bg-border mx-2" />
