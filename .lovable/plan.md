@@ -1,33 +1,36 @@
 
 
-## Plan: Projekt-Einfügung mit Gruppen-Erkennung für Excess-Markierung
+## Plan: Vereinfachte Gruppen-Erkennung — Verbindungsblöcke ignorieren
 
 ### Problem
 
-Wenn ein Projekt eingefügt wird, das eine Gruppe (z.B. "4 Heizkreise") enthält, werden alle Komponenten der Gruppe, die nicht explizit in den ausgewählten Mengen enthalten sind, rot markiert. Die Gruppe enthält aber Verbindungskomponenten und Hilfskomponenten, die zusammengehören und nicht einzeln geprüft werden sollten.
+Die aktuelle Gruppen-Erkennung in `onInsertPlan` vergleicht **alle** Tiles der Gruppe (inkl. Connection-Blöcke) exakt nach `componentId` und Position. In einem Projekt ändern sich Connection-Blöcke oft (z.B. `connection-horizontal` → `connection-t-top`), weil zusätzliche Leitungen angeschlossen werden. Dadurch scheitert der Match.
 
 ### Lösung
 
-Beim Einfügen eines Projekts/Plans soll erkannt werden, welche Tiles zu einer bekannten Gruppe gehören. Nur Komponenten, die **weder** in den gewählten Mengen noch als Teil einer erkannten Gruppe vorhanden sind, werden rot markiert.
+Beim Gruppen-Matching werden **Connection-Blöcke komplett ignoriert**. Es werden nur die echten Komponenten (nicht `connection-*`) der Gruppe mit den Tiles im Plan verglichen. Wenn alle Nicht-Connection-Komponenten einer Gruppe an den richtigen relativen Positionen vorhanden sind, gilt die Gruppe als erkannt.
 
 ### Umsetzung
 
-**`src/components/schematic/SchematicEditor.tsx`** — `onInsertPlan` Callback erweitern:
+**`src/components/schematic/SchematicEditor.tsx`** — Zeilen ~2606–2655 (Gruppen-Erkennung in `onInsertPlan`):
 
-1. Nach dem Erstellen der neuen Tiles: Prüfen welche Komponenten im Plan zu einer bekannten `ComponentGroup` gehören
-2. Dazu die `groups`-Liste durchgehen und für jede Gruppe prüfen, ob ihre `layoutData.tiles` (Komponenten-IDs und relative Positionen) im Plan enthalten sind
-3. Alle Tile-IDs, die zu einer erkannten Gruppe gehören, als "Gruppen-Tiles" markieren
-4. Excess-Logik anwenden: Nur Tiles rot markieren, die:
-   - Nicht zu einer erkannten Gruppe gehören **UND**
-   - Nicht in den `projectQuantities` als verfügbar gelistet sind
-5. Gruppen-Tiles, deren zugehörige Gruppe vollständig im Plan vorhanden ist, werden **nicht** als excess markiert
-6. Bei der Mengen-Subtraktion im `ComponentSelectorDialog.handleInsertPlan`: Gruppen-Komponenten korrekt von den `originalQuantities` abziehen, sodass die Anzeige konsistent bleibt
+1. `group.layoutData.tiles` filtern: nur Tiles behalten, deren `componentId` **nicht** mit `connection-` beginnt
+2. Wenn nach dem Filtern keine relevanten Tiles übrig bleiben → Gruppe überspringen
+3. Anker-Suche und Positions-Matching nur mit den gefilterten (Nicht-Connection) Tiles durchführen
+4. Bei einem Match: **alle** Plan-Tiles, die an Positionen der Gruppen-Connection-Blöcke liegen und `connection-*` IDs haben, ebenfalls als Gruppen-Tiles markieren (damit auch die Verbindungsblöcke nicht rot werden)
 
-**Konkret:**
-- Neue Hilfsfunktion `identifyGroupTilesInPlan(planTiles, groups)` die zurückgibt, welche Tile-IDs zu welcher Gruppe gehören
-- `onInsertPlan` Callback: Nach Tile-Erstellung Excess-Berechnung analog zu `handleInsertGroupFromSelector` durchführen, aber Gruppen-Tiles ausschließen
+```text
+Vorher:
+  Alle Gruppen-Tiles (inkl. Connection) müssen exakt matchen
+  → Scheitert bei veränderten Connection-Blöcken
+
+Nachher:
+  Nur echte Komponenten müssen matchen
+  Connection-Blöcke an Gruppen-Positionen werden automatisch mit geschützt
+  → Robustes Matching trotz geänderter Verbindungen
+```
 
 | Datei | Änderung |
 |-------|----------|
-| `src/components/schematic/SchematicEditor.tsx` | `onInsertPlan` um Gruppen-Erkennung und selektive Excess-Markierung erweitern |
+| `src/components/schematic/SchematicEditor.tsx` | Gruppen-Erkennung: Connection-Tiles aus dem Matching ausschließen, nur funktionale Komponenten prüfen |
 
