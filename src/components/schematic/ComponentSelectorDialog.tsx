@@ -960,7 +960,7 @@ export function ComponentSelectorDialog({
                   const remainingQty = quantities.get(component.id) || 0;
                   // Count actually placed tiles on the canvas
                   const originalQty = originalSelectedQuantities.get(component.id) || 0;
-                  const placedQty = placedTiles.filter(t => t.component.id === component.id).length;
+                  const placedQty = placedComponentCounts[component.id] || 0;
                   // Show component if it's in original project OR if user is adding new ones
                   const qty = remainingQty; // For backwards compatibility with controls
                   const isExpanded = expandedComponents.has(component.id);
