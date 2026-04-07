@@ -761,10 +761,8 @@ export function ComponentSelectorDialog({
       for (const tile of plan.drawingData.tiles) {
         const compId = tile.component?.id || (tile as any).componentId;
         if (!compId || compId.startsWith('connection-')) continue;
-        if (!includeMesskomponenten) {
-          const comp = components.find(c => c.id === compId);
-          if (comp && comp.labelingEnabled) continue;
-        }
+        const comp = components.find(c => c.id === compId);
+        if (comp && isComponentExcluded(comp)) continue;
         requirements.set(compId, (requirements.get(compId) || 0) + 1);
       }
       
