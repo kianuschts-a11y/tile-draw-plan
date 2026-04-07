@@ -572,13 +572,11 @@ export function ComponentSelectorDialog({
       // When excluding Messkomponenten, also exclude them from group requirements
       const requirements = getGroupComponentRequirements(group, true);
       
-      // If not including Messkomponenten, filter out labeling components from requirements
+      // Filter out excluded categories from requirements
       const filteredRequirements = new Map<string, number>();
       for (const [compId, qty] of requirements.entries()) {
-        if (!includeMesskomponenten) {
-          const comp = components.find(c => c.id === compId);
-          if (comp && comp.labelingEnabled) continue;
-        }
+        const comp = components.find(c => c.id === compId);
+        if (comp && isComponentExcluded(comp)) continue;
         filteredRequirements.set(compId, qty);
       }
       
@@ -632,7 +630,7 @@ export function ComponentSelectorDialog({
       // Then by coverage percentage
       return b.coveragePercent - a.coveragePercent;
     });
-  }, [filteredQuantities, groups, canFulfillGroup, getGroupComponentRequirements, calculateGroupMatchPercentage, includeMesskomponenten, components, minMatchPercent, onlyFullMatches]);
+  }, [filteredQuantities, groups, canFulfillGroup, getGroupComponentRequirements, calculateGroupMatchPercentage, isComponentExcluded, components, minMatchPercent, onlyFullMatches]);
 
   // Helper to subtract group requirements from a component map
   const subtractGroupFromComponents = useCallback((
