@@ -1,36 +1,46 @@
 
 
-## Plan: Vereinfachte Gruppen-Erkennung — Verbindungsblöcke ignorieren
+## Plan: Gruppen-Erkennung in Projekten — Info-Dialog & Insertion-Fix
 
-### Problem
+### Überblick
 
-Die aktuelle Gruppen-Erkennung in `onInsertPlan` vergleicht **alle** Tiles der Gruppe (inkl. Connection-Blöcke) exakt nach `componentId` und Position. In einem Projekt ändern sich Connection-Blöcke oft (z.B. `connection-horizontal` → `connection-t-top`), weil zusätzliche Leitungen angeschlossen werden. Dadurch scheitert der Match.
+Beim Anzeigen der Projektinformationen (Info-Dialog, "i"-Button) soll automatisch erkannt und angezeigt werden, welche bekannten Gruppen im Projekt enthalten sind. Gleichzeitig wird die Gruppen-Erkennung beim Einfügen von Projekten korrigiert, indem Connection-Blöcke beim Matching ignoriert werden.
 
-### Lösung
+### Änderungen
 
-Beim Gruppen-Matching werden **Connection-Blöcke komplett ignoriert**. Es werden nur die echten Komponenten (nicht `connection-*`) der Gruppe mit den Tiles im Plan verglichen. Wenn alle Nicht-Connection-Komponenten einer Gruppe an den richtigen relativen Positionen vorhanden sind, gilt die Gruppe als erkannt.
+#### 1. Gruppen-Erkennungslogik als shared Utility auslagern
 
-### Umsetzung
+Neue Datei `src/lib/groupMatching.ts`:
+- Funktion `identifyGroupsInPlan(planTiles, groups)` die erkennt, welche Gruppen in einem Plan enthalten sind
+- Beim Matching werden Connection-Blöcke (`connection-*`) ignoriert — nur echte Komponenten müssen an den richtigen relativen Positionen vorhanden sein
+- Connection-Blöcke an Gruppen-Positionen werden automatisch mit geschützt
+- Rückgabe: Array von `{ group, matchedTileIds }` sowie ein Set aller geschützten Tile-IDs
 
-**`src/components/schematic/SchematicEditor.tsx`** — Zeilen ~2606–2655 (Gruppen-Erkennung in `onInsertPlan`):
+#### 2. ProjectInfoDialog um Gruppen-Anzeige erweitern
 
-1. `group.layoutData.tiles` filtern: nur Tiles behalten, deren `componentId` **nicht** mit `connection-` beginnt
-2. Wenn nach dem Filtern keine relevanten Tiles übrig bleiben → Gruppe überspringen
-3. Anker-Suche und Positions-Matching nur mit den gefilterten (Nicht-Connection) Tiles durchführen
-4. Bei einem Match: **alle** Plan-Tiles, die an Positionen der Gruppen-Connection-Blöcke liegen und `connection-*` IDs haben, ebenfalls als Gruppen-Tiles markieren (damit auch die Verbindungsblöcke nicht rot werden)
+`src/components/schematic/ProjectInfoDialog.tsx`:
+- Neue Prop `groups: ComponentGroup[]` hinzufügen
+- Beim Öffnen die `identifyGroupsInPlan`-Funktion mit den Plan-Tiles und allen bekannten Gruppen aufrufen
+- Erkannte Gruppen als eigene Sektion im Dialog anzeigen (z.B. "Enthaltene Gruppen: 4 Heizkreise")
+- Pro erkannte Gruppe: Name und Anzahl der zugehörigen Tiles als Badge
 
-```text
-Vorher:
-  Alle Gruppen-Tiles (inkl. Connection) müssen exakt matchen
-  → Scheitert bei veränderten Connection-Blöcken
+#### 3. ComponentLibrary — groups-Prop durchreichen
 
-Nachher:
-  Nur echte Komponenten müssen matchen
-  Connection-Blöcke an Gruppen-Positionen werden automatisch mit geschützt
-  → Robustes Matching trotz geänderter Verbindungen
-```
+`src/components/schematic/ComponentLibrary.tsx`:
+- `groups`-Prop an `ProjectInfoDialog` weiterreichen (ist bereits als Prop vorhanden)
+
+#### 4. SchematicEditor — Insertion-Logik korrigieren
+
+`src/components/schematic/SchematicEditor.tsx`:
+- In `onInsertPlan` die bisherige Gruppen-Erkennung (Zeilen ~2606–2655) durch Aufruf der neuen `identifyGroupsInPlan`-Utility ersetzen
+- Connection-Blöcke werden beim Matching automatisch ignoriert
+
+### Betroffene Dateien
 
 | Datei | Änderung |
 |-------|----------|
-| `src/components/schematic/SchematicEditor.tsx` | Gruppen-Erkennung: Connection-Tiles aus dem Matching ausschließen, nur funktionale Komponenten prüfen |
+| `src/lib/groupMatching.ts` | **Neu** — Shared Utility für Gruppen-Erkennung (Connection-Blöcke ignorieren) |
+| `src/components/schematic/ProjectInfoDialog.tsx` | `groups`-Prop hinzufügen, erkannte Gruppen im Info-Dialog anzeigen |
+| `src/components/schematic/ComponentLibrary.tsx` | `groups`-Prop an ProjectInfoDialog durchreichen |
+| `src/components/schematic/SchematicEditor.tsx` | Gruppen-Erkennung in `onInsertPlan` durch shared Utility ersetzen |
 
