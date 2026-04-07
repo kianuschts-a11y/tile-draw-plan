@@ -701,6 +701,14 @@ export function Canvas({
       return;
     }
 
+    // Text click-to-move: text follows cursor
+    if (movingAnnotationId && activeTool === 'select') {
+      const { x, y } = getCanvasPosition(e);
+      onAnnotationTextMove?.(movingAnnotationId, x - (annotationDragStart?.x || x), y - (annotationDragStart?.y || y));
+      setAnnotationDragStart({ x, y });
+      return;
+    }
+
     // Annotation dragging (pixel-based for text, grid-based for lines)
     if (isDraggingAnnotation && selectedAnnotationId && annotationDragStart) {
       const { x, y } = getCanvasPosition(e);
