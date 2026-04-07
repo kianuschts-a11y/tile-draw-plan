@@ -187,6 +187,7 @@ export function ComponentSelectorDialog({
   // Sync local state with projectQuantities when dialog opens
   useEffect(() => {
     if (open) {
+      setSearchTerm("");
       setQuantities(new Map(projectQuantities));
       setDescriptions(new Map(projectDescriptions));
       setKategorien(new Map(projectKategorien));
@@ -959,9 +960,22 @@ export function ComponentSelectorDialog({
               </div>
             </div>
             
+            <div className="mb-2">
+              <Input
+                ref={searchInputRef}
+                autoFocus
+                placeholder="Komponente suchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            
             <ScrollArea className="flex-1 -mx-1 px-1">
               <div className="space-y-1">
-              {[...components].sort((a, b) => {
+              {[...components].filter(comp =>
+                comp.name.toLowerCase().includes(searchTerm.toLowerCase())
+              ).sort((a, b) => {
                 // Sort components with quantity > 0 to the top
                 const qtyA = originalSelectedQuantities.get(a.id) || 0;
                 const qtyB = originalSelectedQuantities.get(b.id) || 0;
