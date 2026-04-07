@@ -270,11 +270,16 @@ export function Canvas({
   const [annotationLinePath, setAnnotationLinePath] = useState<{ gridX: number; gridY: number }[]>([]);
   const [textInputPosition, setTextInputPosition] = useState<{ x: number; y: number } | null>(null);
   const [textInputValue, setTextInputValue] = useState('');
-  const textInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
   const textInputMountedRef = useRef(false);
   // Annotation dragging
   const [isDraggingAnnotation, setIsDraggingAnnotation] = useState(false);
   const [annotationDragStart, setAnnotationDragStart] = useState<{ x: number; y: number } | null>(null);
+  // Arrow cycling state for connections at crossings
+  const [lastArrowClickPos, setLastArrowClickPos] = useState<string | null>(null);
+  const [lastArrowClickIndex, setLastArrowClickIndex] = useState(0);
+  // Text click-to-move state
+  const [movingAnnotationId, setMovingAnnotationId] = useState<string | null>(null);
 
   // Wheel zoom with non-passive listener to prevent page scroll
   useEffect(() => {
@@ -522,17 +527,23 @@ export function Canvas({
     onConnectionsChange(newConnections);
   }, [connections, onConnectionsChange]);
 
-  // Find connection at a specific grid position
-  const findConnectionAtPosition = useCallback((gridX: number, gridY: number): CellConnection | null => {
-    // Look for connections that pass through this cell
+  // Find ALL connections at a specific grid position (including connections touching a tile at that position)
+  const findAllConnectionsAtPosition = useCallback((gridX: number, gridY: number): CellConnection[] => {
+    const found: CellConnection[] = [];
+    const seenIds = new Set<string>();
+    
     for (const conn of connections) {
+      if (seenIds.has(conn.id)) continue;
+      
       // Check "from" side
       const fromTile = tiles.find(t => t.id === conn.fromTileId);
       if (fromTile) {
         const fromGridX = fromTile.gridX + conn.fromCellX;
         const fromGridY = fromTile.gridY + conn.fromCellY;
         if (fromGridX === gridX && fromGridY === gridY) {
-          return conn;
+          found.push(conn);
+          seenIds.add(conn.id);
+          continue;
         }
       }
       
@@ -542,12 +553,39 @@ export function Canvas({
         const toGridX = toTile.gridX + conn.toCellX;
         const toGridY = toTile.gridY + conn.toCellY;
         if (toGridX === gridX && toGridY === gridY) {
-          return conn;
+          found.push(conn);
+          seenIds.add(conn.id);
+          continue;
         }
       }
     }
-    return null;
+    
+    // Also check if there's a tile at this position and find all connections touching it
+    const tileAtPos = tiles.find(t => {
+      const w = t.component.width || 1;
+      const h = t.component.height || 1;
+      return gridX >= t.gridX && gridX < t.gridX + w &&
+             gridY >= t.gridY && gridY < t.gridY + h;
+    });
+    
+    if (tileAtPos) {
+      for (const conn of connections) {
+        if (seenIds.has(conn.id)) continue;
+        if (conn.fromTileId === tileAtPos.id || conn.toTileId === tileAtPos.id) {
+          found.push(conn);
+          seenIds.add(conn.id);
+        }
+      }
+    }
+    
+    return found;
   }, [connections, tiles]);
+
+  // Find connection at a specific grid position (returns first match, for backward compat)
+  const findConnectionAtPosition = useCallback((gridX: number, gridY: number): CellConnection | null => {
+    const all = findAllConnectionsAtPosition(gridX, gridY);
+    return all.length > 0 ? all[0] : null;
+  }, [findAllConnectionsAtPosition]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0 && e.button !== 1) return;
@@ -589,11 +627,18 @@ export function Canvas({
     const { x, y } = getCanvasPosition(e);
     const { gridX, gridY } = getGridFromCanvas(x, y);
     
-    // Arrow tool - toggle arrow on clicked connection
+    // Arrow tool - toggle arrow on clicked connection (cycle through at crossings)
     if (activeTool === 'arrow') {
-      const conn = findConnectionAtPosition(gridX, gridY);
-      if (conn && onConnectionArrowToggle) {
-        onConnectionArrowToggle(conn.id);
+      const allConns = findAllConnectionsAtPosition(gridX, gridY);
+      if (allConns.length > 0 && onConnectionArrowToggle) {
+        const posKey = `${gridX},${gridY}`;
+        let idx = 0;
+        if (lastArrowClickPos === posKey) {
+          idx = (lastArrowClickIndex + 1) % allConns.length;
+        }
+        setLastArrowClickPos(posKey);
+        setLastArrowClickIndex(idx);
+        onConnectionArrowToggle(allConns[idx].id);
       }
       return;
     }
@@ -606,13 +651,18 @@ export function Canvas({
     }
 
     if (activeTool === 'select') {
+      // If moving an annotation text, place it on click
+      if (movingAnnotationId) {
+        setMovingAnnotationId(null);
+        return;
+      }
       const pos = getCanvasPosition(e);
       setSelectionBoxStart(pos);
       setSelectionBoxEnd(pos);
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findConnectionAtPosition, onConnectionArrowToggle]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findAllConnectionsAtPosition, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex, movingAnnotationId]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Annotation line path drawing - grid cell based like connection tool
@@ -653,6 +703,14 @@ export function Canvas({
         }
         return [...prev, ...newCells];
       });
+      return;
+    }
+
+    // Text click-to-move: text follows cursor
+    if (movingAnnotationId && activeTool === 'select') {
+      const { x, y } = getCanvasPosition(e);
+      onAnnotationTextMove?.(movingAnnotationId, x - (annotationDragStart?.x || x), y - (annotationDragStart?.y || y));
+      setAnnotationDragStart({ x, y });
       return;
     }
 
@@ -1095,11 +1153,18 @@ export function Canvas({
     const cellX = gridX - tile.gridX;
     const cellY = gridY - tile.gridY;
     
-    // Arrow tool - toggle arrow on clicked connection
+    // Arrow tool - toggle arrow on clicked connection (cycle through at crossings)
     if (activeTool === 'arrow') {
-      const conn = findConnectionAtPosition(gridX, gridY);
-      if (conn && onConnectionArrowToggle) {
-        onConnectionArrowToggle(conn.id);
+      const allConns = findAllConnectionsAtPosition(gridX, gridY);
+      if (allConns.length > 0 && onConnectionArrowToggle) {
+        const posKey = `${gridX},${gridY}`;
+        let idx = 0;
+        if (lastArrowClickPos === posKey) {
+          idx = (lastArrowClickIndex + 1) % allConns.length;
+        }
+        setLastArrowClickPos(posKey);
+        setLastArrowClickIndex(idx);
+        onConnectionArrowToggle(allConns[idx].id);
       }
       return;
     }
@@ -1322,7 +1387,7 @@ export function Canvas({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if ((e.target as HTMLElement).closest?.('[role="dialog"]') || document.querySelector('[role="dialog"]')) return;
       
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTileIds.size > 0) {
@@ -1801,6 +1866,9 @@ export function Canvas({
         {/* Annotationsebene - Textfelder */}
         {annotationTexts.map(text => {
           const isSelected = selectedAnnotationId === text.id;
+          const isMoving = movingAnnotationId === text.id;
+          const lines = text.text.split('\n');
+          const lineHeight = text.fontSize * 1.2;
           return (
             <g key={`ann-text-${text.id}`}>
               <text
@@ -1815,25 +1883,45 @@ export function Canvas({
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   if (activeTool === 'select') {
+                    // If already selected and clicked again, toggle move mode
+                    if (isSelected && !isMoving) {
+                      const pos = getCanvasPosition(e);
+                      setAnnotationDragStart({ x: pos.x, y: pos.y });
+                      setMovingAnnotationId(text.id);
+                      return;
+                    }
+                    // If in move mode, place the text (handled in canvas mouseDown)
+                    if (isMoving) {
+                      setMovingAnnotationId(null);
+                      return;
+                    }
                     onAnnotationSelect?.(text.id, 'text');
                     const pos = getCanvasPosition(e);
                     setIsDraggingAnnotation(true);
                     setAnnotationDragStart({ x: pos.x, y: pos.y });
                   }
                 }}
-                style={{ cursor: activeTool === 'select' ? 'move' : 'inherit', userSelect: 'none' }}
+                style={{ cursor: activeTool === 'select' ? (isMoving ? 'grabbing' : 'move') : 'inherit', userSelect: 'none' }}
               >
-                {text.text}
+                {lines.length === 1 ? (
+                  text.text
+                ) : (
+                  lines.map((line, i) => (
+                    <tspan key={i} x={text.x} dy={i === 0 ? 0 : lineHeight}>
+                      {line}
+                    </tspan>
+                  ))
+                )}
               </text>
               {isSelected && (() => {
-                // Estimate text bounding box
-                const approxWidth = text.text.length * text.fontSize * 0.6;
-                const approxHeight = text.fontSize * 1.4;
+                const maxLineLen = Math.max(...lines.map(l => l.length));
+                const approxWidth = maxLineLen * text.fontSize * 0.6;
+                const approxHeight = lines.length * lineHeight;
                 return (
                   <rect
                     data-export-ignore="true"
                     x={text.x - 2}
-                    y={text.y - approxHeight / 2 - 2}
+                    y={text.y - lineHeight / 2 - 2}
                     width={approxWidth + 4}
                     height={approxHeight + 4}
                     fill="none"
@@ -1873,29 +1961,30 @@ export function Canvas({
             x={textInputPosition.x}
             y={textInputPosition.y - annotationFontSize / 2}
             width={Math.max(200, 8 * tileSize)}
-            height={Math.max(annotationFontSize + 16, tileSize)}
+            height={Math.max(annotationFontSize * 4 + 16, tileSize * 2)}
             data-export-ignore="true"
             onMouseDown={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
           >
             <div style={{ width: '100%', height: '100%' }}>
-              <input
+              <textarea
                 ref={(el) => {
-                  (textInputRef as React.MutableRefObject<HTMLInputElement | null>).current = el;
+                  (textInputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
                   if (el && !textInputMountedRef.current) {
                     textInputMountedRef.current = true;
-                    // Focus after a small delay to avoid SVG focus issues
                     requestAnimationFrame(() => {
                       el.focus();
                     });
                   }
                 }}
                 value={textInputValue}
-                onChange={(e) => setTextInputValue((e.target as HTMLInputElement).value)}
+                onChange={(e) => setTextInputValue((e.target as HTMLTextAreaElement).value)}
                 onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                   e.stopPropagation();
-                  if (e.key === 'Enter') {
+                  // Shift+Enter or Ctrl+Enter confirms the text
+                  if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey)) {
+                    e.preventDefault();
                     if (textInputValue.trim()) {
                       onAnnotationTextCreate?.({
                         x: textInputPosition.x,
@@ -1909,6 +1998,7 @@ export function Canvas({
                     setTextInputPosition(null);
                     setTextInputValue('');
                   }
+                  // Plain Enter creates a new line (default textarea behavior)
                   if (e.key === 'Escape') {
                     textInputMountedRef.current = false;
                     setTextInputPosition(null);
@@ -1916,15 +2006,12 @@ export function Canvas({
                   }
                 }}
                 onBlur={() => {
-                  // Use a longer delay and check if input still exists
                   setTimeout(() => {
-                    // Only dismiss if the input is no longer focused
                     if (textInputRef.current && document.activeElement === textInputRef.current) {
-                      return; // Still focused, don't dismiss
+                      return;
                     }
                     setTextInputPosition(prev => {
                       if (!prev) return null;
-                      // Read current value from the input element directly
                       const currentValue = textInputRef.current?.value?.trim();
                       if (currentValue) {
                         onAnnotationTextCreate?.({
@@ -1949,10 +2036,14 @@ export function Canvas({
                   backgroundColor: 'white',
                   color: annotationColor,
                   width: '100%',
+                  minHeight: `${annotationFontSize + 8}px`,
                   fontFamily: 'sans-serif',
                   borderRadius: '3px',
                   boxSizing: 'border-box' as const,
+                  resize: 'none' as const,
+                  lineHeight: '1.2',
                 }}
+                placeholder="Enter = neue Zeile, Shift+Enter = bestätigen"
               />
             </div>
           </foreignObject>
