@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Component, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, ProjectComponentData } from "@/types/schematic";
+import { PlacedTile } from "./Canvas";
 import { SavedPlanData } from "@/hooks/useSavedPlans";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,7 @@ interface ComponentSelectorDialogProps {
   onProjectModelleChange: (modelle: Map<string, string>) => void;
   projectCustomFields: Map<string, Record<string, string | number>>;
   onProjectCustomFieldsChange: (customFields: Map<string, Record<string, string | number>>) => void;
+  placedTiles?: PlacedTile[];
 }
 
 interface GroupSuggestion {
@@ -89,7 +91,8 @@ export function ComponentSelectorDialog({
   projectModelle,
   onProjectModelleChange,
   projectCustomFields,
-  onProjectCustomFieldsChange
+  onProjectCustomFieldsChange,
+  placedTiles = [],
 }: ComponentSelectorDialogProps) {
   // Use the passed projectQuantities as initial state, but allow local editing
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
@@ -100,6 +103,15 @@ export function ComponentSelectorDialog({
   const [modelle, setModelle] = useState<Map<string, string>>(new Map());
   const [customFields, setCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
+
+  // Memoized count of placed tiles per component
+  const placedComponentCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    placedTiles.forEach(t => {
+      counts[t.component.id] = (counts[t.component.id] || 0) + 1;
+    });
+    return counts;
+  }, [placedTiles]);
   
   // Group matching filter settings - per-component exclusion (persisted in localStorage)
   const FILTER_STORAGE_KEY = 'component-filter-excluded-ids';
@@ -946,9 +958,9 @@ export function ComponentSelectorDialog({
                 return 0; // Keep original order otherwise
               }).map(component => {
                   const remainingQty = quantities.get(component.id) || 0;
-                  // Use the ORIGINAL quantities the user selected (not the reduced projectQuantities)
+                  // Count actually placed tiles on the canvas
                   const originalQty = originalSelectedQuantities.get(component.id) || 0;
-                  const placedQty = originalQty - remainingQty;
+                  const placedQty = placedComponentCounts[component.id] || 0;
                   // Show component if it's in original project OR if user is adding new ones
                   const qty = remainingQty; // For backwards compatibility with controls
                   const isExpanded = expandedComponents.has(component.id);

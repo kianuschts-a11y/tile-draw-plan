@@ -2605,6 +2605,7 @@ export function SchematicEditor() {
         onProjectModelleChange={setProjectModelle}
         projectCustomFields={projectCustomFields}
         onProjectCustomFieldsChange={setProjectCustomFields}
+        placedTiles={tiles}
       />
 
       <TitleBlockEditor
