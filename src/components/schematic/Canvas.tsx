@@ -280,8 +280,8 @@ export function Canvas({
   // Arrow cycling state for connections at crossings
   const [lastArrowClickPos, setLastArrowClickPos] = useState<string | null>(null);
   const [lastArrowClickIndex, setLastArrowClickIndex] = useState(0);
-  // Text click-to-move state
-  const [movingAnnotationId, setMovingAnnotationId] = useState<string | null>(null);
+  // Editing annotation text by double-click
+  const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
 
   // Wheel zoom with non-passive listener to prevent page scroll
   useEffect(() => {
