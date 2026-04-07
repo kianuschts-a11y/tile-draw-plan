@@ -103,6 +103,15 @@ export function ComponentSelectorDialog({
   const [modelle, setModelle] = useState<Map<string, string>>(new Map());
   const [customFields, setCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
+
+  // Memoized count of placed tiles per component
+  const placedComponentCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    placedTiles.forEach(t => {
+      counts[t.component.id] = (counts[t.component.id] || 0) + 1;
+    });
+    return counts;
+  }, [placedTiles]);
   
   // Group matching filter settings - per-component exclusion (persisted in localStorage)
   const FILTER_STORAGE_KEY = 'component-filter-excluded-ids';
