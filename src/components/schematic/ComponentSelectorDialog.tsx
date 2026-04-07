@@ -636,11 +636,21 @@ export function ComponentSelectorDialog({
       // Apply "only full matches" filter
       if (onlyFullMatches && !possible) continue;
       
+      // Calculate remaining components after inserting this group
+      const remainingAfterInsert = new Map<string, number>();
+      for (const [compId, qty] of filteredQuantities.entries()) {
+        const used = filteredRequirements.get(compId) || 0;
+        const left = qty - used;
+        if (left > 0) remainingAfterInsert.set(compId, left);
+      }
+      
       suggestions.push({
         group,
         possibleCount: possible ? maxCount : 0,
         usedComponents: filteredRequirements,
-        coveragePercent
+        coveragePercent,
+        isFullyFulfillable: possible,
+        remainingAfterInsert
       });
     }
     
