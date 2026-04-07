@@ -22,6 +22,7 @@ import { GroupPreview } from "./GroupPreview";
 import { PlanPreview } from "./PlanPreview";
 import { ComponentImportDialog } from "./ComponentImportDialog";
 import { Switch } from "@/components/ui/switch";
+import { ComponentFilterDialog } from "./ComponentFilterDialog";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 interface ComponentSelectorDialogProps {
