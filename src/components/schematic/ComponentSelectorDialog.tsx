@@ -964,14 +964,14 @@ export function ComponentSelectorDialog({
               </div>
             </div>
             
-            <div className="mb-2 p-[3px] -m-[3px]">
+            <div className="mb-2 pl-1 pr-1 pt-1">
               <Input
                 ref={searchInputRef}
                 autoFocus
                 placeholder="Komponente suchen..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-8 text-sm"
+                className="h-8 text-sm focus-visible:border-ring focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
             
