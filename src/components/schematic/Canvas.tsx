@@ -627,11 +627,18 @@ export function Canvas({
     const { x, y } = getCanvasPosition(e);
     const { gridX, gridY } = getGridFromCanvas(x, y);
     
-    // Arrow tool - toggle arrow on clicked connection
+    // Arrow tool - toggle arrow on clicked connection (cycle through at crossings)
     if (activeTool === 'arrow') {
-      const conn = findConnectionAtPosition(gridX, gridY);
-      if (conn && onConnectionArrowToggle) {
-        onConnectionArrowToggle(conn.id);
+      const allConns = findAllConnectionsAtPosition(gridX, gridY);
+      if (allConns.length > 0 && onConnectionArrowToggle) {
+        const posKey = `${gridX},${gridY}`;
+        let idx = 0;
+        if (lastArrowClickPos === posKey) {
+          idx = (lastArrowClickIndex + 1) % allConns.length;
+        }
+        setLastArrowClickPos(posKey);
+        setLastArrowClickIndex(idx);
+        onConnectionArrowToggle(allConns[idx].id);
       }
       return;
     }
