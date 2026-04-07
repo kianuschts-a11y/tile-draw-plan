@@ -1855,9 +1855,79 @@ export function Canvas({
         {/* Annotationsebene - Textfelder */}
         {annotationTexts.map(text => {
           const isSelected = selectedAnnotationId === text.id;
-          const isMoving = movingAnnotationId === text.id;
+          const isEditing = editingAnnotationId === text.id;
           const lines = text.text.split('\n');
           const lineHeight = text.fontSize * 1.2;
+          
+          // If editing this text, show textarea instead
+          if (isEditing) {
+            return (
+              <g key={`ann-text-${text.id}`}>
+                <foreignObject
+                  x={text.x}
+                  y={text.y - text.fontSize / 2}
+                  width={Math.max(200, 8 * tileSize)}
+                  height={Math.max(text.fontSize * 4 + 16, tileSize * 2)}
+                  data-export-ignore="true"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                >
+                  <div style={{ width: '100%', height: '100%' }}>
+                    <textarea
+                      ref={(el) => {
+                        if (el) {
+                          requestAnimationFrame(() => {
+                            el.focus();
+                            el.setSelectionRange(el.value.length, el.value.length);
+                          });
+                        }
+                      }}
+                      defaultValue={text.text}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          const val = (e.target as HTMLTextAreaElement).value.trim();
+                          if (val) {
+                            onAnnotationTextUpdate?.(text.id, { text: val });
+                          }
+                          setEditingAnnotationId(null);
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingAnnotationId(null);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (val && val !== text.text) {
+                          onAnnotationTextUpdate?.(text.id, { text: val });
+                        }
+                        setEditingAnnotationId(null);
+                      }}
+                      style={{
+                        fontSize: `${text.fontSize}px`,
+                        border: '2px solid hsl(221.2, 83.2%, 53.3%)',
+                        outline: 'none',
+                        padding: '2px 4px',
+                        backgroundColor: 'white',
+                        color: text.color,
+                        width: '100%',
+                        minHeight: `${text.fontSize + 8}px`,
+                        fontFamily: 'sans-serif',
+                        borderRadius: '3px',
+                        boxSizing: 'border-box' as const,
+                        resize: 'none' as const,
+                        lineHeight: '1.2',
+                      }}
+                      placeholder="Enter = bestätigen, Shift+Enter = neue Zeile"
+                    />
+                  </div>
+                </foreignObject>
+              </g>
+            );
+          }
+          
           return (
             <g key={`ann-text-${text.id}`}>
               <text
@@ -1872,25 +1942,19 @@ export function Canvas({
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   if (activeTool === 'select') {
-                    // If already selected and clicked again, toggle move mode
-                    if (isSelected && !isMoving) {
-                      const pos = getCanvasPosition(e);
-                      setAnnotationDragStart({ x: pos.x, y: pos.y });
-                      setMovingAnnotationId(text.id);
-                      return;
-                    }
-                    // If in move mode, place the text (handled in canvas mouseDown)
-                    if (isMoving) {
-                      setMovingAnnotationId(null);
-                      return;
-                    }
                     onAnnotationSelect?.(text.id, 'text');
                     const pos = getCanvasPosition(e);
                     setIsDraggingAnnotation(true);
                     setAnnotationDragStart({ x: pos.x, y: pos.y });
                   }
                 }}
-                style={{ cursor: activeTool === 'select' ? (isMoving ? 'grabbing' : 'move') : 'inherit', userSelect: 'none' }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (activeTool === 'select') {
+                    setEditingAnnotationId(text.id);
+                  }
+                }}
+                style={{ cursor: activeTool === 'select' ? 'move' : 'inherit', userSelect: 'none' }}
               >
                 {lines.length === 1 ? (
                   text.text
