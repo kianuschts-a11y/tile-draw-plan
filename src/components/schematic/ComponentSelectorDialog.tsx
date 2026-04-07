@@ -1329,7 +1329,11 @@ export function ComponentSelectorDialog({
                             return (
                               <div
                                 key={`single-${suggestion.group.id}`}
-                                className="p-2 rounded-lg border bg-muted/30 space-y-2"
+                                className={`p-2 rounded-lg border space-y-2 ${
+                                  suggestion.isFullyFulfillable 
+                                    ? 'border-green-500/30 bg-green-500/5' 
+                                    : 'bg-muted/30'
+                                }`}
                               >
                                 <div className="flex items-start gap-2">
                                   <div className="flex-shrink-0">
@@ -1339,6 +1343,12 @@ export function ComponentSelectorDialog({
                                     <span className="text-sm truncate block">
                                       {suggestion.group.name}
                                     </span>
+                                    {suggestion.isFullyFulfillable && (
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <Check className="w-3 h-3 text-green-600" />
+                                        <span className="text-[10px] text-green-600 font-medium">Vollständig einfügbar</span>
+                                      </div>
+                                    )}
                                     <div className="flex items-center gap-1 mt-1">
                                       <Badge variant="secondary" className="h-5 text-[10px]">
                                         {suggestion.coveragePercent}%
@@ -1350,6 +1360,20 @@ export function ComponentSelectorDialog({
                                         </span>
                                       )}
                                     </div>
+                                    {/* Show remaining components after insert */}
+                                    {suggestion.isFullyFulfillable && suggestion.remainingAfterInsert.size > 0 && (
+                                      <div className="mt-1 text-[10px] text-muted-foreground">
+                                        <span className="font-medium">Verbleibend: </span>
+                                        {Array.from(suggestion.remainingAfterInsert.entries()).map(([compId, qty], i) => {
+                                          const comp = components.find(c => c.id === compId);
+                                          return (
+                                            <span key={compId}>
+                                              {i > 0 && ', '}{qty}× {comp?.name || compId}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                                 {/* Always show insert button - for partial matches, mark excess components */}
