@@ -101,10 +101,42 @@ export function ComponentSelectorDialog({
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   
   // Group matching filter settings
-  const [includeMesskomponenten, setIncludeMesskomponenten] = useState(false);
+  // excludedCategories: set of category names to exclude from matching
+  // Special key "__messkomponenten__" for labelingEnabled components
+  const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set(["__messkomponenten__"]));
   const [minMatchPercent, setMinMatchPercent] = useState(0);
   const [onlyFullMatches, setOnlyFullMatches] = useState(false);
   const [showFilterSettings, setShowFilterSettings] = useState(false);
+
+  // Collect all unique component categories dynamically
+  const allComponentCategories = useMemo(() => {
+    const cats = new Set<string>();
+    for (const comp of components) {
+      if (comp.category && comp.category.trim()) {
+        cats.add(comp.category.trim());
+      }
+    }
+    return Array.from(cats).sort();
+  }, [components]);
+
+  const toggleCategoryExclusion = (category: string) => {
+    setExcludedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
+
+  // Check if a component should be excluded based on current filters
+  const isComponentExcluded = useCallback((comp: Component): boolean => {
+    if (excludedCategories.has("__messkomponenten__") && comp.labelingEnabled) return true;
+    if (comp.category && excludedCategories.has(comp.category.trim())) return true;
+    return false;
+  }, [excludedCategories]);
   
   // Track the ORIGINAL quantities selected by user (before any group insertions)
   // This never changes during the session - it's what the user originally picked
