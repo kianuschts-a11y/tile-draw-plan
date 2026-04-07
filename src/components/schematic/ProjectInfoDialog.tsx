@@ -38,7 +38,19 @@ function shouldShowComponent(comp: Component | undefined, settings?: AppSettings
   return settings.groupInfo.showComponents;
 }
 
-export function ProjectInfoDialog({ plan, components, open, onOpenChange, settings }: ProjectInfoDialogProps) {
+export function ProjectInfoDialog({ plan, components, groups, open, onOpenChange, settings }: ProjectInfoDialogProps) {
+  const detectedGroups = useMemo(() => {
+    if (!plan?.drawingData?.tiles) return [];
+    const planTilesForMatching = plan.drawingData.tiles.map((t: any) => ({
+      id: t.id,
+      componentId: t.component?.id || t.componentId || '',
+      gridX: t.gridX ?? t.x ?? 0,
+      gridY: t.gridY ?? t.y ?? 0,
+    }));
+    const { matches } = identifyGroupsInPlan(planTilesForMatching, groups);
+    return matches;
+  }, [plan, groups]);
+
   if (!plan) return null;
 
   const componentList = plan.componentQuantities
