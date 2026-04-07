@@ -59,6 +59,8 @@ interface GroupSuggestion {
   possibleCount: number;
   usedComponents: Map<string, number>;
   coveragePercent: number;
+  isFullyFulfillable: boolean; // All group components available in project
+  remainingAfterInsert: Map<string, number>; // What's left after inserting this group
 }
 
 interface ComplementaryGroupSet {
