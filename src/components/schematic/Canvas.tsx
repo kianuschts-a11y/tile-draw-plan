@@ -2035,8 +2035,8 @@ export function Canvas({
                 onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                   e.stopPropagation();
-                  // Shift+Enter or Ctrl+Enter confirms the text
-                  if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey)) {
+                  // Enter confirms the text (without Shift)
+                  if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     if (textInputValue.trim()) {
                       onAnnotationTextCreate?.({
@@ -2051,7 +2051,7 @@ export function Canvas({
                     setTextInputPosition(null);
                     setTextInputValue('');
                   }
-                  // Plain Enter creates a new line (default textarea behavior)
+                  // Shift+Enter creates a new line (default textarea behavior)
                   if (e.key === 'Escape') {
                     textInputMountedRef.current = false;
                     setTextInputPosition(null);
@@ -2096,7 +2096,7 @@ export function Canvas({
                   resize: 'none' as const,
                   lineHeight: '1.2',
                 }}
-                placeholder="Enter = neue Zeile, Shift+Enter = bestätigen"
+                placeholder="Enter = bestätigen, Shift+Enter = neue Zeile"
               />
             </div>
           </foreignObject>

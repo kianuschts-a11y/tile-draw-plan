@@ -1164,7 +1164,8 @@ export function SchematicEditor() {
       toCellX: conn.toCellX,
       toCellY: conn.toCellY,
       toSide: conn.toSide,
-      color: conn.color
+      color: conn.color,
+      arrowDirection: conn.arrowDirection
     }));
     
     const layoutData: GroupLayoutData = {
@@ -1226,7 +1227,8 @@ export function SchematicEditor() {
       toCellX: conn.toCellX,
       toCellY: conn.toCellY,
       toSide: conn.toSide,
-      color: conn.color
+      color: conn.color,
+      arrowDirection: conn.arrowDirection
     }));
     
     const layoutData: GroupLayoutData = {
@@ -2488,6 +2490,7 @@ export function SchematicEditor() {
             selectedAnnotationId={selectedAnnotationId}
             onAnnotationLineCreate={handleAnnotationLineCreate}
             onAnnotationTextCreate={handleAnnotationTextCreate}
+            onAnnotationTextUpdate={handleAnnotationTextUpdate}
             onAnnotationSelect={handleAnnotationSelect}
             onAnnotationLineMove={handleAnnotationLineMove}
             onAnnotationTextMove={handleAnnotationTextMove}
