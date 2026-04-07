@@ -101,10 +101,42 @@ export function ComponentSelectorDialog({
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   
   // Group matching filter settings
-  const [includeMesskomponenten, setIncludeMesskomponenten] = useState(false);
+  // excludedCategories: set of category names to exclude from matching
+  // Special key "__messkomponenten__" for labelingEnabled components
+  const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set(["__messkomponenten__"]));
   const [minMatchPercent, setMinMatchPercent] = useState(0);
   const [onlyFullMatches, setOnlyFullMatches] = useState(false);
   const [showFilterSettings, setShowFilterSettings] = useState(false);
+
+  // Collect all unique component categories dynamically
+  const allComponentCategories = useMemo(() => {
+    const cats = new Set<string>();
+    for (const comp of components) {
+      if (comp.category && comp.category.trim()) {
+        cats.add(comp.category.trim());
+      }
+    }
+    return Array.from(cats).sort();
+  }, [components]);
+
+  const toggleCategoryExclusion = (category: string) => {
+    setExcludedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
+
+  // Check if a component should be excluded based on current filters
+  const isComponentExcluded = useCallback((comp: Component): boolean => {
+    if (excludedCategories.has("__messkomponenten__") && comp.labelingEnabled) return true;
+    if (comp.category && excludedCategories.has(comp.category.trim())) return true;
+    return false;
+  }, [excludedCategories]);
   
   // Track the ORIGINAL quantities selected by user (before any group insertions)
   // This never changes during the session - it's what the user originally picked
@@ -437,32 +469,32 @@ export function ComponentSelectorDialog({
     return componentId.startsWith('connection-');
   }, []);
 
-  // Get component requirements from a group (excluding connection blocks and optionally labeling components)
-  const getGroupComponentRequirements = useCallback((group: ComponentGroup, excludeConnections: boolean = false, excludeLabeling: boolean = false): Map<string, number> => {
+  // Get component requirements from a group (excluding connection blocks and excluded categories)
+  const getGroupComponentRequirements = useCallback((group: ComponentGroup, excludeConnections: boolean = false, applyFilters: boolean = false): Map<string, number> => {
     const requirements = new Map<string, number>();
     
     if (group.layoutData?.tiles && group.layoutData.tiles.length > 0) {
       for (const tile of group.layoutData.tiles) {
         if (excludeConnections && isConnectionBlock(tile.componentId)) continue;
-        if (excludeLabeling) {
+        if (applyFilters) {
           const comp = components.find(c => c.id === tile.componentId);
-          if (comp && comp.labelingEnabled) continue;
+          if (comp && isComponentExcluded(comp)) continue;
         }
         requirements.set(tile.componentId, (requirements.get(tile.componentId) || 0) + 1);
       }
     } else {
       for (const id of group.componentIds) {
         if (excludeConnections && isConnectionBlock(id)) continue;
-        if (excludeLabeling) {
+        if (applyFilters) {
           const comp = components.find(c => c.id === id);
-          if (comp && comp.labelingEnabled) continue;
+          if (comp && isComponentExcluded(comp)) continue;
         }
         requirements.set(id, (requirements.get(id) || 0) + 1);
       }
     }
     
     return requirements;
-  }, [isConnectionBlock, components]);
+  }, [isConnectionBlock, components, isComponentExcluded]);
 
   // Check if a group can be fulfilled with given component quantities (full match)
   // Uses excludeConnections=true to ignore connection blocks when matching
@@ -470,8 +502,7 @@ export function ComponentSelectorDialog({
     group: ComponentGroup,
     availableComponents: Map<string, number>
   ): { possible: boolean; maxCount: number } => {
-    const excludeLabeling = !includeMesskomponenten;
-    const requirements = getGroupComponentRequirements(group, true, excludeLabeling);
+    const requirements = getGroupComponentRequirements(group, true, true);
     
     if (requirements.size === 0) {
       return { possible: false, maxCount: 0 };
@@ -489,15 +520,14 @@ export function ComponentSelectorDialog({
     }
     
     return { possible: true, maxCount: maxPossible === Infinity ? 0 : maxPossible };
-  }, [getGroupComponentRequirements, includeMesskomponenten]);
+  }, [getGroupComponentRequirements]);
 
   // Calculate partial match percentage for a group
   const calculateGroupMatchPercentage = useCallback((
     group: ComponentGroup,
     availableComponents: Map<string, number>
   ): { matchPercent: number; matchingComponents: number; totalComponents: number } => {
-    const excludeLabeling = !includeMesskomponenten;
-    const requirements = getGroupComponentRequirements(group, true, excludeLabeling);
+    const requirements = getGroupComponentRequirements(group, true, true);
     
     if (requirements.size === 0) {
       return { matchPercent: 0, matchingComponents: 0, totalComponents: 0 };
@@ -517,20 +547,20 @@ export function ComponentSelectorDialog({
       matchingComponents,
       totalComponents
     };
-  }, [getGroupComponentRequirements, includeMesskomponenten]);
+  }, [getGroupComponentRequirements]);
 
-  // Build filtered quantities (excluding Messkomponenten if toggled off)
+  // Build filtered quantities (excluding categories in excludedCategories)
   const filteredQuantities = useMemo((): Map<string, number> => {
-    if (includeMesskomponenten) return quantities;
+    if (excludedCategories.size === 0) return quantities;
     
     const filtered = new Map<string, number>();
     for (const [compId, qty] of quantities.entries()) {
       const comp = components.find(c => c.id === compId);
-      if (comp && comp.labelingEnabled) continue; // Skip Messkomponenten
+      if (comp && isComponentExcluded(comp)) continue;
       filtered.set(compId, qty);
     }
     return filtered;
-  }, [quantities, includeMesskomponenten, components]);
+  }, [quantities, excludedCategories, components, isComponentExcluded]);
 
   // Find all matching groups - now shows partial matches too!
   const matchingGroups = useMemo((): GroupSuggestion[] => {
@@ -542,13 +572,11 @@ export function ComponentSelectorDialog({
       // When excluding Messkomponenten, also exclude them from group requirements
       const requirements = getGroupComponentRequirements(group, true);
       
-      // If not including Messkomponenten, filter out labeling components from requirements
+      // Filter out excluded categories from requirements
       const filteredRequirements = new Map<string, number>();
       for (const [compId, qty] of requirements.entries()) {
-        if (!includeMesskomponenten) {
-          const comp = components.find(c => c.id === compId);
-          if (comp && comp.labelingEnabled) continue;
-        }
+        const comp = components.find(c => c.id === compId);
+        if (comp && isComponentExcluded(comp)) continue;
         filteredRequirements.set(compId, qty);
       }
       
@@ -602,7 +630,7 @@ export function ComponentSelectorDialog({
       // Then by coverage percentage
       return b.coveragePercent - a.coveragePercent;
     });
-  }, [filteredQuantities, groups, canFulfillGroup, getGroupComponentRequirements, calculateGroupMatchPercentage, includeMesskomponenten, components, minMatchPercent, onlyFullMatches]);
+  }, [filteredQuantities, groups, canFulfillGroup, getGroupComponentRequirements, calculateGroupMatchPercentage, isComponentExcluded, components, minMatchPercent, onlyFullMatches]);
 
   // Helper to subtract group requirements from a component map
   const subtractGroupFromComponents = useCallback((
@@ -733,10 +761,8 @@ export function ComponentSelectorDialog({
       for (const tile of plan.drawingData.tiles) {
         const compId = tile.component?.id || (tile as any).componentId;
         if (!compId || compId.startsWith('connection-')) continue;
-        if (!includeMesskomponenten) {
-          const comp = components.find(c => c.id === compId);
-          if (comp && comp.labelingEnabled) continue;
-        }
+        const comp = components.find(c => c.id === compId);
+        if (comp && isComponentExcluded(comp)) continue;
         requirements.set(compId, (requirements.get(compId) || 0) + 1);
       }
       
@@ -784,7 +810,7 @@ export function ComponentSelectorDialog({
       if (a.possibleCount === 0 && b.possibleCount > 0) return 1;
       return b.coveragePercent - a.coveragePercent;
     });
-  }, [filteredQuantities, savedPlans, includeMesskomponenten, components, minMatchPercent, onlyFullMatches]);
+  }, [filteredQuantities, savedPlans, isComponentExcluded, components, minMatchPercent, onlyFullMatches]);
 
   const totalComponents = useMemo(() => 
     Array.from(quantities.values()).reduce((a, b) => a + b, 0)
@@ -1058,16 +1084,32 @@ export function ComponentSelectorDialog({
             {/* Filter Settings Panel */}
             {showFilterSettings && (
               <div className="mb-3 p-2 rounded-lg border bg-muted/30 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="include-mess" className="text-xs cursor-pointer leading-tight">
-                    Messkomponenten einbeziehen
-                  </Label>
-                  <Switch
-                    id="include-mess"
-                    checked={includeMesskomponenten}
-                    onCheckedChange={setIncludeMesskomponenten}
-                    className="scale-75"
-                  />
+                <Label className="text-xs font-medium">Kategorien einbeziehen</Label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="include-mess" className="text-xs cursor-pointer leading-tight">
+                      Messkomponenten
+                    </Label>
+                    <Switch
+                      id="include-mess"
+                      checked={!excludedCategories.has("__messkomponenten__")}
+                      onCheckedChange={() => toggleCategoryExclusion("__messkomponenten__")}
+                      className="scale-75"
+                    />
+                  </div>
+                  {allComponentCategories.map(cat => (
+                    <div key={cat} className="flex items-center justify-between gap-2">
+                      <Label htmlFor={`include-cat-${cat}`} className="text-xs cursor-pointer leading-tight">
+                        {cat}
+                      </Label>
+                      <Switch
+                        id={`include-cat-${cat}`}
+                        checked={!excludedCategories.has(cat)}
+                        onCheckedChange={() => toggleCategoryExclusion(cat)}
+                        className="scale-75"
+                      />
+                    </div>
+                  ))}
                 </div>
                 
                 <div className="flex items-center justify-between gap-2">
@@ -1107,7 +1149,7 @@ export function ComponentSelectorDialog({
               ) : matchingGroups.length === 0 && complementaryGroupSets.length === 0 && matchingPlans.length === 0 ? (
                 <div className="text-sm text-muted-foreground space-y-2">
                   <p>Keine passenden Vorlagen gefunden.</p>
-                  {(minMatchPercent > 0 || onlyFullMatches || !includeMesskomponenten) && (
+                  {(minMatchPercent > 0 || onlyFullMatches || excludedCategories.size > 0) && (
                     <p className="text-xs">
                       Tipp: Passen Sie die Filter-Einstellungen an, um mehr Ergebnisse zu erhalten.
                     </p>
