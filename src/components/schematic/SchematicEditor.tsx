@@ -142,6 +142,23 @@ export function SchematicEditor() {
     }
   }, [selectedTileIds]);
 
+  // Sync projectQuantities (remaining) when tiles change: remaining = original - placed
+  useEffect(() => {
+    if (projectOriginalQuantities.size === 0) return;
+    const placedCounts = new Map<string, number>();
+    for (const tile of tiles) {
+      const compId = tile.component.id;
+      placedCounts.set(compId, (placedCounts.get(compId) || 0) + 1);
+    }
+    const newQuantities = new Map<string, number>();
+    for (const [compId, originalQty] of projectOriginalQuantities.entries()) {
+      const placed = placedCounts.get(compId) || 0;
+      const remaining = Math.max(0, originalQty - placed);
+      newQuantities.set(compId, remaining);
+    }
+    setProjectQuantities(newQuantities);
+  }, [tiles, projectOriginalQuantities]);
+
   const [canvasState, setCanvasState] = useState<CanvasState>({
     zoom: 0.8,
     panX: 50,
