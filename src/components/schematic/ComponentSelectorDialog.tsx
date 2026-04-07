@@ -59,6 +59,8 @@ interface GroupSuggestion {
   possibleCount: number;
   usedComponents: Map<string, number>;
   coveragePercent: number;
+  isFullyFulfillable: boolean; // All group components available in project
+  remainingAfterInsert: Map<string, number>; // What's left after inserting this group
 }
 
 interface ComplementaryGroupSet {
@@ -634,19 +636,29 @@ export function ComponentSelectorDialog({
       // Apply "only full matches" filter
       if (onlyFullMatches && !possible) continue;
       
+      // Calculate remaining components after inserting this group
+      const remainingAfterInsert = new Map<string, number>();
+      for (const [compId, qty] of filteredQuantities.entries()) {
+        const used = filteredRequirements.get(compId) || 0;
+        const left = qty - used;
+        if (left > 0) remainingAfterInsert.set(compId, left);
+      }
+      
       suggestions.push({
         group,
         possibleCount: possible ? maxCount : 0,
         usedComponents: filteredRequirements,
-        coveragePercent
+        coveragePercent,
+        isFullyFulfillable: possible,
+        remainingAfterInsert
       });
     }
     
-    // Sort: 100% matches first (possibleCount > 0), then by coverage percentage
+    // Sort: fully fulfillable first, then by coverage percentage
     return suggestions.sort((a, b) => {
       // Fully fulfillable groups first
-      if (a.possibleCount > 0 && b.possibleCount === 0) return -1;
-      if (a.possibleCount === 0 && b.possibleCount > 0) return 1;
+      if (a.isFullyFulfillable && !b.isFullyFulfillable) return -1;
+      if (!a.isFullyFulfillable && b.isFullyFulfillable) return 1;
       // Then by coverage percentage
       return b.coveragePercent - a.coveragePercent;
     });
@@ -1317,7 +1329,11 @@ export function ComponentSelectorDialog({
                             return (
                               <div
                                 key={`single-${suggestion.group.id}`}
-                                className="p-2 rounded-lg border bg-muted/30 space-y-2"
+                                className={`p-2 rounded-lg border space-y-2 ${
+                                  suggestion.isFullyFulfillable 
+                                    ? 'border-green-500/30 bg-green-500/5' 
+                                    : 'bg-muted/30'
+                                }`}
                               >
                                 <div className="flex items-start gap-2">
                                   <div className="flex-shrink-0">
@@ -1327,6 +1343,12 @@ export function ComponentSelectorDialog({
                                     <span className="text-sm truncate block">
                                       {suggestion.group.name}
                                     </span>
+                                    {suggestion.isFullyFulfillable && (
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <Check className="w-3 h-3 text-green-600" />
+                                        <span className="text-[10px] text-green-600 font-medium">Vollständig einfügbar</span>
+                                      </div>
+                                    )}
                                     <div className="flex items-center gap-1 mt-1">
                                       <Badge variant="secondary" className="h-5 text-[10px]">
                                         {suggestion.coveragePercent}%
@@ -1338,6 +1360,20 @@ export function ComponentSelectorDialog({
                                         </span>
                                       )}
                                     </div>
+                                    {/* Show remaining components after insert */}
+                                    {suggestion.isFullyFulfillable && suggestion.remainingAfterInsert.size > 0 && (
+                                      <div className="mt-1 text-[10px] text-muted-foreground">
+                                        <span className="font-medium">Verbleibend: </span>
+                                        {Array.from(suggestion.remainingAfterInsert.entries()).map(([compId, qty], i) => {
+                                          const comp = components.find(c => c.id === compId);
+                                          return (
+                                            <span key={compId}>
+                                              {i > 0 && ', '}{qty}× {comp?.name || compId}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                                 {/* Always show insert button - for partial matches, mark excess components */}
