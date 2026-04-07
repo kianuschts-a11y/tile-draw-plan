@@ -76,7 +76,7 @@ export function ComponentFilterDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-md max-h-[80vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Komponenten-Filter</DialogTitle>
         </DialogHeader>
@@ -100,7 +100,7 @@ export function ComponentFilterDialog({
           className="mb-2"
         />
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[40vh] border rounded-md p-2">
+        <ScrollArea className="flex-1 min-h-0 border rounded-md p-2" style={{ maxHeight: 'calc(80vh - 220px)' }}>
           <div className="space-y-1">
             {filteredComponents.map(comp => (
               <div key={comp.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-accent/50">
