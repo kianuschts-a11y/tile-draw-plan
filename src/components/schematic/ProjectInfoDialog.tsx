@@ -1,4 +1,5 @@
-import { Component } from "@/types/schematic";
+import { useMemo } from "react";
+import { Component, ComponentGroup } from "@/types/schematic";
 import { SavedPlanData } from "@/hooks/useSavedPlans";
 import {
   Dialog,
@@ -10,10 +11,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { AppSettings } from "./SettingsDialog";
+import { identifyGroupsInPlan } from "@/lib/groupMatching";
 
 interface ProjectInfoDialogProps {
   plan: SavedPlanData | null;
   components: Component[];
+  groups: ComponentGroup[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   settings?: AppSettings;
@@ -35,7 +38,19 @@ function shouldShowComponent(comp: Component | undefined, settings?: AppSettings
   return settings.groupInfo.showComponents;
 }
 
-export function ProjectInfoDialog({ plan, components, open, onOpenChange, settings }: ProjectInfoDialogProps) {
+export function ProjectInfoDialog({ plan, components, groups, open, onOpenChange, settings }: ProjectInfoDialogProps) {
+  const detectedGroups = useMemo(() => {
+    if (!plan?.drawingData?.tiles) return [];
+    const planTilesForMatching = plan.drawingData.tiles.map((t: any) => ({
+      id: t.id,
+      componentId: t.component?.id || t.componentId || '',
+      gridX: t.gridX ?? t.x ?? 0,
+      gridY: t.gridY ?? t.y ?? 0,
+    }));
+    const { matches } = identifyGroupsInPlan(planTilesForMatching, groups);
+    return matches;
+  }, [plan, groups]);
+
   if (!plan) return null;
 
   const componentList = plan.componentQuantities
@@ -87,7 +102,21 @@ export function ProjectInfoDialog({ plan, components, open, onOpenChange, settin
             </div>
           )}
 
-          {/* Title block info */}
+          {/* Detected Groups */}
+          {detectedGroups.length > 0 && (
+            <div className="space-y-1 text-sm border rounded-lg p-2 bg-muted/30">
+              <p className="font-medium text-xs text-muted-foreground">Enthaltene Gruppen</p>
+              <div className="flex flex-wrap gap-1.5">
+                {detectedGroups.map(({ group, matchedTileIds }) => (
+                  <Badge key={group.id} variant="secondary" className="gap-1">
+                    {group.name}
+                    <span className="text-muted-foreground">({matchedTileIds.length} Tiles)</span>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
           {plan.titleBlockData && plan.titleBlockData.enabled && (
             <div className="space-y-1 text-sm border rounded-lg p-2 bg-muted/30">
               <p className="font-medium text-xs text-muted-foreground">Zeichenkopf</p>

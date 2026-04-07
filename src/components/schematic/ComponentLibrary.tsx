@@ -833,6 +833,7 @@ export function ComponentLibrary({
       <ProjectInfoDialog
         plan={infoPlan}
         components={components}
+        groups={groups}
         open={infoPlanDialogOpen}
         onOpenChange={setInfoPlanDialogOpen}
         settings={appSettings}
