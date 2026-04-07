@@ -527,8 +527,7 @@ export function ComponentSelectorDialog({
     group: ComponentGroup,
     availableComponents: Map<string, number>
   ): { matchPercent: number; matchingComponents: number; totalComponents: number } => {
-    const excludeLabeling = !includeMesskomponenten;
-    const requirements = getGroupComponentRequirements(group, true, excludeLabeling);
+    const requirements = getGroupComponentRequirements(group, true, true);
     
     if (requirements.size === 0) {
       return { matchPercent: 0, matchingComponents: 0, totalComponents: 0 };
@@ -548,20 +547,20 @@ export function ComponentSelectorDialog({
       matchingComponents,
       totalComponents
     };
-  }, [getGroupComponentRequirements, includeMesskomponenten]);
+  }, [getGroupComponentRequirements]);
 
-  // Build filtered quantities (excluding Messkomponenten if toggled off)
+  // Build filtered quantities (excluding categories in excludedCategories)
   const filteredQuantities = useMemo((): Map<string, number> => {
-    if (includeMesskomponenten) return quantities;
+    if (excludedCategories.size === 0) return quantities;
     
     const filtered = new Map<string, number>();
     for (const [compId, qty] of quantities.entries()) {
       const comp = components.find(c => c.id === compId);
-      if (comp && comp.labelingEnabled) continue; // Skip Messkomponenten
+      if (comp && isComponentExcluded(comp)) continue;
       filtered.set(compId, qty);
     }
     return filtered;
-  }, [quantities, includeMesskomponenten, components]);
+  }, [quantities, excludedCategories, components, isComponentExcluded]);
 
   // Find all matching groups - now shows partial matches too!
   const matchingGroups = useMemo((): GroupSuggestion[] => {
