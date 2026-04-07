@@ -1853,6 +1853,9 @@ export function Canvas({
         {/* Annotationsebene - Textfelder */}
         {annotationTexts.map(text => {
           const isSelected = selectedAnnotationId === text.id;
+          const isMoving = movingAnnotationId === text.id;
+          const lines = text.text.split('\n');
+          const lineHeight = text.fontSize * 1.2;
           return (
             <g key={`ann-text-${text.id}`}>
               <text
@@ -1867,25 +1870,43 @@ export function Canvas({
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   if (activeTool === 'select') {
+                    // If already selected and clicked again, toggle move mode
+                    if (isSelected && !isMoving) {
+                      setMovingAnnotationId(text.id);
+                      return;
+                    }
+                    // If in move mode, place the text (handled in canvas mouseDown)
+                    if (isMoving) {
+                      setMovingAnnotationId(null);
+                      return;
+                    }
                     onAnnotationSelect?.(text.id, 'text');
                     const pos = getCanvasPosition(e);
                     setIsDraggingAnnotation(true);
                     setAnnotationDragStart({ x: pos.x, y: pos.y });
                   }
                 }}
-                style={{ cursor: activeTool === 'select' ? 'move' : 'inherit', userSelect: 'none' }}
+                style={{ cursor: activeTool === 'select' ? (isMoving ? 'grabbing' : 'move') : 'inherit', userSelect: 'none' }}
               >
-                {text.text}
+                {lines.length === 1 ? (
+                  text.text
+                ) : (
+                  lines.map((line, i) => (
+                    <tspan key={i} x={text.x} dy={i === 0 ? 0 : lineHeight}>
+                      {line}
+                    </tspan>
+                  ))
+                )}
               </text>
               {isSelected && (() => {
-                // Estimate text bounding box
-                const approxWidth = text.text.length * text.fontSize * 0.6;
-                const approxHeight = text.fontSize * 1.4;
+                const maxLineLen = Math.max(...lines.map(l => l.length));
+                const approxWidth = maxLineLen * text.fontSize * 0.6;
+                const approxHeight = lines.length * lineHeight;
                 return (
                   <rect
                     data-export-ignore="true"
                     x={text.x - 2}
-                    y={text.y - approxHeight / 2 - 2}
+                    y={text.y - lineHeight / 2 - 2}
                     width={approxWidth + 4}
                     height={approxHeight + 4}
                     fill="none"
