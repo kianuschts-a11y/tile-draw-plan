@@ -193,6 +193,7 @@ interface CanvasProps {
   selectedAnnotationId?: string | null;
   onAnnotationLineCreate?: (line: Omit<AnnotationLine, 'id'>) => void;
   onAnnotationTextCreate?: (text: Omit<AnnotationText, 'id'>) => void;
+  onAnnotationTextUpdate?: (id: string, updates: { text?: string; color?: string; fontSize?: number }) => void;
   onAnnotationSelect?: (id: string | null, type?: 'line' | 'text') => void;
   onAnnotationLineMove?: (id: string, dx: number, dy: number) => void;
   onAnnotationTextMove?: (id: string, dx: number, dy: number) => void;
@@ -228,6 +229,7 @@ export function Canvas({
   selectedAnnotationId = null,
   onAnnotationLineCreate,
   onAnnotationTextCreate,
+  onAnnotationTextUpdate,
   onAnnotationSelect,
   onAnnotationLineMove,
   onAnnotationTextMove,
@@ -278,8 +280,8 @@ export function Canvas({
   // Arrow cycling state for connections at crossings
   const [lastArrowClickPos, setLastArrowClickPos] = useState<string | null>(null);
   const [lastArrowClickIndex, setLastArrowClickIndex] = useState(0);
-  // Text click-to-move state
-  const [movingAnnotationId, setMovingAnnotationId] = useState<string | null>(null);
+  // Editing annotation text by double-click
+  const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
 
   // Wheel zoom with non-passive listener to prevent page scroll
   useEffect(() => {
@@ -651,18 +653,13 @@ export function Canvas({
     }
 
     if (activeTool === 'select') {
-      // If moving an annotation text, place it on click
-      if (movingAnnotationId) {
-        setMovingAnnotationId(null);
-        return;
-      }
       const pos = getCanvasPosition(e);
       setSelectionBoxStart(pos);
       setSelectionBoxEnd(pos);
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findAllConnectionsAtPosition, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex, movingAnnotationId]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findAllConnectionsAtPosition, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Annotation line path drawing - grid cell based like connection tool
@@ -703,14 +700,6 @@ export function Canvas({
         }
         return [...prev, ...newCells];
       });
-      return;
-    }
-
-    // Text click-to-move: text follows cursor
-    if (movingAnnotationId && activeTool === 'select') {
-      const { x, y } = getCanvasPosition(e);
-      onAnnotationTextMove?.(movingAnnotationId, x - (annotationDragStart?.x || x), y - (annotationDragStart?.y || y));
-      setAnnotationDragStart({ x, y });
       return;
     }
 
@@ -1866,9 +1855,79 @@ export function Canvas({
         {/* Annotationsebene - Textfelder */}
         {annotationTexts.map(text => {
           const isSelected = selectedAnnotationId === text.id;
-          const isMoving = movingAnnotationId === text.id;
+          const isEditing = editingAnnotationId === text.id;
           const lines = text.text.split('\n');
           const lineHeight = text.fontSize * 1.2;
+          
+          // If editing this text, show textarea instead
+          if (isEditing) {
+            return (
+              <g key={`ann-text-${text.id}`}>
+                <foreignObject
+                  x={text.x}
+                  y={text.y - text.fontSize / 2}
+                  width={Math.max(200, 8 * tileSize)}
+                  height={Math.max(text.fontSize * 4 + 16, tileSize * 2)}
+                  data-export-ignore="true"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                >
+                  <div style={{ width: '100%', height: '100%' }}>
+                    <textarea
+                      ref={(el) => {
+                        if (el) {
+                          requestAnimationFrame(() => {
+                            el.focus();
+                            el.setSelectionRange(el.value.length, el.value.length);
+                          });
+                        }
+                      }}
+                      defaultValue={text.text}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          const val = (e.target as HTMLTextAreaElement).value.trim();
+                          if (val) {
+                            onAnnotationTextUpdate?.(text.id, { text: val });
+                          }
+                          setEditingAnnotationId(null);
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingAnnotationId(null);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (val && val !== text.text) {
+                          onAnnotationTextUpdate?.(text.id, { text: val });
+                        }
+                        setEditingAnnotationId(null);
+                      }}
+                      style={{
+                        fontSize: `${text.fontSize}px`,
+                        border: '2px solid hsl(221.2, 83.2%, 53.3%)',
+                        outline: 'none',
+                        padding: '2px 4px',
+                        backgroundColor: 'white',
+                        color: text.color,
+                        width: '100%',
+                        minHeight: `${text.fontSize + 8}px`,
+                        fontFamily: 'sans-serif',
+                        borderRadius: '3px',
+                        boxSizing: 'border-box' as const,
+                        resize: 'none' as const,
+                        lineHeight: '1.2',
+                      }}
+                      placeholder="Enter = bestätigen, Shift+Enter = neue Zeile"
+                    />
+                  </div>
+                </foreignObject>
+              </g>
+            );
+          }
+          
           return (
             <g key={`ann-text-${text.id}`}>
               <text
@@ -1883,25 +1942,19 @@ export function Canvas({
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   if (activeTool === 'select') {
-                    // If already selected and clicked again, toggle move mode
-                    if (isSelected && !isMoving) {
-                      const pos = getCanvasPosition(e);
-                      setAnnotationDragStart({ x: pos.x, y: pos.y });
-                      setMovingAnnotationId(text.id);
-                      return;
-                    }
-                    // If in move mode, place the text (handled in canvas mouseDown)
-                    if (isMoving) {
-                      setMovingAnnotationId(null);
-                      return;
-                    }
                     onAnnotationSelect?.(text.id, 'text');
                     const pos = getCanvasPosition(e);
                     setIsDraggingAnnotation(true);
                     setAnnotationDragStart({ x: pos.x, y: pos.y });
                   }
                 }}
-                style={{ cursor: activeTool === 'select' ? (isMoving ? 'grabbing' : 'move') : 'inherit', userSelect: 'none' }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (activeTool === 'select') {
+                    setEditingAnnotationId(text.id);
+                  }
+                }}
+                style={{ cursor: activeTool === 'select' ? 'move' : 'inherit', userSelect: 'none' }}
               >
                 {lines.length === 1 ? (
                   text.text
@@ -1982,8 +2035,8 @@ export function Canvas({
                 onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                   e.stopPropagation();
-                  // Shift+Enter or Ctrl+Enter confirms the text
-                  if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey)) {
+                  // Enter confirms the text (without Shift)
+                  if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     if (textInputValue.trim()) {
                       onAnnotationTextCreate?.({
@@ -1998,7 +2051,7 @@ export function Canvas({
                     setTextInputPosition(null);
                     setTextInputValue('');
                   }
-                  // Plain Enter creates a new line (default textarea behavior)
+                  // Shift+Enter creates a new line (default textarea behavior)
                   if (e.key === 'Escape') {
                     textInputMountedRef.current = false;
                     setTextInputPosition(null);
@@ -2043,7 +2096,7 @@ export function Canvas({
                   resize: 'none' as const,
                   lineHeight: '1.2',
                 }}
-                placeholder="Enter = neue Zeile, Shift+Enter = bestätigen"
+                placeholder="Enter = bestätigen, Shift+Enter = neue Zeile"
               />
             </div>
           </foreignObject>

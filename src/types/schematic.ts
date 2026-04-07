@@ -153,6 +153,7 @@ export interface GroupConnectionData {
   toCellY: number;
   toSide: 'left' | 'right' | 'top' | 'bottom';
   color?: string;
+  arrowDirection?: 'none' | 'forward' | 'backward';
 }
 
 // Layout data stored in groups
