@@ -1946,29 +1946,30 @@ export function Canvas({
             x={textInputPosition.x}
             y={textInputPosition.y - annotationFontSize / 2}
             width={Math.max(200, 8 * tileSize)}
-            height={Math.max(annotationFontSize + 16, tileSize)}
+            height={Math.max(annotationFontSize * 4 + 16, tileSize * 2)}
             data-export-ignore="true"
             onMouseDown={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
           >
             <div style={{ width: '100%', height: '100%' }}>
-              <input
+              <textarea
                 ref={(el) => {
-                  (textInputRef as React.MutableRefObject<HTMLInputElement | null>).current = el;
+                  (textInputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
                   if (el && !textInputMountedRef.current) {
                     textInputMountedRef.current = true;
-                    // Focus after a small delay to avoid SVG focus issues
                     requestAnimationFrame(() => {
                       el.focus();
                     });
                   }
                 }}
                 value={textInputValue}
-                onChange={(e) => setTextInputValue((e.target as HTMLInputElement).value)}
+                onChange={(e) => setTextInputValue((e.target as HTMLTextAreaElement).value)}
                 onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                   e.stopPropagation();
-                  if (e.key === 'Enter') {
+                  // Shift+Enter or Ctrl+Enter confirms the text
+                  if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey)) {
+                    e.preventDefault();
                     if (textInputValue.trim()) {
                       onAnnotationTextCreate?.({
                         x: textInputPosition.x,
@@ -1982,6 +1983,7 @@ export function Canvas({
                     setTextInputPosition(null);
                     setTextInputValue('');
                   }
+                  // Plain Enter creates a new line (default textarea behavior)
                   if (e.key === 'Escape') {
                     textInputMountedRef.current = false;
                     setTextInputPosition(null);
@@ -1989,15 +1991,12 @@ export function Canvas({
                   }
                 }}
                 onBlur={() => {
-                  // Use a longer delay and check if input still exists
                   setTimeout(() => {
-                    // Only dismiss if the input is no longer focused
                     if (textInputRef.current && document.activeElement === textInputRef.current) {
-                      return; // Still focused, don't dismiss
+                      return;
                     }
                     setTextInputPosition(prev => {
                       if (!prev) return null;
-                      // Read current value from the input element directly
                       const currentValue = textInputRef.current?.value?.trim();
                       if (currentValue) {
                         onAnnotationTextCreate?.({
@@ -2022,10 +2021,14 @@ export function Canvas({
                   backgroundColor: 'white',
                   color: annotationColor,
                   width: '100%',
+                  minHeight: `${annotationFontSize + 8}px`,
                   fontFamily: 'sans-serif',
                   borderRadius: '3px',
                   boxSizing: 'border-box' as const,
+                  resize: 'none' as const,
+                  lineHeight: '1.2',
                 }}
+                placeholder="Enter = neue Zeile, Shift+Enter = bestätigen"
               />
             </div>
           </foreignObject>
