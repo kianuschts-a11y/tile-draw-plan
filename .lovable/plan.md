@@ -1,67 +1,42 @@
 
 
-## Korrektur des M.O.P CSV-Exports
+## Plan: Pfeile an Kreuzungen + Text-Verbesserungen
 
-### Gefundene Fehler
+### Problem 1: Pfeile an Kreuzungen nicht setzbar
 
-Vergleich der exportierten CSV mit der M.O.P-Baumstruktur aus den Screenshots ergibt folgende Abweichungen:
+**Ursache**: `findConnectionAtPosition()` prüft nur die `from`- und `to`-Endpunkte jeder Verbindung. An einer Kreuzung (z.B. `connection-cross`) treffen sich Verbindungen, aber ihre Endpunkte liegen auf den anliegenden Zellen, nicht auf der Kreuzungszelle selbst. Daher findet das Arrow-Tool dort keine Verbindung.
 
-| Problem | Aktuell (falsch) | Korrekt (laut Screenshots) |
-|---|---|---|
-| Objektnummer TZ | `1234 TZ` | `1234-1 TZ` |
-| Objektnummer Komponenten | `1234 GK` | `1234-1 GK` |
-| Teil_von TZ | `1 - Projekte` | `1234-1 - {Strasse}` (Objekt/Haus) |
-| Teil_von Komponenten | `1 - Projekte` | `1234-1 TZ - Technikzentrale` |
-| Mengenexpansion | 1 Zeile fuer 3 Pufferspeicher | 3 Zeilen: PS, PS 2, PS 3 |
-| Bezeichnung TZ | `1234 TZ - Technikzentrale` | `1234-1 TZ - Technikzentrale` |
-| Bezeichnung Komp. | `1234 GK - Gas Kessel` | `1234-1 GK - Gas Kessel` |
-| Bereich Objektsymbol | leer | `ObjektSymbol 8` |
-| Bereich Objektart | leer | `Produkt` |
+**Lösung**: `findConnectionAtPosition()` erweitern, um auch Verbindungen zu finden, die **durch** eine Zelle hindurchgehen. Wenn eine Verbindung von Zelle A nach Zelle B geht und die Zielzelle direkt an der Kreuzung angrenzt, muss die Kreuzungszelle als gültige Position erkannt werden. Konkret:
+- Prüfen ob die geklickte Zelle zwischen `from` und `to` einer Verbindung liegt (bei orthogonalen Verbindungen: gleiche Zeile/Spalte und zwischen den Endpunkten)
+- Bei einer Kreuzung mit mehreren Verbindungen: Alle passenden Verbindungen finden und dem Nutzer die Wahl ermöglichen (z.B. durch zyklisches Durchschalten oder eine Liste)
+- Alternative einfachere Lösung: Wenn auf eine Kachel mit Verbindungsblock geklickt wird, alle Verbindungen finden die an dieser Kachel angeschlossen sind (from/to TileId), und zyklisch durchschalten
 
-### Korrekte Hierarchie (Teil_von-Kette)
+### Problem 2: Text-Bausteine per Klick verschieben
 
-```text
-1 - Projekte
-  2 - Energielieferung          (Teil_von: 1 - Projekte, Objektart: Produkt, ObjektSymbol 8)
-    5 - Realisierung            (Teil_von: 2 - Energielieferung)
-      1234-1 - Teststrasse      (Teil_von: 5 - Realisierung)
-        1234-1 TZ - TZ          (Teil_von: 1234-1 - Teststrasse)
-          1234-1 GK - Gas Kessel   (Teil_von: 1234-1 TZ - Technikzentrale)
-          1234-1 PS - Pufferspeicher
-          1234-1 PS 2 - Pufferspeicher
-          1234-1 PS 3 - Pufferspeicher
-```
+**Aktuell**: Text kann nur im Select-Modus per Drag verschoben werden (mouseDown + mousMove).
 
-### Mengenexpansion
+**Lösung**: Im Select-Modus soll ein einzelner Klick auf einen Text-Baustein diesen auswählen und in einen "Move-Modus" versetzen. Der Text folgt dann dem Mauszeiger bis zum nächsten Klick, der die neue Position bestätigt.
 
-Wenn eine Komponente die Menge 3 hat, werden 3 separate Zeilen erzeugt:
-- `{projNr}-1 {Kuerzel} - {Name}` (erstes Stueck)
-- `{projNr}-1 {Kuerzel} 2 - {Name}` (zweites Stueck)
-- `{projNr}-1 {Kuerzel} 3 - {Name}` (drittes Stueck)
+### Problem 3: Mehrzeilige Texte mit Leertaste/Enter
 
-### Technische Aenderungen
+**Aktuell**: Das Textfeld ist ein `<input>` (einzeilig), Enter bestätigt den Text.
 
-Nur eine Datei muss geaendert werden: `src/lib/mopCsvExport.ts`
+**Lösung**: 
+- `<input>` durch `<textarea>` ersetzen
+- Enter erzeugt eine neue Zeile
+- Shift+Enter oder Escape bestätigt/schließt den Text
+- SVG-`<text>` Rendering anpassen: Mehrzeilige Texte mit `<tspan>` pro Zeile rendern (Zeilenumbruch bei `\n`)
 
-1. **Objektnummern-Format**: Ueberall `{projNr}-1` statt `{projNr}` verwenden fuer TZ und Komponenten
-2. **Teil_von-Kette**: Korrekte Eltern-Kind-Beziehungen:
-   - TZ: `Teil_von` = Objekt-Bezeichnung
-   - Komponenten: `Teil_von` = TZ-Bezeichnung
-3. **Bereich-Zeile**: `Objektsymbol: ObjektSymbol 8` und `Objektart: Produkt` setzen
-4. **Mengenexpansion**: Schleife ueber `comp.quantity`, mit Nummerierung ab dem 2. Stueck
-5. **Eindeutige Kuerzel**: Wenn mehrere verschiedene Komponenten dasselbe Kuerzel haben, diese ebenfalls nummerieren
+### Technische Änderungen
 
-### Erwartetes CSV-Ergebnis (Beispiel)
+**Datei: `src/components/schematic/Canvas.tsx`**
 
-```text
-Ebene;Objektnummer;Objektsymbol;Bezeichnung;Objektart;Teil_von;Hersteller;Kuerzel
-1;1;;1 - Projekte;;;;
-2;2;ObjektSymbol 8;2 - Energielieferung;Produkt;1 - Projekte;;
-3;5;;5 - Realisierung;;2 - Energielieferung;;
-4;1234-1;ObjektSymbol 8;1234-1 - Teststrasse;;5 - Realisierung;;
-5;1234-1 TZ;;1234-1 TZ - Technikzentrale;Produkt;1234-1 - Teststrasse;;TZ
-6;1234-1 GK;;1234-1 GK - Gas Kessel;Produkt;1234-1 TZ - Technikzentrale;;GK
-6;1234-1 PS;;1234-1 PS - Pufferspeicher;Produkt;1234-1 TZ - Technikzentrale;;PS
-6;1234-1 PS 2;;1234-1 PS 2 - Pufferspeicher;Produkt;1234-1 TZ - Technikzentrale;;PS
-6;1234-1 BHKW;;1234-1 BHKW - BHKW;Produkt;1234-1 TZ - Technikzentrale;Vaillant;BHKW
-```
+1. **`findConnectionAtPosition`** erweitern: Zusätzlich prüfen ob an der geklickten Grid-Position eine Verbindungsblock-Kachel liegt und alle Verbindungen finden, die diese Kachel als fromTileId oder toTileId referenzieren
+2. **Arrow-Tool Handler**: Bei mehreren gefundenen Verbindungen an einer Position zyklisch durchschalten (State für letzten Arrow-Toggle-Index)
+3. **Text-Input**: `<input>` → `<textarea>`, Enter für Zeilenumbruch, Shift+Enter oder Ctrl+Enter zum Bestätigen
+4. **Text-Rendering**: SVG `<text>` mit `<tspan>` Elementen für mehrzeilige Darstellung (split by `\n`)
+5. **Text-Click-to-Move**: Im Select-Modus bei Klick auf Text: Wenn bereits ausgewählt, in Move-Modus wechseln; Text folgt Maus bis zum nächsten Klick
+
+**Datei: `src/components/schematic/GroupPreview.tsx`** (falls Text dort auch gerendert wird)
+- Gleiches mehrzeiliges Text-Rendering
+
