@@ -1,55 +1,51 @@
 
 
-## Plan: Text-Interaktion ändern + Gruppen-Daten vollständig speichern
+## Plan: Komponenten-Filter als individuelle Checkliste
 
-### 1. Text-Verschiebung: Drag statt Click-to-Move
+### Änderung
 
-**Aktuell**: Erster Klick wählt aus, zweiter Klick aktiviert "Move-Modus" (Text folgt Cursor), dritter Klick platziert.
+Die bisherige Kategorie-basierte Filterung (Switches pro Kategorie + Messkomponenten) wird ersetzt durch eine **individuelle Komponenten-Checkliste**. Beim Klick auf das Filter-Zahnrad öffnet sich ein separater Dialog mit allen vorhandenen Komponenten, jeweils mit Checkbox.
 
-**Neu**: Standard-Drag-Verhalten im Select-Modus:
-- Klick auf Text = auswählen
-- Maustaste gedrückt halten + ziehen = Text verschieben
-- Doppelklick = Text bearbeiten (Textarea öffnet sich mit bestehendem Text)
-- `movingAnnotationId`-Logik entfernen, stattdessen bestehendes `isDraggingAnnotation` nutzen
+### Umsetzung
 
-**Änderungen in `Canvas.tsx`**:
-- `onMouseDown` auf Text: Auswählen + Drag starten (wie bisher bei erstem Klick)
-- Zweiter-Klick-Move-Logik komplett entfernen
-- `onDoubleClick` auf Text: Textarea mit bestehendem Text öffnen, nach Bestätigung Text aktualisieren statt neu erstellen
-- State `movingAnnotationId` entfernen
+**Neue Datei: `src/components/schematic/ComponentFilterDialog.tsx`**
+- Eigener Dialog mit Liste aller Komponenten (Name + Checkbox)
+- ScrollArea für lange Listen
+- "Alle auswählen" / "Alle abwählen" Buttons oben
+- State: `Set<string>` mit IDs der **ausgeschlossenen** Komponenten
+- Standardmäßig alle einbezogen (leeres Set), außer Messkomponenten (labelingEnabled) die standardmäßig ausgeschlossen sind
 
-### 2. Text-Eingabe: Enter bestätigt, Shift+Enter neue Zeile
+**Änderungen in `ComponentSelectorDialog.tsx`**:
+- `excludedCategories` + `allComponentCategories` + `toggleCategoryExclusion` entfernen
+- Neuer State: `excludedComponentIds: Set<string>` (IDs der nicht einbezogenen Komponenten)
+- Default: alle Komponenten mit `labelingEnabled === true` sind ausgeschlossen
+- Filter-Zahnrad öffnet den neuen `ComponentFilterDialog` statt das inline Panel
+- `isComponentExcluded` prüft nur noch ob `comp.id` in `excludedComponentIds` ist
+- `filteredQuantities` filtert anhand der Component-IDs statt Kategorien
+- Das inline Filter-Panel (Kategorien-Switches) wird entfernt, der Rest (Übereinstimmung-Slider, nur vollständige Matches) bleibt inline
 
-**Aktuell**: Enter = neue Zeile, Shift+Enter = bestätigen
+### UI des neuen Dialogs
 
-**Neu**: Umkehren:
-- Enter = Text bestätigen
-- Shift+Enter = neue Zeile einfügen
+```text
+┌─ Komponenten-Filter ──────────────────┐
+│                                        │
+│  [Alle auswählen]  [Alle abwählen]     │
+│                                        │
+│  ☑ Wärmepumpe                          │
+│  ☑ Pufferspeicher                      │
+│  ☑ Heizkreisverteiler                  │
+│  ☐ Temperaturfühler                    │
+│  ☐ Drucksensor                         │
+│  ...                                   │
+│                                        │
+│                          [Übernehmen]  │
+└────────────────────────────────────────┘
+```
 
-**Änderung in `Canvas.tsx`**: `onKeyDown`-Handler im textarea anpassen.
-
-### 3. Gruppen: arrowDirection mitspeichern
-
-**Problem**: `GroupConnectionData` hat kein `arrowDirection`-Feld. Beim Speichern geht die Pfeilrichtung verloren.
-
-**Änderungen**:
-- **`src/types/schematic.ts`**: `arrowDirection` zu `GroupConnectionData` hinzufügen
-- **`src/components/schematic/SchematicEditor.tsx`**: Beim Erstellen von `connectionData` auch `arrowDirection: conn.arrowDirection` mitspeichern (an beiden Stellen: `handleSaveGroup` und `handleCreateGroupFromAllTiles`)
-- **Beim Platzieren einer Gruppe**: `arrowDirection` aus `GroupConnectionData` wiederherstellen
-
-### 4. Prüfung weiterer fehlender Daten bei Gruppen-Speicherung
-
-Vollständige Prüfung der `CellConnection`-Felder vs. `GroupConnectionData`:
-- `color` ✅ wird bereits gespeichert
-- `arrowDirection` ❌ fehlt → wird hinzugefügt
-
-Alle anderen Felder (fromTileIndex, fromCellX/Y, fromSide, toTileIndex, toCellX/Y, toSide) werden korrekt gemappt.
-
-### Technische Änderungen
+### Dateien
 
 | Datei | Änderung |
 |-------|----------|
-| `src/types/schematic.ts` | `arrowDirection?: 'none' \| 'forward' \| 'backward'` zu `GroupConnectionData` |
-| `src/components/schematic/SchematicEditor.tsx` | `arrowDirection` in beiden Group-Save-Funktionen mitspeichern + beim Platzieren wiederherstellen |
-| `src/components/schematic/Canvas.tsx` | Text: Drag-to-move statt Click-to-move, Doppelklick für Bearbeitung, Enter/Shift+Enter tauschen |
+| `src/components/schematic/ComponentFilterDialog.tsx` | Neu: Dialog mit Komponenten-Checkliste |
+| `src/components/schematic/ComponentSelectorDialog.tsx` | Kategorie-Filter → Komponenten-ID-Filter, Filter-Button öffnet neuen Dialog |
 
