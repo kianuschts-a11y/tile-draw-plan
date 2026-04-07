@@ -24,9 +24,16 @@ export function identifyGroupsInPlan(
 ): { matches: GroupMatchResult[]; protectedTileIds: Set<string> } {
   const protectedTileIds = new Set<string>();
   const matches: GroupMatchResult[] = [];
-  const usedTileIds = new Set<string>();
 
-  for (const group of groups) {
+  // Sort groups by number of tiles ascending — match smaller (sub-)groups first
+  // so they aren't swallowed by larger groups that contain the same tiles
+  const sortedGroups = [...groups].sort((a, b) => {
+    const aLen = a.layoutData?.tiles?.length || 0;
+    const bLen = b.layoutData?.tiles?.length || 0;
+    return aLen - bLen;
+  });
+
+  for (const group of sortedGroups) {
     if (!group.layoutData?.tiles || group.layoutData.tiles.length === 0) continue;
 
     // Filter: only functional (non-connection) tiles from the group definition
@@ -43,9 +50,9 @@ export function identifyGroupsInPlan(
     // Use the first functional tile as anchor
     const anchorGroupTile = functionalGroupTiles[0];
 
-    // Find candidate anchors in the plan
+    // Find candidate anchors in the plan (tiles can be shared across group matches)
     const candidateAnchors = planTiles.filter(
-      t => t.componentId === anchorGroupTile.componentId && !usedTileIds.has(t.id)
+      t => t.componentId === anchorGroupTile.componentId
     );
 
     for (const anchor of candidateAnchors) {
@@ -66,8 +73,7 @@ export function identifyGroupsInPlan(
             t.componentId === gt.componentId &&
             t.gridX === expectedX &&
             t.gridY === expectedY &&
-            !matchedFunctionalIds.includes(t.id) &&
-            !usedTileIds.has(t.id)
+            !matchedFunctionalIds.includes(t.id)
         );
 
         if (match) {
@@ -87,7 +93,6 @@ export function identifyGroupsInPlan(
           const expectedX = gt.relativeX + offsetX;
           const expectedY = gt.relativeY + offsetY;
 
-          // Find any connection block at this position
           const connTile = planTiles.find(
             t =>
               t.componentId.startsWith('connection-') &&
@@ -101,11 +106,7 @@ export function identifyGroupsInPlan(
           }
         }
 
-        allMatchedIds.forEach(id => {
-          protectedTileIds.add(id);
-          usedTileIds.add(id);
-        });
-
+        allMatchedIds.forEach(id => protectedTileIds.add(id));
         matches.push({ group, matchedTileIds: allMatchedIds });
         break; // One match per group per anchor search
       }
