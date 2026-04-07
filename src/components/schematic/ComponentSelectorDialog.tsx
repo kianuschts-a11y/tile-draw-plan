@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Component, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, ProjectComponentData } from "@/types/schematic";
+import { PlacedTile } from "./Canvas";
 import { SavedPlanData } from "@/hooks/useSavedPlans";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,7 @@ interface ComponentSelectorDialogProps {
   onProjectModelleChange: (modelle: Map<string, string>) => void;
   projectCustomFields: Map<string, Record<string, string | number>>;
   onProjectCustomFieldsChange: (customFields: Map<string, Record<string, string | number>>) => void;
+  placedTiles?: PlacedTile[];
 }
 
 interface GroupSuggestion {
