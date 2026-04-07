@@ -224,7 +224,8 @@ export function ComponentSelectorDialog({
 
   // Update both local and parent state
   const updateQuantity = (componentId: string, delta: number) => {
-    setQuantities(prev => {
+    // +/- buttons modify the ORIGINAL quantities (what the user selected)
+    setOriginalSelectedQuantities(prev => {
       const next = new Map(prev);
       const current = next.get(componentId) || 0;
       const newValue = Math.max(0, current + delta);
@@ -252,40 +253,38 @@ export function ComponentSelectorDialog({
           newE.delete(componentId);
           return newE;
         });
-        // Also reset original selected quantities for this component
-        setOriginalSelectedQuantities(o => {
-          const newO = new Map(o);
-          newO.delete(componentId);
-          return newO;
-        });
       } else {
         next.set(componentId, newValue);
         // Adjust descriptions array
         setDescriptions(d => {
           const newD = new Map(d);
           const currentDescs = newD.get(componentId) || [];
-          // Extend or shrink descriptions array
           const newDescs = Array.from({ length: newValue }, (_, i) => currentDescs[i] || '');
           newD.set(componentId, newDescs);
           return newD;
         });
-        // Update original selected quantities if we're adding more
-        setOriginalSelectedQuantities(o => {
-          const newO = new Map(o);
-          const currentOriginal = o.get(componentId) || 0;
-          // If new value exceeds what was originally selected, update it
-          if (newValue > currentOriginal) {
-            newO.set(componentId, newValue);
-          }
-          return newO;
-        });
+      }
+      return next;
+    });
+    // Also sync the remaining quantities: remaining = original - placed
+    setQuantities(prev => {
+      const next = new Map(prev);
+      const currentOriginal = originalSelectedQuantities.get(componentId) || 0;
+      const newOriginal = Math.max(0, currentOriginal + delta);
+      const placed = placedComponentCounts[componentId] || 0;
+      const remaining = Math.max(0, newOriginal - placed);
+      if (remaining <= 0 && newOriginal <= 0) {
+        next.delete(componentId);
+      } else {
+        next.set(componentId, remaining);
       }
       return next;
     });
   };
 
   const setQuantity = (componentId: string, value: number) => {
-    setQuantities(prev => {
+    // Direct input sets the ORIGINAL quantity
+    setOriginalSelectedQuantities(prev => {
       const next = new Map(prev);
       if (value <= 0) {
         next.delete(componentId);
@@ -309,12 +308,6 @@ export function ComponentSelectorDialog({
           newE.delete(componentId);
           return newE;
         });
-        // Also reset original selected quantities for this component
-        setOriginalSelectedQuantities(o => {
-          const newO = new Map(o);
-          newO.delete(componentId);
-          return newO;
-        });
       } else {
         next.set(componentId, value);
         setDescriptions(d => {
@@ -324,15 +317,18 @@ export function ComponentSelectorDialog({
           newD.set(componentId, newDescs);
           return newD;
         });
-        // Update original selected quantities if we're adding more
-        setOriginalSelectedQuantities(o => {
-          const newO = new Map(o);
-          const currentOriginal = o.get(componentId) || 0;
-          if (value > currentOriginal) {
-            newO.set(componentId, value);
-          }
-          return newO;
-        });
+      }
+      return next;
+    });
+    // Sync remaining: original - placed
+    setQuantities(prev => {
+      const next = new Map(prev);
+      const placed = placedComponentCounts[componentId] || 0;
+      const remaining = Math.max(0, value - placed);
+      if (value <= 0) {
+        next.delete(componentId);
+      } else {
+        next.set(componentId, remaining);
       }
       return next;
     });
@@ -837,8 +833,8 @@ export function ComponentSelectorDialog({
   }, [filteredQuantities, savedPlans, isComponentExcluded, components, minMatchPercent, onlyFullMatches]);
 
   const totalComponents = useMemo(() => 
-    Array.from(quantities.values()).reduce((a, b) => a + b, 0)
-  , [quantities]);
+    Array.from(originalSelectedQuantities.values()).reduce((a, b) => a + b, 0)
+  , [originalSelectedQuantities]);
 
   // Check for fully fulfillable 100% matches (possibleCount > 0 means all components are available)
   const hasExactMatch = matchingGroups.some(g => g.possibleCount > 0 && g.coveragePercent === 100);
@@ -939,7 +935,7 @@ export function ComponentSelectorDialog({
                   variant="ghost"
                   className="h-6 text-xs text-destructive"
                   onClick={clearAll}
-                  disabled={quantities.size === 0}
+                  disabled={originalSelectedQuantities.size === 0}
                 >
                   <X className="w-3 h-3 mr-1" />
                   Zurücksetzen
@@ -951,18 +947,15 @@ export function ComponentSelectorDialog({
               <div className="space-y-1">
               {[...components].sort((a, b) => {
                 // Sort components with quantity > 0 to the top
-                const qtyA = quantities.get(a.id) || 0;
-                const qtyB = quantities.get(b.id) || 0;
+                const qtyA = originalSelectedQuantities.get(a.id) || 0;
+                const qtyB = originalSelectedQuantities.get(b.id) || 0;
                 if (qtyA > 0 && qtyB === 0) return -1;
                 if (qtyA === 0 && qtyB > 0) return 1;
                 return 0; // Keep original order otherwise
               }).map(component => {
-                  const remainingQty = quantities.get(component.id) || 0;
-                  // Count actually placed tiles on the canvas
                   const originalQty = originalSelectedQuantities.get(component.id) || 0;
                   const placedQty = placedComponentCounts[component.id] || 0;
-                  // Show component if it's in original project OR if user is adding new ones
-                  const qty = remainingQty; // For backwards compatibility with controls
+                  const qty = originalQty; // Display the original selected quantity
                   const isExpanded = expandedComponents.has(component.id);
                   const componentDescs = descriptions.get(component.id) || [];
                   const componentKategorie = kategorien.get(component.id) || '';
@@ -996,8 +989,8 @@ export function ComponentSelectorDialog({
                             {component.name}
                           </span>
                           {/* Show placed/total indicator */}
-                          {showPlacedIndicator && placedQty > 0 && (
-                            <span className="text-xs text-green-600">
+                          {originalQty > 0 && (
+                            <span className={`text-xs ${placedQty >= originalQty ? 'text-green-600' : 'text-muted-foreground'}`}>
                               {placedQty}/{originalQty} platziert
                             </span>
                           )}
