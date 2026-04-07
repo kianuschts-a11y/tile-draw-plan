@@ -833,8 +833,8 @@ export function ComponentSelectorDialog({
   }, [filteredQuantities, savedPlans, isComponentExcluded, components, minMatchPercent, onlyFullMatches]);
 
   const totalComponents = useMemo(() => 
-    Array.from(quantities.values()).reduce((a, b) => a + b, 0)
-  , [quantities]);
+    Array.from(originalSelectedQuantities.values()).reduce((a, b) => a + b, 0)
+  , [originalSelectedQuantities]);
 
   // Check for fully fulfillable 100% matches (possibleCount > 0 means all components are available)
   const hasExactMatch = matchingGroups.some(g => g.possibleCount > 0 && g.coveragePercent === 100);
