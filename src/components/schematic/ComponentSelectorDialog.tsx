@@ -502,8 +502,7 @@ export function ComponentSelectorDialog({
     group: ComponentGroup,
     availableComponents: Map<string, number>
   ): { possible: boolean; maxCount: number } => {
-    const excludeLabeling = !includeMesskomponenten;
-    const requirements = getGroupComponentRequirements(group, true, excludeLabeling);
+    const requirements = getGroupComponentRequirements(group, true, true);
     
     if (requirements.size === 0) {
       return { possible: false, maxCount: 0 };
@@ -521,7 +520,7 @@ export function ComponentSelectorDialog({
     }
     
     return { possible: true, maxCount: maxPossible === Infinity ? 0 : maxPossible };
-  }, [getGroupComponentRequirements, includeMesskomponenten]);
+  }, [getGroupComponentRequirements]);
 
   // Calculate partial match percentage for a group
   const calculateGroupMatchPercentage = useCallback((
