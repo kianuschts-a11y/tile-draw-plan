@@ -1,51 +1,32 @@
 
 
-## Plan: Komponenten-Filter als individuelle Checkliste
+## Plan: "Platziert"-Anzeige korrigieren im Komponenten-Auswahl-Dialog
 
-### Änderung
+### Problem
 
-Die bisherige Kategorie-basierte Filterung (Switches pro Kategorie + Messkomponenten) wird ersetzt durch eine **individuelle Komponenten-Checkliste**. Beim Klick auf das Filter-Zahnrad öffnet sich ein separater Dialog mit allen vorhandenen Komponenten, jeweils mit Checkbox.
+Im **ComponentSelectorDialog** wird `placedQty` falsch berechnet als `originalQty - remainingQty`. Wenn der Nutzer z.B. 4 Heizkreise auswählt und dann eine Gruppe einfügt (die die `quantities` reduziert), zeigt der Dialog "4/4 platziert" — obwohl auf dem Canvas tatsächlich 0 platziert sind. Die **ComponentLibrary** macht es richtig: sie zählt die tatsächlichen `placedTiles` auf dem Canvas.
 
-### Umsetzung
+### Lösung
 
-**Neue Datei: `src/components/schematic/ComponentFilterDialog.tsx`**
-- Eigener Dialog mit Liste aller Komponenten (Name + Checkbox)
-- ScrollArea für lange Listen
-- "Alle auswählen" / "Alle abwählen" Buttons oben
-- State: `Set<string>` mit IDs der **ausgeschlossenen** Komponenten
-- Standardmäßig alle einbezogen (leeres Set), außer Messkomponenten (labelingEnabled) die standardmäßig ausgeschlossen sind
+Die gleiche Logik wie in der ComponentLibrary verwenden: die tatsächlichen Canvas-Tiles (`placedTiles`) an den Dialog übergeben und daraus die platzierten Mengen berechnen.
 
-**Änderungen in `ComponentSelectorDialog.tsx`**:
-- `excludedCategories` + `allComponentCategories` + `toggleCategoryExclusion` entfernen
-- Neuer State: `excludedComponentIds: Set<string>` (IDs der nicht einbezogenen Komponenten)
-- Default: alle Komponenten mit `labelingEnabled === true` sind ausgeschlossen
-- Filter-Zahnrad öffnet den neuen `ComponentFilterDialog` statt das inline Panel
-- `isComponentExcluded` prüft nur noch ob `comp.id` in `excludedComponentIds` ist
-- `filteredQuantities` filtert anhand der Component-IDs statt Kategorien
-- Das inline Filter-Panel (Kategorien-Switches) wird entfernt, der Rest (Übereinstimmung-Slider, nur vollständige Matches) bleibt inline
+### Änderungen
 
-### UI des neuen Dialogs
+**`src/components/schematic/ComponentSelectorDialog.tsx`**:
+- Neue Prop `placedTiles: PlacedTile[]` hinzufügen
+- `placedQty` berechnen durch Zählen der tatsächlichen Tiles auf dem Canvas (wie in ComponentLibrary), nicht durch `originalQty - remainingQty`
+- `placedComponentCounts` als useMemo aus `placedTiles` ableiten
+
+**`src/components/schematic/SchematicEditor.tsx`**:
+- `placedTiles={tiles}` als neue Prop an den ComponentSelectorDialog übergeben
+
+### Betroffene Berechnung
 
 ```text
-┌─ Komponenten-Filter ──────────────────┐
-│                                        │
-│  [Alle auswählen]  [Alle abwählen]     │
-│                                        │
-│  ☑ Wärmepumpe                          │
-│  ☑ Pufferspeicher                      │
-│  ☑ Heizkreisverteiler                  │
-│  ☐ Temperaturfühler                    │
-│  ☐ Drucksensor                         │
-│  ...                                   │
-│                                        │
-│                          [Übernehmen]  │
-└────────────────────────────────────────┘
+Vorher (falsch):
+  placedQty = originalQty - remainingQty  (= 4 - 0 = 4)
+
+Nachher (korrekt):
+  placedQty = Anzahl Tiles mit dieser component.id auf dem Canvas (= 0)
 ```
-
-### Dateien
-
-| Datei | Änderung |
-|-------|----------|
-| `src/components/schematic/ComponentFilterDialog.tsx` | Neu: Dialog mit Komponenten-Checkliste |
-| `src/components/schematic/ComponentSelectorDialog.tsx` | Kategorie-Filter → Komponenten-ID-Filter, Filter-Button öffnet neuen Dialog |
 
