@@ -101,43 +101,34 @@ export function ComponentSelectorDialog({
   const [customFields, setCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   
-  // Group matching filter settings
-  // excludedCategories: set of category names to exclude from matching
-  // Special key "__messkomponenten__" for labelingEnabled components
-  const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set(["__messkomponenten__"]));
+  // Group matching filter settings - per-component exclusion
+  const [excludedComponentIds, setExcludedComponentIds] = useState<Set<string>>(() => 
+    new Set(components.filter(c => c.labelingEnabled).map(c => c.id))
+  );
   const [minMatchPercent, setMinMatchPercent] = useState(0);
   const [onlyFullMatches, setOnlyFullMatches] = useState(false);
   const [showFilterSettings, setShowFilterSettings] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
 
-  // Collect all unique component categories dynamically
-  const allComponentCategories = useMemo(() => {
-    const cats = new Set<string>();
-    for (const comp of components) {
-      if (comp.category && comp.category.trim()) {
-        cats.add(comp.category.trim());
-      }
-    }
-    return Array.from(cats).sort();
-  }, [components]);
-
-  const toggleCategoryExclusion = (category: string) => {
-    setExcludedCategories(prev => {
+  // Re-initialize excluded IDs when components change (new components added)
+  useEffect(() => {
+    setExcludedComponentIds(prev => {
       const next = new Set(prev);
-      if (next.has(category)) {
-        next.delete(category);
-      } else {
-        next.add(category);
+      // Auto-exclude new labelingEnabled components
+      for (const comp of components) {
+        if (comp.labelingEnabled && !next.has(comp.id)) {
+          // Check if this is a newly added component (not previously seen)
+          next.add(comp.id);
+        }
       }
       return next;
     });
-  };
+  }, [components]);
 
   // Check if a component should be excluded based on current filters
   const isComponentExcluded = useCallback((comp: Component): boolean => {
-    if (excludedCategories.has("__messkomponenten__") && comp.labelingEnabled) return true;
-    if (comp.category && excludedCategories.has(comp.category.trim())) return true;
-    return false;
-  }, [excludedCategories]);
+    return excludedComponentIds.has(comp.id);
+  }, [excludedComponentIds]);
   
   // Track the ORIGINAL quantities selected by user (before any group insertions)
   // This never changes during the session - it's what the user originally picked
@@ -550,18 +541,17 @@ export function ComponentSelectorDialog({
     };
   }, [getGroupComponentRequirements]);
 
-  // Build filtered quantities (excluding categories in excludedCategories)
+  // Build filtered quantities (excluding individual components)
   const filteredQuantities = useMemo((): Map<string, number> => {
-    if (excludedCategories.size === 0) return quantities;
+    if (excludedComponentIds.size === 0) return quantities;
     
     const filtered = new Map<string, number>();
     for (const [compId, qty] of quantities.entries()) {
-      const comp = components.find(c => c.id === compId);
-      if (comp && isComponentExcluded(comp)) continue;
+      if (excludedComponentIds.has(compId)) continue;
       filtered.set(compId, qty);
     }
     return filtered;
-  }, [quantities, excludedCategories, components, isComponentExcluded]);
+  }, [quantities, excludedComponentIds]);
 
   // Find all matching groups - now shows partial matches too!
   const matchingGroups = useMemo((): GroupSuggestion[] => {
