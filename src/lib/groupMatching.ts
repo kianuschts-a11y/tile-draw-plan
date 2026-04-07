@@ -33,17 +33,13 @@ export function identifyGroupsInPlan(
     return aLen - bLen;
   });
 
-  for (const group of groups) {
+  for (const group of sortedGroups) {
     if (!group.layoutData?.tiles || group.layoutData.tiles.length === 0) continue;
 
     // Filter: only functional (non-connection) tiles from the group definition
     const functionalGroupTiles = group.layoutData.tiles.filter(
       t => !t.componentId.startsWith('connection-')
     );
-
-    console.log(`[GroupMatch] Checking group "${group.name}": ${group.layoutData.tiles.length} total tiles, ${functionalGroupTiles.length} functional`);
-    console.log(`[GroupMatch] Functional tiles:`, functionalGroupTiles.map(t => `${t.componentId} @(${t.relativeX},${t.relativeY})`));
-    console.log(`[GroupMatch] Plan tiles:`, planTiles.map(t => `${t.componentId} @(${t.gridX},${t.gridY})`));
 
     // If no functional tiles, skip this group
     if (functionalGroupTiles.length === 0) continue;
@@ -54,9 +50,9 @@ export function identifyGroupsInPlan(
     // Use the first functional tile as anchor
     const anchorGroupTile = functionalGroupTiles[0];
 
-    // Find candidate anchors in the plan
+    // Find candidate anchors in the plan (tiles can be shared across group matches)
     const candidateAnchors = planTiles.filter(
-      t => t.componentId === anchorGroupTile.componentId && !usedTileIds.has(t.id)
+      t => t.componentId === anchorGroupTile.componentId
     );
 
     for (const anchor of candidateAnchors) {
@@ -77,8 +73,7 @@ export function identifyGroupsInPlan(
             t.componentId === gt.componentId &&
             t.gridX === expectedX &&
             t.gridY === expectedY &&
-            !matchedFunctionalIds.includes(t.id) &&
-            !usedTileIds.has(t.id)
+            !matchedFunctionalIds.includes(t.id)
         );
 
         if (match) {
@@ -98,7 +93,6 @@ export function identifyGroupsInPlan(
           const expectedX = gt.relativeX + offsetX;
           const expectedY = gt.relativeY + offsetY;
 
-          // Find any connection block at this position
           const connTile = planTiles.find(
             t =>
               t.componentId.startsWith('connection-') &&
@@ -112,11 +106,7 @@ export function identifyGroupsInPlan(
           }
         }
 
-        allMatchedIds.forEach(id => {
-          protectedTileIds.add(id);
-          usedTileIds.add(id);
-        });
-
+        allMatchedIds.forEach(id => protectedTileIds.add(id));
         matches.push({ group, matchedTileIds: allMatchedIds });
         break; // One match per group per anchor search
       }
