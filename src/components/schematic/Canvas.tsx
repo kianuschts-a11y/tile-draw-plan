@@ -1885,6 +1885,8 @@ export function Canvas({
                   if (activeTool === 'select') {
                     // If already selected and clicked again, toggle move mode
                     if (isSelected && !isMoving) {
+                      const pos = getCanvasPosition(e);
+                      setAnnotationDragStart({ x: pos.x, y: pos.y });
                       setMovingAnnotationId(text.id);
                       return;
                     }
