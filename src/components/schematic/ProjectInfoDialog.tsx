@@ -102,7 +102,21 @@ export function ProjectInfoDialog({ plan, components, groups, open, onOpenChange
             </div>
           )}
 
-          {/* Title block info */}
+          {/* Detected Groups */}
+          {detectedGroups.length > 0 && (
+            <div className="space-y-1 text-sm border rounded-lg p-2 bg-muted/30">
+              <p className="font-medium text-xs text-muted-foreground">Enthaltene Gruppen</p>
+              <div className="flex flex-wrap gap-1.5">
+                {detectedGroups.map(({ group, matchedTileIds }) => (
+                  <Badge key={group.id} variant="secondary" className="gap-1">
+                    {group.name}
+                    <span className="text-muted-foreground">({matchedTileIds.length} Tiles)</span>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
           {plan.titleBlockData && plan.titleBlockData.enabled && (
             <div className="space-y-1 text-sm border rounded-lg p-2 bg-muted/30">
               <p className="font-medium text-xs text-muted-foreground">Zeichenkopf</p>

@@ -2603,56 +2603,14 @@ export function SchematicEditor() {
             }
           }
 
-          // --- Gruppen-Erkennung: Identifiziere Tiles die zu bekannten Gruppen gehören ---
-          const groupTileNewIds = new Set<string>();
-          
-          for (const group of groups) {
-            if (!group.layoutData?.tiles || group.layoutData.tiles.length === 0) continue;
-            const groupCompIds = group.layoutData.tiles.map(t => t.componentId);
-            
-            // Versuche die Gruppe im Plan zu finden: Alle Komponenten-IDs der Gruppe müssen im Plan vorkommen
-            // Prüfe ob die relativen Positionen übereinstimmen
-            const groupTilesData = group.layoutData.tiles;
-            
-            // Finde alle möglichen "Anker"-Tiles im Plan, die dem ersten Gruppen-Tile entsprechen
-            const firstGroupTile = groupTilesData[0];
-            const candidateAnchors = newTiles.filter(t => t.component.id === firstGroupTile.componentId);
-            
-            for (const anchor of candidateAnchors) {
-              // Berechne den Offset zwischen Anker und erstem Gruppen-Tile
-              const offsetX = anchor.gridX - firstGroupTile.relativeX;
-              const offsetY = anchor.gridY - firstGroupTile.relativeY;
-              
-              // Prüfe ob alle anderen Gruppen-Tiles an den erwarteten Positionen liegen
-              let allFound = true;
-              const matchedTileIds: string[] = [anchor.id];
-              
-              for (let i = 1; i < groupTilesData.length; i++) {
-                const expectedX = groupTilesData[i].relativeX + offsetX;
-                const expectedY = groupTilesData[i].relativeY + offsetY;
-                const expectedCompId = groupTilesData[i].componentId;
-                
-                const match = newTiles.find(t => 
-                  t.component.id === expectedCompId &&
-                  t.gridX === expectedX &&
-                  t.gridY === expectedY &&
-                  !matchedTileIds.includes(t.id)
-                );
-                
-                if (match) {
-                  matchedTileIds.push(match.id);
-                } else {
-                  allFound = false;
-                  break;
-                }
-              }
-              
-              if (allFound) {
-                // Alle Tiles dieser Gruppe gefunden → als Gruppen-Tiles markieren
-                matchedTileIds.forEach(id => groupTileNewIds.add(id));
-              }
-            }
-          }
+          // --- Gruppen-Erkennung: Connection-Blöcke ignorieren, nur funktionale Komponenten matchen ---
+          const planTilesForMatching = newTiles.map(t => ({
+            id: t.id,
+            componentId: t.component.id,
+            gridX: t.gridX,
+            gridY: t.gridY,
+          }));
+          const { protectedTileIds: groupTileNewIds } = identifyGroupsInPlan(planTilesForMatching, groups);
           
           // Excess-Markierung: Nur Tiles markieren die NICHT zu einer Gruppe gehören und NICHT in projectQuantities
           const newExcessTileIds: string[] = [];
