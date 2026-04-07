@@ -96,6 +96,10 @@ export function ComponentSelectorDialog({
   onProjectCustomFieldsChange,
   placedTiles = [],
 }: ComponentSelectorDialogProps) {
+  // Search bar state
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // Use the passed projectQuantities as initial state, but allow local editing
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
   const [descriptions, setDescriptions] = useState<Map<string, string[]>>(new Map());
