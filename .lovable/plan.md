@@ -1,52 +1,22 @@
+## Plan: Suchleiste im Komponenten-Auswahl-Dialog
 
+### Änderung
 
-## Plan: Intelligentere Vorlagen-Übereinstimmung mit Subset-Erkennung
+Eine Suchleiste wird oberhalb der Komponentenliste eingefügt, die:
+1. **Automatisch fokussiert** wird, sobald der Dialog geöffnet wird (autoFocus)
+2. **Komponenten filtert** nach Name (case-insensitive)
+3. **Nach Komponentenauswahl** (+/- Klick) den Suchtext behält und der Fokus zurück auf die Suchleiste gesetzt wird, damit direkt die nächste Suche gestartet werden kann
 
-### Problem
-
-Wenn der Nutzer 4 Heizkreise + 1 Alonco Box auswählt, zeigt eine Gruppe die nur 4 Heizkreise enthält 80% an. Obwohl die Gruppe alle ihre Komponenten zu 100% aus dem Projekt bedienen kann, wird sie nicht als "vollständige Übereinstimmung" markiert. Der Nutzer erwartet, dass das System erkennt: "Diese Gruppe deckt einen Teil komplett ab, nur die Alonco Box muss manuell platziert werden."
-
-### Lösung
-
-Zwei Verbesserungen:
-
-1. **"Gruppen-Erfüllbarkeit" zusätzlich anzeigen**: Neben der Coverage-Prozent (wie viel vom Gesamtprojekt) wird ein zweiter Indikator eingeführt — ob die Gruppe selbst vollständig erfüllbar ist (alle Komponenten der Gruppe sind im Projekt vorhanden). Das ist der entscheidende Unterschied zwischen "diese Gruppe passt komplett" vs. "diese Gruppe passt teilweise".
-
-2. **Verbleibende Komponenten nach Gruppen-Einfügung anzeigen**: Bei erfüllbaren Gruppen wird angezeigt, welche Komponenten danach noch manuell platziert werden müssen (z.B. "Danach verbleibend: 1× Alonco Box").
-
-### UI-Änderungen
-
-```text
-┌─────────────────────────────┐
-│  [Preview]  H4              │
-│  ✓ Vollständig einfügbar    │  ← NEU: grüner Hinweis
-│  Deckt 80% des Projekts ab  │  ← bisherige Coverage
-│  Verbleibend: 1× Alonco Box │  ← NEU: was übrig bleibt
-│  [→ Einfügen]               │
-└─────────────────────────────┘
-```
-
-### Sortierung anpassen
-
-Aktuelle Sortierung: `possibleCount > 0` zuerst, dann nach `coveragePercent`.
-
-Neue Sortierung:
-1. Vollständig erfüllbare Gruppen zuerst (alle Gruppen-Komponenten verfügbar)
-2. Innerhalb dessen: höchste Coverage zuerst
-3. Dann teilweise passende Gruppen nach Coverage
-
-### Technische Änderungen
+### Umsetzung
 
 **`src/components/schematic/ComponentSelectorDialog.tsx`**:
 
-1. **`GroupSuggestion` erweitern**: Neues Feld `isFullyFulfillable: boolean` und `remainingAfterInsert: Map<string, number>` (was nach Einfügen übrig bleibt)
-2. **`matchingGroups` berechnen**: Bei erfüllbaren Gruppen die verbleibenden Komponenten berechnen und mitspeichern
-3. **Rendering**: Unter dem Coverage-Badge zusätzlich anzeigen:
-   - "✓ Vollständig einfügbar" (grün) wenn alle Gruppen-Komponenten vorhanden
-   - "Verbleibend: X× Komponente A, Y× Komponente B" — die nach Einfügen noch manuell platzierten Komponenten
-4. **Sortierung**: Erfüllbare Gruppen priorisieren, dann nach Coverage
+1. Neuer State `searchTerm` (string), wird beim Dialog-Öffnen zurückgesetzt
+2. `useRef` für das Input-Element, `autoFocus` auf dem Input
+3. Input-Feld zwischen "Verfügbare Komponenten"-Header und der ScrollArea
+4. Komponentenliste wird nach `searchTerm` gefiltert (Name enthält Suchbegriff)
+5. Nach `updateQuantity`/`setQuantity` wird `inputRef.current?.focus()` aufgerufen, um den Fokus zurückzusetzen
 
 | Datei | Änderung |
 |-------|----------|
-| `src/components/schematic/ComponentSelectorDialog.tsx` | `GroupSuggestion` erweitern, verbleibende Komponenten berechnen und anzeigen, Sortierung anpassen |
-
+| `src/components/schematic/ComponentSelectorDialog.tsx` | Suchleiste mit Auto-Fokus und Filter-Logik hinzufügen |
