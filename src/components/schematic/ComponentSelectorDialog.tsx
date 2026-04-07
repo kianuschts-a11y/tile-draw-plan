@@ -224,7 +224,8 @@ export function ComponentSelectorDialog({
 
   // Update both local and parent state
   const updateQuantity = (componentId: string, delta: number) => {
-    setQuantities(prev => {
+    // +/- buttons modify the ORIGINAL quantities (what the user selected)
+    setOriginalSelectedQuantities(prev => {
       const next = new Map(prev);
       const current = next.get(componentId) || 0;
       const newValue = Math.max(0, current + delta);
@@ -252,40 +253,38 @@ export function ComponentSelectorDialog({
           newE.delete(componentId);
           return newE;
         });
-        // Also reset original selected quantities for this component
-        setOriginalSelectedQuantities(o => {
-          const newO = new Map(o);
-          newO.delete(componentId);
-          return newO;
-        });
       } else {
         next.set(componentId, newValue);
         // Adjust descriptions array
         setDescriptions(d => {
           const newD = new Map(d);
           const currentDescs = newD.get(componentId) || [];
-          // Extend or shrink descriptions array
           const newDescs = Array.from({ length: newValue }, (_, i) => currentDescs[i] || '');
           newD.set(componentId, newDescs);
           return newD;
         });
-        // Update original selected quantities if we're adding more
-        setOriginalSelectedQuantities(o => {
-          const newO = new Map(o);
-          const currentOriginal = o.get(componentId) || 0;
-          // If new value exceeds what was originally selected, update it
-          if (newValue > currentOriginal) {
-            newO.set(componentId, newValue);
-          }
-          return newO;
-        });
+      }
+      return next;
+    });
+    // Also sync the remaining quantities: remaining = original - placed
+    setQuantities(prev => {
+      const next = new Map(prev);
+      const currentOriginal = originalSelectedQuantities.get(componentId) || 0;
+      const newOriginal = Math.max(0, currentOriginal + delta);
+      const placed = placedComponentCounts[componentId] || 0;
+      const remaining = Math.max(0, newOriginal - placed);
+      if (remaining <= 0 && newOriginal <= 0) {
+        next.delete(componentId);
+      } else {
+        next.set(componentId, remaining);
       }
       return next;
     });
   };
 
   const setQuantity = (componentId: string, value: number) => {
-    setQuantities(prev => {
+    // Direct input sets the ORIGINAL quantity
+    setOriginalSelectedQuantities(prev => {
       const next = new Map(prev);
       if (value <= 0) {
         next.delete(componentId);
@@ -309,12 +308,6 @@ export function ComponentSelectorDialog({
           newE.delete(componentId);
           return newE;
         });
-        // Also reset original selected quantities for this component
-        setOriginalSelectedQuantities(o => {
-          const newO = new Map(o);
-          newO.delete(componentId);
-          return newO;
-        });
       } else {
         next.set(componentId, value);
         setDescriptions(d => {
@@ -324,15 +317,18 @@ export function ComponentSelectorDialog({
           newD.set(componentId, newDescs);
           return newD;
         });
-        // Update original selected quantities if we're adding more
-        setOriginalSelectedQuantities(o => {
-          const newO = new Map(o);
-          const currentOriginal = o.get(componentId) || 0;
-          if (value > currentOriginal) {
-            newO.set(componentId, value);
-          }
-          return newO;
-        });
+      }
+      return next;
+    });
+    // Sync remaining: original - placed
+    setQuantities(prev => {
+      const next = new Map(prev);
+      const placed = placedComponentCounts[componentId] || 0;
+      const remaining = Math.max(0, value - placed);
+      if (value <= 0) {
+        next.delete(componentId);
+      } else {
+        next.set(componentId, remaining);
       }
       return next;
     });
