@@ -96,6 +96,10 @@ export function ComponentSelectorDialog({
   onProjectCustomFieldsChange,
   placedTiles = [],
 }: ComponentSelectorDialogProps) {
+  // Search bar state
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   // Use the passed projectQuantities as initial state, but allow local editing
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
   const [descriptions, setDescriptions] = useState<Map<string, string[]>>(new Map());
@@ -183,6 +187,7 @@ export function ComponentSelectorDialog({
   // Sync local state with projectQuantities when dialog opens
   useEffect(() => {
     if (open) {
+      setSearchTerm("");
       setQuantities(new Map(projectQuantities));
       setDescriptions(new Map(projectDescriptions));
       setKategorien(new Map(projectKategorien));
@@ -226,6 +231,8 @@ export function ComponentSelectorDialog({
 
   // Update both local and parent state
   const updateQuantity = (componentId: string, delta: number) => {
+    // Refocus search input after quantity change
+    setTimeout(() => searchInputRef.current?.focus(), 0);
     // +/- buttons modify the ORIGINAL quantities (what the user selected)
     setOriginalSelectedQuantities(prev => {
       const next = new Map(prev);
@@ -285,6 +292,8 @@ export function ComponentSelectorDialog({
   };
 
   const setQuantity = (componentId: string, value: number) => {
+    // Refocus search input after quantity change
+    setTimeout(() => searchInputRef.current?.focus(), 0);
     // Direct input sets the ORIGINAL quantity
     setOriginalSelectedQuantities(prev => {
       const next = new Map(prev);
@@ -955,9 +964,22 @@ export function ComponentSelectorDialog({
               </div>
             </div>
             
+            <div className="mb-2">
+              <Input
+                ref={searchInputRef}
+                autoFocus
+                placeholder="Komponente suchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            
             <ScrollArea className="flex-1 -mx-1 px-1">
               <div className="space-y-1">
-              {[...components].sort((a, b) => {
+              {[...components].filter(comp =>
+                comp.name.toLowerCase().includes(searchTerm.toLowerCase())
+              ).sort((a, b) => {
                 // Sort components with quantity > 0 to the top
                 const qtyA = originalSelectedQuantities.get(a.id) || 0;
                 const qtyB = originalSelectedQuantities.get(b.id) || 0;
