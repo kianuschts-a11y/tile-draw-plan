@@ -1387,7 +1387,7 @@ export function Canvas({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if ((e.target as HTMLElement).closest?.('[role="dialog"]') || document.querySelector('[role="dialog"]')) return;
       
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTileIds.size > 0) {
