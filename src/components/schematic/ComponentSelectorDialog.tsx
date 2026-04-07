@@ -469,32 +469,32 @@ export function ComponentSelectorDialog({
     return componentId.startsWith('connection-');
   }, []);
 
-  // Get component requirements from a group (excluding connection blocks and optionally labeling components)
-  const getGroupComponentRequirements = useCallback((group: ComponentGroup, excludeConnections: boolean = false, excludeLabeling: boolean = false): Map<string, number> => {
+  // Get component requirements from a group (excluding connection blocks and excluded categories)
+  const getGroupComponentRequirements = useCallback((group: ComponentGroup, excludeConnections: boolean = false, applyFilters: boolean = false): Map<string, number> => {
     const requirements = new Map<string, number>();
     
     if (group.layoutData?.tiles && group.layoutData.tiles.length > 0) {
       for (const tile of group.layoutData.tiles) {
         if (excludeConnections && isConnectionBlock(tile.componentId)) continue;
-        if (excludeLabeling) {
+        if (applyFilters) {
           const comp = components.find(c => c.id === tile.componentId);
-          if (comp && comp.labelingEnabled) continue;
+          if (comp && isComponentExcluded(comp)) continue;
         }
         requirements.set(tile.componentId, (requirements.get(tile.componentId) || 0) + 1);
       }
     } else {
       for (const id of group.componentIds) {
         if (excludeConnections && isConnectionBlock(id)) continue;
-        if (excludeLabeling) {
+        if (applyFilters) {
           const comp = components.find(c => c.id === id);
-          if (comp && comp.labelingEnabled) continue;
+          if (comp && isComponentExcluded(comp)) continue;
         }
         requirements.set(id, (requirements.get(id) || 0) + 1);
       }
     }
     
     return requirements;
-  }, [isConnectionBlock, components]);
+  }, [isConnectionBlock, components, isComponentExcluded]);
 
   // Check if a group can be fulfilled with given component quantities (full match)
   // Uses excludeConnections=true to ignore connection blocks when matching
