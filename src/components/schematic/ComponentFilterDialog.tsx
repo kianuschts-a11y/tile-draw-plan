@@ -100,7 +100,7 @@ export function ComponentFilterDialog({
           className="mb-2"
         />
 
-        <ScrollArea className="flex-1 min-h-0 border rounded-md p-2" style={{ maxHeight: 'calc(80vh - 220px)' }}>
+        <div className="border rounded-md p-2 overflow-y-auto" style={{ maxHeight: '50vh' }}>
           <div className="space-y-1">
             {filteredComponents.map(comp => (
               <div key={comp.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-accent/50">
@@ -126,7 +126,7 @@ export function ComponentFilterDialog({
               </p>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter>
           <Button onClick={handleApply}>Übernehmen</Button>
