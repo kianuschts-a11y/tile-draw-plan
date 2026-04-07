@@ -964,7 +964,7 @@ export function ComponentSelectorDialog({
               </div>
             </div>
             
-            <div className="mb-2 px-px">
+            <div className="mb-2 p-[3px] -m-[3px]">
               <Input
                 ref={searchInputRef}
                 autoFocus
