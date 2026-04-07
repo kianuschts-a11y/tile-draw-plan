@@ -1,4 +1,5 @@
-import { Component } from "@/types/schematic";
+import { useMemo } from "react";
+import { Component, ComponentGroup } from "@/types/schematic";
 import { SavedPlanData } from "@/hooks/useSavedPlans";
 import {
   Dialog,
@@ -10,10 +11,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { AppSettings } from "./SettingsDialog";
+import { identifyGroupsInPlan } from "@/lib/groupMatching";
 
 interface ProjectInfoDialogProps {
   plan: SavedPlanData | null;
   components: Component[];
+  groups: ComponentGroup[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   settings?: AppSettings;
