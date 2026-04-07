@@ -1142,7 +1142,7 @@ export function ComponentSelectorDialog({
               onOpenChange={setFilterDialogOpen}
               components={components}
               excludedComponentIds={excludedComponentIds}
-              onExcludedComponentIdsChange={setExcludedComponentIds}
+              onExcludedComponentIdsChange={updateExcludedComponentIds}
             />
             
             <ScrollArea className="flex-1 -mx-1 px-1">
