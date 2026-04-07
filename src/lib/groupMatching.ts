@@ -34,6 +34,10 @@ export function identifyGroupsInPlan(
       t => !t.componentId.startsWith('connection-')
     );
 
+    console.log(`[GroupMatch] Checking group "${group.name}": ${group.layoutData.tiles.length} total tiles, ${functionalGroupTiles.length} functional`);
+    console.log(`[GroupMatch] Functional tiles:`, functionalGroupTiles.map(t => `${t.componentId} @(${t.relativeX},${t.relativeY})`));
+    console.log(`[GroupMatch] Plan tiles:`, planTiles.map(t => `${t.componentId} @(${t.gridX},${t.gridY})`));
+
     // If no functional tiles, skip this group
     if (functionalGroupTiles.length === 0) continue;
 
