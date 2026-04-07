@@ -682,7 +682,8 @@ export function SchematicEditor() {
           toCellX: connData.toCellX,
           toCellY: connData.toCellY,
           toSide: connData.toSide,
-          color: connData.color
+          color: connData.color,
+          arrowDirection: connData.arrowDirection
         });
       }
     }
@@ -2127,7 +2128,8 @@ export function SchematicEditor() {
             toCellX: connData.toCellX,
             toCellY: connData.toCellY,
             toSide: connData.toSide,
-            color: connData.color
+            color: connData.color,
+            arrowDirection: connData.arrowDirection
           });
         }
       }
