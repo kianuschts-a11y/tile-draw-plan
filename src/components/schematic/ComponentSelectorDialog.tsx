@@ -810,7 +810,7 @@ export function ComponentSelectorDialog({
       if (a.possibleCount === 0 && b.possibleCount > 0) return 1;
       return b.coveragePercent - a.coveragePercent;
     });
-  }, [filteredQuantities, savedPlans, includeMesskomponenten, components, minMatchPercent, onlyFullMatches]);
+  }, [filteredQuantities, savedPlans, isComponentExcluded, components, minMatchPercent, onlyFullMatches]);
 
   const totalComponents = useMemo(() => 
     Array.from(quantities.values()).reduce((a, b) => a + b, 0)
