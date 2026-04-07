@@ -989,8 +989,8 @@ export function ComponentSelectorDialog({
                             {component.name}
                           </span>
                           {/* Show placed/total indicator */}
-                          {showPlacedIndicator && placedQty > 0 && (
-                            <span className="text-xs text-green-600">
+                          {originalQty > 0 && (
+                            <span className={`text-xs ${placedQty >= originalQty ? 'text-green-600' : 'text-muted-foreground'}`}>
                               {placedQty}/{originalQty} platziert
                             </span>
                           )}
