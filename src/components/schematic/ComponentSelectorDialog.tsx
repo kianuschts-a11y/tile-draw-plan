@@ -935,7 +935,7 @@ export function ComponentSelectorDialog({
                   variant="ghost"
                   className="h-6 text-xs text-destructive"
                   onClick={clearAll}
-                  disabled={quantities.size === 0}
+                  disabled={originalSelectedQuantities.size === 0}
                 >
                   <X className="w-3 h-3 mr-1" />
                   Zurücksetzen
