@@ -1075,32 +1075,16 @@ export function ComponentSelectorDialog({
             {/* Filter Settings Panel */}
             {showFilterSettings && (
               <div className="mb-3 p-2 rounded-lg border bg-muted/30 space-y-3">
-                <Label className="text-xs font-medium">Kategorien einbeziehen</Label>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="include-mess" className="text-xs cursor-pointer leading-tight">
-                      Messkomponenten
-                    </Label>
-                    <Switch
-                      id="include-mess"
-                      checked={!excludedCategories.has("__messkomponenten__")}
-                      onCheckedChange={() => toggleCategoryExclusion("__messkomponenten__")}
-                      className="scale-75"
-                    />
-                  </div>
-                  {allComponentCategories.map(cat => (
-                    <div key={cat} className="flex items-center justify-between gap-2">
-                      <Label htmlFor={`include-cat-${cat}`} className="text-xs cursor-pointer leading-tight">
-                        {cat}
-                      </Label>
-                      <Switch
-                        id={`include-cat-${cat}`}
-                        checked={!excludedCategories.has(cat)}
-                        onCheckedChange={() => toggleCategoryExclusion(cat)}
-                        className="scale-75"
-                      />
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs font-medium">Komponenten-Filter</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs px-2"
+                    onClick={() => setFilterDialogOpen(true)}
+                  >
+                    Auswählen ({components.length - excludedComponentIds.size}/{components.length})
+                  </Button>
                 </div>
                 
                 <div className="flex items-center justify-between gap-2">
@@ -1131,6 +1115,14 @@ export function ComponentSelectorDialog({
                 </div>
               </div>
             )}
+
+            <ComponentFilterDialog
+              open={filterDialogOpen}
+              onOpenChange={setFilterDialogOpen}
+              components={components}
+              excludedComponentIds={excludedComponentIds}
+              onExcludedComponentIdsChange={setExcludedComponentIds}
+            />
             
             <ScrollArea className="flex-1 -mx-1 px-1">
               {quantities.size === 0 ? (
