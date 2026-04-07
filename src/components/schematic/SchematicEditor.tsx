@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, Package } from "lucide-react";
 import { isConnectionBlock, CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { toast } from "sonner";
+import { identifyGroupsInPlan } from "@/lib/groupMatching";
 
 // Helper to find component by ID, checking both custom components and connection blocks
 function findComponentById(componentId: string, components: Component[]): Component | undefined {
