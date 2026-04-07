@@ -2602,8 +2602,89 @@ export function SchematicEditor() {
               newConnections.push({ ...conn, id: generateId(), fromTileId: newFromId, toTileId: newToId });
             }
           }
+
+          // --- Gruppen-Erkennung: Identifiziere Tiles die zu bekannten Gruppen gehören ---
+          const groupTileNewIds = new Set<string>();
+          
+          for (const group of groups) {
+            if (!group.layoutData?.tiles || group.layoutData.tiles.length === 0) continue;
+            const groupCompIds = group.layoutData.tiles.map(t => t.componentId);
+            
+            // Versuche die Gruppe im Plan zu finden: Alle Komponenten-IDs der Gruppe müssen im Plan vorkommen
+            // Prüfe ob die relativen Positionen übereinstimmen
+            const groupTilesData = group.layoutData.tiles;
+            
+            // Finde alle möglichen "Anker"-Tiles im Plan, die dem ersten Gruppen-Tile entsprechen
+            const firstGroupTile = groupTilesData[0];
+            const candidateAnchors = newTiles.filter(t => t.component.id === firstGroupTile.componentId);
+            
+            for (const anchor of candidateAnchors) {
+              // Berechne den Offset zwischen Anker und erstem Gruppen-Tile
+              const offsetX = anchor.gridX - firstGroupTile.relativeX;
+              const offsetY = anchor.gridY - firstGroupTile.relativeY;
+              
+              // Prüfe ob alle anderen Gruppen-Tiles an den erwarteten Positionen liegen
+              let allFound = true;
+              const matchedTileIds: string[] = [anchor.id];
+              
+              for (let i = 1; i < groupTilesData.length; i++) {
+                const expectedX = groupTilesData[i].relativeX + offsetX;
+                const expectedY = groupTilesData[i].relativeY + offsetY;
+                const expectedCompId = groupTilesData[i].componentId;
+                
+                const match = newTiles.find(t => 
+                  t.component.id === expectedCompId &&
+                  t.gridX === expectedX &&
+                  t.gridY === expectedY &&
+                  !matchedTileIds.includes(t.id)
+                );
+                
+                if (match) {
+                  matchedTileIds.push(match.id);
+                } else {
+                  allFound = false;
+                  break;
+                }
+              }
+              
+              if (allFound) {
+                // Alle Tiles dieser Gruppe gefunden → als Gruppen-Tiles markieren
+                matchedTileIds.forEach(id => groupTileNewIds.add(id));
+              }
+            }
+          }
+          
+          // Excess-Markierung: Nur Tiles markieren die NICHT zu einer Gruppe gehören und NICHT in projectQuantities
+          const newExcessTileIds: string[] = [];
+          const alreadyPlacedCounts = new Map<string, number>();
+          for (const tile of tiles) {
+            if (!tile.component.id.startsWith('connection-')) {
+              alreadyPlacedCounts.set(tile.component.id, (alreadyPlacedCounts.get(tile.component.id) || 0) + 1);
+            }
+          }
+          const placingCounts = new Map<string, number>();
+          
+          for (const newTile of newTiles) {
+            if (newTile.component.id.startsWith('connection-')) continue;
+            // Gruppen-Tiles werden NICHT als excess markiert
+            if (groupTileNewIds.has(newTile.id)) continue;
+            
+            const alreadyPlaced = alreadyPlacedCounts.get(newTile.component.id) || 0;
+            const placingNow = placingCounts.get(newTile.component.id) || 0;
+            const totalPlaced = alreadyPlaced + placingNow;
+            const available = projectQuantities.get(newTile.component.id) || 0;
+            
+            if (totalPlaced >= available) {
+              newExcessTileIds.push(newTile.id);
+            }
+            placingCounts.set(newTile.component.id, placingNow + 1);
+          }
+
           setTiles(prev => [...prev, ...newTiles]);
           setConnections(prev => [...prev, ...newConnections]);
+          if (newExcessTileIds.length > 0) {
+            setExcessTileIds(prev => new Set([...prev, ...newExcessTileIds]));
+          }
         }}
         onInsertMultipleGroups={handleInsertMultipleGroups}
         projectQuantities={projectQuantities}
