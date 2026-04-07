@@ -108,9 +108,13 @@ function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50, str
     case 'text':
       if (shape.text) {
         const fs = shape.fontSize ? shape.fontSize * refScale : 10;
+        const textLines = shape.text.split('\n');
+        const lh = fs * 1.2;
         element = (
           <text x={x + width / 2} y={y + height / 2 + fs / 3} fontSize={fs} textAnchor="middle" fill={style.stroke}>
-            {shape.text}
+            {textLines.length === 1 ? shape.text : textLines.map((line, i) => (
+              <tspan key={i} x={x + width / 2} dy={i === 0 ? 0 : lh}>{line}</tspan>
+            ))}
           </text>
         );
       }
