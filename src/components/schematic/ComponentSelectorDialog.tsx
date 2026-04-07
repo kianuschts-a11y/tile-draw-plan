@@ -231,6 +231,8 @@ export function ComponentSelectorDialog({
 
   // Update both local and parent state
   const updateQuantity = (componentId: string, delta: number) => {
+    // Refocus search input after quantity change
+    setTimeout(() => searchInputRef.current?.focus(), 0);
     // +/- buttons modify the ORIGINAL quantities (what the user selected)
     setOriginalSelectedQuantities(prev => {
       const next = new Map(prev);
@@ -290,6 +292,8 @@ export function ComponentSelectorDialog({
   };
 
   const setQuantity = (componentId: string, value: number) => {
+    // Refocus search input after quantity change
+    setTimeout(() => searchInputRef.current?.focus(), 0);
     // Direct input sets the ORIGINAL quantity
     setOriginalSelectedQuantities(prev => {
       const next = new Map(prev);
