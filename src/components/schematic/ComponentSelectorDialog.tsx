@@ -141,6 +141,11 @@ export function ComponentSelectorDialog({
     }
   }, [components, updateExcludedComponentIds]);
 
+  const [minMatchPercent, setMinMatchPercent] = useState(0);
+  const [onlyFullMatches, setOnlyFullMatches] = useState(false);
+  const [showFilterSettings, setShowFilterSettings] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+
   // Check if a component should be excluded based on current filters
   const isComponentExcluded = useCallback((comp: Component): boolean => {
     return excludedComponentIds.has(comp.id);
