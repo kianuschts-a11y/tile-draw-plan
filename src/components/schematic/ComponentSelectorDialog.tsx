@@ -928,7 +928,7 @@ export function ComponentSelectorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-3xl h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="w-5 h-5" />
@@ -964,7 +964,7 @@ export function ComponentSelectorDialog({
               </div>
             </div>
             
-            <div className="mb-2">
+            <div className="mb-2 px-px">
               <Input
                 ref={searchInputRef}
                 autoFocus
