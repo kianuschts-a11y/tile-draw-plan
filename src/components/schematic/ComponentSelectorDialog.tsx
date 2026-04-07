@@ -947,18 +947,15 @@ export function ComponentSelectorDialog({
               <div className="space-y-1">
               {[...components].sort((a, b) => {
                 // Sort components with quantity > 0 to the top
-                const qtyA = quantities.get(a.id) || 0;
-                const qtyB = quantities.get(b.id) || 0;
+                const qtyA = originalSelectedQuantities.get(a.id) || 0;
+                const qtyB = originalSelectedQuantities.get(b.id) || 0;
                 if (qtyA > 0 && qtyB === 0) return -1;
                 if (qtyA === 0 && qtyB > 0) return 1;
                 return 0; // Keep original order otherwise
               }).map(component => {
-                  const remainingQty = quantities.get(component.id) || 0;
-                  // Count actually placed tiles on the canvas
                   const originalQty = originalSelectedQuantities.get(component.id) || 0;
                   const placedQty = placedComponentCounts[component.id] || 0;
-                  // Show component if it's in original project OR if user is adding new ones
-                  const qty = remainingQty; // For backwards compatibility with controls
+                  const qty = originalQty; // Display the original selected quantity
                   const isExpanded = expandedComponents.has(component.id);
                   const componentDescs = descriptions.get(component.id) || [];
                   const componentKategorie = kategorien.get(component.id) || '';
