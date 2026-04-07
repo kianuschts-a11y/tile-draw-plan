@@ -193,6 +193,7 @@ interface CanvasProps {
   selectedAnnotationId?: string | null;
   onAnnotationLineCreate?: (line: Omit<AnnotationLine, 'id'>) => void;
   onAnnotationTextCreate?: (text: Omit<AnnotationText, 'id'>) => void;
+  onAnnotationTextUpdate?: (id: string, updates: { text?: string; color?: string; fontSize?: number }) => void;
   onAnnotationSelect?: (id: string | null, type?: 'line' | 'text') => void;
   onAnnotationLineMove?: (id: string, dx: number, dy: number) => void;
   onAnnotationTextMove?: (id: string, dx: number, dy: number) => void;
@@ -228,6 +229,7 @@ export function Canvas({
   selectedAnnotationId = null,
   onAnnotationLineCreate,
   onAnnotationTextCreate,
+  onAnnotationTextUpdate,
   onAnnotationSelect,
   onAnnotationLineMove,
   onAnnotationTextMove,
