@@ -270,11 +270,16 @@ export function Canvas({
   const [annotationLinePath, setAnnotationLinePath] = useState<{ gridX: number; gridY: number }[]>([]);
   const [textInputPosition, setTextInputPosition] = useState<{ x: number; y: number } | null>(null);
   const [textInputValue, setTextInputValue] = useState('');
-  const textInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
   const textInputMountedRef = useRef(false);
   // Annotation dragging
   const [isDraggingAnnotation, setIsDraggingAnnotation] = useState(false);
   const [annotationDragStart, setAnnotationDragStart] = useState<{ x: number; y: number } | null>(null);
+  // Arrow cycling state for connections at crossings
+  const [lastArrowClickPos, setLastArrowClickPos] = useState<string | null>(null);
+  const [lastArrowClickIndex, setLastArrowClickIndex] = useState(0);
+  // Text click-to-move state
+  const [movingAnnotationId, setMovingAnnotationId] = useState<string | null>(null);
 
   // Wheel zoom with non-passive listener to prevent page scroll
   useEffect(() => {
@@ -522,17 +527,23 @@ export function Canvas({
     onConnectionsChange(newConnections);
   }, [connections, onConnectionsChange]);
 
-  // Find connection at a specific grid position
-  const findConnectionAtPosition = useCallback((gridX: number, gridY: number): CellConnection | null => {
-    // Look for connections that pass through this cell
+  // Find ALL connections at a specific grid position (including connections touching a tile at that position)
+  const findAllConnectionsAtPosition = useCallback((gridX: number, gridY: number): CellConnection[] => {
+    const found: CellConnection[] = [];
+    const seenIds = new Set<string>();
+    
     for (const conn of connections) {
+      if (seenIds.has(conn.id)) continue;
+      
       // Check "from" side
       const fromTile = tiles.find(t => t.id === conn.fromTileId);
       if (fromTile) {
         const fromGridX = fromTile.gridX + conn.fromCellX;
         const fromGridY = fromTile.gridY + conn.fromCellY;
         if (fromGridX === gridX && fromGridY === gridY) {
-          return conn;
+          found.push(conn);
+          seenIds.add(conn.id);
+          continue;
         }
       }
       
@@ -542,12 +553,39 @@ export function Canvas({
         const toGridX = toTile.gridX + conn.toCellX;
         const toGridY = toTile.gridY + conn.toCellY;
         if (toGridX === gridX && toGridY === gridY) {
-          return conn;
+          found.push(conn);
+          seenIds.add(conn.id);
+          continue;
         }
       }
     }
-    return null;
+    
+    // Also check if there's a tile at this position and find all connections touching it
+    const tileAtPos = tiles.find(t => {
+      const w = t.component.width || 1;
+      const h = t.component.height || 1;
+      return gridX >= t.gridX && gridX < t.gridX + w &&
+             gridY >= t.gridY && gridY < t.gridY + h;
+    });
+    
+    if (tileAtPos) {
+      for (const conn of connections) {
+        if (seenIds.has(conn.id)) continue;
+        if (conn.fromTileId === tileAtPos.id || conn.toTileId === tileAtPos.id) {
+          found.push(conn);
+          seenIds.add(conn.id);
+        }
+      }
+    }
+    
+    return found;
   }, [connections, tiles]);
+
+  // Find connection at a specific grid position (returns first match, for backward compat)
+  const findConnectionAtPosition = useCallback((gridX: number, gridY: number): CellConnection | null => {
+    const all = findAllConnectionsAtPosition(gridX, gridY);
+    return all.length > 0 ? all[0] : null;
+  }, [findAllConnectionsAtPosition]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0 && e.button !== 1) return;
