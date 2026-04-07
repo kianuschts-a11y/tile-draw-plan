@@ -1132,7 +1132,7 @@ export function ComponentSelectorDialog({
               ) : matchingGroups.length === 0 && complementaryGroupSets.length === 0 && matchingPlans.length === 0 ? (
                 <div className="text-sm text-muted-foreground space-y-2">
                   <p>Keine passenden Vorlagen gefunden.</p>
-                  {(minMatchPercent > 0 || onlyFullMatches || excludedCategories.size > 0) && (
+                  {(minMatchPercent > 0 || onlyFullMatches || excludedComponentIds.size > 0) && (
                     <p className="text-xs">
                       Tipp: Passen Sie die Filter-Einstellungen an, um mehr Ergebnisse zu erhalten.
                     </p>
