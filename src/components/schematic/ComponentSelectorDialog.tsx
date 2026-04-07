@@ -91,7 +91,8 @@ export function ComponentSelectorDialog({
   projectModelle,
   onProjectModelleChange,
   projectCustomFields,
-  onProjectCustomFieldsChange
+  onProjectCustomFieldsChange,
+  placedTiles = [],
 }: ComponentSelectorDialogProps) {
   // Use the passed projectQuantities as initial state, but allow local editing
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
@@ -948,9 +949,9 @@ export function ComponentSelectorDialog({
                 return 0; // Keep original order otherwise
               }).map(component => {
                   const remainingQty = quantities.get(component.id) || 0;
-                  // Use the ORIGINAL quantities the user selected (not the reduced projectQuantities)
+                  // Count actually placed tiles on the canvas
                   const originalQty = originalSelectedQuantities.get(component.id) || 0;
-                  const placedQty = originalQty - remainingQty;
+                  const placedQty = placedTiles.filter(t => t.component.id === component.id).length;
                   // Show component if it's in original project OR if user is adding new ones
                   const qty = remainingQty; // For backwards compatibility with controls
                   const isExpanded = expandedComponents.has(component.id);
