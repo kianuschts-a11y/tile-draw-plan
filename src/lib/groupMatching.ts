@@ -24,7 +24,14 @@ export function identifyGroupsInPlan(
 ): { matches: GroupMatchResult[]; protectedTileIds: Set<string> } {
   const protectedTileIds = new Set<string>();
   const matches: GroupMatchResult[] = [];
-  const usedTileIds = new Set<string>();
+
+  // Sort groups by number of tiles ascending — match smaller (sub-)groups first
+  // so they aren't swallowed by larger groups that contain the same tiles
+  const sortedGroups = [...groups].sort((a, b) => {
+    const aLen = a.layoutData?.tiles?.length || 0;
+    const bLen = b.layoutData?.tiles?.length || 0;
+    return aLen - bLen;
+  });
 
   for (const group of groups) {
     if (!group.layoutData?.tiles || group.layoutData.tiles.length === 0) continue;
