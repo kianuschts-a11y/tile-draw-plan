@@ -653,18 +653,13 @@ export function Canvas({
     }
 
     if (activeTool === 'select') {
-      // If moving an annotation text, place it on click
-      if (movingAnnotationId) {
-        setMovingAnnotationId(null);
-        return;
-      }
       const pos = getCanvasPosition(e);
       setSelectionBoxStart(pos);
       setSelectionBoxEnd(pos);
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findAllConnectionsAtPosition, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex, movingAnnotationId]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findAllConnectionsAtPosition, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Annotation line path drawing - grid cell based like connection tool
@@ -705,14 +700,6 @@ export function Canvas({
         }
         return [...prev, ...newCells];
       });
-      return;
-    }
-
-    // Text click-to-move: text follows cursor
-    if (movingAnnotationId && activeTool === 'select') {
-      const { x, y } = getCanvasPosition(e);
-      onAnnotationTextMove?.(movingAnnotationId, x - (annotationDragStart?.x || x), y - (annotationDragStart?.y || y));
-      setAnnotationDragStart({ x, y });
       return;
     }
 
