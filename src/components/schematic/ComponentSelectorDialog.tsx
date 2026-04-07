@@ -101,7 +101,7 @@ export function ComponentSelectorDialog({
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   
   // Group matching filter settings
-  const [includeMesskomponenten, setIncludeMesskomponenten] = useState(true);
+  const [includeMesskomponenten, setIncludeMesskomponenten] = useState(false);
   const [minMatchPercent, setMinMatchPercent] = useState(0);
   const [onlyFullMatches, setOnlyFullMatches] = useState(false);
   const [showFilterSettings, setShowFilterSettings] = useState(false);
