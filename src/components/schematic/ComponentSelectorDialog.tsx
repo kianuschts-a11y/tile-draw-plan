@@ -101,29 +101,45 @@ export function ComponentSelectorDialog({
   const [customFields, setCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   
-  // Group matching filter settings - per-component exclusion
-  const [excludedComponentIds, setExcludedComponentIds] = useState<Set<string>>(() => 
-    new Set(components.filter(c => c.labelingEnabled).map(c => c.id))
-  );
-  const [minMatchPercent, setMinMatchPercent] = useState(0);
-  const [onlyFullMatches, setOnlyFullMatches] = useState(false);
-  const [showFilterSettings, setShowFilterSettings] = useState(false);
-  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-
-  // Re-initialize excluded IDs when components change (new components added)
-  useEffect(() => {
-    setExcludedComponentIds(prev => {
-      const next = new Set(prev);
-      // Auto-exclude new labelingEnabled components
-      for (const comp of components) {
-        if (comp.labelingEnabled && !next.has(comp.id)) {
-          // Check if this is a newly added component (not previously seen)
-          next.add(comp.id);
-        }
+  // Group matching filter settings - per-component exclusion (persisted in localStorage)
+  const FILTER_STORAGE_KEY = 'component-filter-excluded-ids';
+  
+  const [excludedComponentIds, setExcludedComponentIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(FILTER_STORAGE_KEY);
+      if (saved) {
+        const ids = JSON.parse(saved) as string[];
+        return new Set(ids);
       }
+    } catch { /* ignore */ }
+    // Default: exclude labelingEnabled components
+    return new Set(components.filter(c => c.labelingEnabled).map(c => c.id));
+  });
+
+  // Wrap setExcludedComponentIds to also persist to localStorage
+  const updateExcludedComponentIds = useCallback((idsOrUpdater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+    setExcludedComponentIds(prev => {
+      const next = typeof idsOrUpdater === 'function' ? idsOrUpdater(prev) : idsOrUpdater;
+      try {
+        localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      } catch { /* ignore */ }
       return next;
     });
-  }, [components]);
+  }, []);
+
+  // Auto-exclude new labelingEnabled components (only if not previously saved)
+  useEffect(() => {
+    const hasSaved = localStorage.getItem(FILTER_STORAGE_KEY) !== null;
+    if (!hasSaved) {
+      updateExcludedComponentIds(prev => {
+        const next = new Set(prev);
+        for (const comp of components) {
+          if (comp.labelingEnabled) next.add(comp.id);
+        }
+        return next;
+      });
+    }
+  }, [components, updateExcludedComponentIds]);
 
   // Check if a component should be excluded based on current filters
   const isComponentExcluded = useCallback((comp: Component): boolean => {
