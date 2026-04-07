@@ -654,11 +654,11 @@ export function ComponentSelectorDialog({
       });
     }
     
-    // Sort: 100% matches first (possibleCount > 0), then by coverage percentage
+    // Sort: fully fulfillable first, then by coverage percentage
     return suggestions.sort((a, b) => {
       // Fully fulfillable groups first
-      if (a.possibleCount > 0 && b.possibleCount === 0) return -1;
-      if (a.possibleCount === 0 && b.possibleCount > 0) return 1;
+      if (a.isFullyFulfillable && !b.isFullyFulfillable) return -1;
+      if (!a.isFullyFulfillable && b.isFullyFulfillable) return 1;
       // Then by coverage percentage
       return b.coveragePercent - a.coveragePercent;
     });
