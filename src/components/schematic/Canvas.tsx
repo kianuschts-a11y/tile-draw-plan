@@ -694,7 +694,7 @@ export function Canvas({
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findAllConnectionsAtPosition, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findConnectionsNearPoint, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Annotation line path drawing - grid cell based like connection tool
@@ -1233,7 +1233,7 @@ export function Canvas({
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
       setIsDragging(true);
     }
-  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, onConnectionArrowToggle]);
+  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, findConnectionsNearPoint, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
 
   // Track drag position for preview using draggingComponent from parent
   const handleDragOver = useCallback((e: React.DragEvent) => {
