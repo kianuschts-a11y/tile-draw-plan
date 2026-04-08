@@ -583,6 +583,41 @@ export function Canvas({
     return found;
   }, [connections, tiles]);
 
+  // Find connections nearest to a canvas pixel position, sorted by distance
+  const findConnectionsNearPoint = useCallback((canvasX: number, canvasY: number): CellConnection[] => {
+    const results: { conn: CellConnection; dist: number }[] = [];
+    
+    for (const conn of connections) {
+      const fromTile = tiles.find(t => t.id === conn.fromTileId);
+      const toTile = tiles.find(t => t.id === conn.toTileId);
+      if (!fromTile || !toTile) continue;
+      
+      // Line segment from center of fromCell to center of toCell
+      const ax = (fromTile.gridX + conn.fromCellX + 0.5) * tileSize;
+      const ay = (fromTile.gridY + conn.fromCellY + 0.5) * tileSize;
+      const bx = (toTile.gridX + conn.toCellX + 0.5) * tileSize;
+      const by = (toTile.gridY + conn.toCellY + 0.5) * tileSize;
+      
+      // Distance from point to line segment
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lenSq = dx * dx + dy * dy;
+      let t = lenSq === 0 ? 0 : ((canvasX - ax) * dx + (canvasY - ay) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      const projX = ax + t * dx;
+      const projY = ay + t * dy;
+      const dist = Math.sqrt((canvasX - projX) ** 2 + (canvasY - projY) ** 2);
+      
+      // Only consider connections within 1 tile distance
+      if (dist <= tileSize) {
+        results.push({ conn, dist });
+      }
+    }
+    
+    results.sort((a, b) => a.dist - b.dist);
+    return results.map(r => r.conn);
+  }, [connections, tiles, tileSize]);
+
   // Find connection at a specific grid position (returns first match, for backward compat)
   const findConnectionAtPosition = useCallback((gridX: number, gridY: number): CellConnection | null => {
     const all = findAllConnectionsAtPosition(gridX, gridY);
@@ -629,11 +664,11 @@ export function Canvas({
     const { x, y } = getCanvasPosition(e);
     const { gridX, gridY } = getGridFromCanvas(x, y);
     
-    // Arrow tool - toggle arrow on clicked connection (cycle through at crossings)
+    // Arrow tool - toggle arrow on clicked connection (nearest to click point)
     if (activeTool === 'arrow') {
-      const allConns = findAllConnectionsAtPosition(gridX, gridY);
+      const allConns = findConnectionsNearPoint(x, y);
       if (allConns.length > 0 && onConnectionArrowToggle) {
-        const posKey = `${gridX},${gridY}`;
+        const posKey = `${Math.round(x)},${Math.round(y)}`;
         let idx = 0;
         if (lastArrowClickPos === posKey) {
           idx = (lastArrowClickIndex + 1) % allConns.length;
@@ -659,7 +694,7 @@ export function Canvas({
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findAllConnectionsAtPosition, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findConnectionsNearPoint, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Annotation line path drawing - grid cell based like connection tool
@@ -1142,11 +1177,11 @@ export function Canvas({
     const cellX = gridX - tile.gridX;
     const cellY = gridY - tile.gridY;
     
-    // Arrow tool - toggle arrow on clicked connection (cycle through at crossings)
+    // Arrow tool - toggle arrow on clicked connection (nearest to click point)
     if (activeTool === 'arrow') {
-      const allConns = findAllConnectionsAtPosition(gridX, gridY);
+      const allConns = findConnectionsNearPoint(x, y);
       if (allConns.length > 0 && onConnectionArrowToggle) {
-        const posKey = `${gridX},${gridY}`;
+        const posKey = `${Math.round(x)},${Math.round(y)}`;
         let idx = 0;
         if (lastArrowClickPos === posKey) {
           idx = (lastArrowClickIndex + 1) % allConns.length;
@@ -1198,7 +1233,7 @@ export function Canvas({
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
       setIsDragging(true);
     }
-  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, onConnectionArrowToggle]);
+  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, findConnectionsNearPoint, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
 
   // Track drag position for preview using draggingComponent from parent
   const handleDragOver = useCallback((e: React.DragEvent) => {
