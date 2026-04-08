@@ -715,17 +715,7 @@ export function Canvas({
     
     // Arrow tool - toggle arrow on clicked connection (nearest to click point)
     if (activeTool === 'arrow') {
-      const allConns = findConnectionsNearPoint(x, y);
-      if (allConns.length > 0 && onConnectionArrowToggle) {
-        const posKey = `${Math.round(x)},${Math.round(y)}`;
-        let idx = 0;
-        if (lastArrowClickPos === posKey) {
-          idx = (lastArrowClickIndex + 1) % allConns.length;
-        }
-        setLastArrowClickPos(posKey);
-        setLastArrowClickIndex(idx);
-        onConnectionArrowToggle(allConns[idx].id);
-      }
+      handleArrowToggle(x, y);
       return;
     }
     
