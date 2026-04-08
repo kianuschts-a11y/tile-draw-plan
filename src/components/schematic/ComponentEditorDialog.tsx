@@ -122,7 +122,7 @@ export function ComponentEditorDialog({ open, onClose, onSave, onUpdate, tileSiz
   // Auto-Verbindungen
   const [autoConnectionsEnabled, setAutoConnectionsEnabled] = useState(false);
 
-  const isEditing = !!editingComponent;
+  const isEditing = !!editingComponent && !!editingComponent.id;
 
   // Canvas size based on tile size selection
   const tileSizeConfig = TILE_SIZES[componentTileSize];

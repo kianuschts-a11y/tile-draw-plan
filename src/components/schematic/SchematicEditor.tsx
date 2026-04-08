@@ -728,6 +728,17 @@ export function SchematicEditor() {
     setIsEditorOpen(true);
   }, []);
 
+  const handleUseAsTemplate = useCallback((component: Component) => {
+    const template: Component = {
+      ...component,
+      id: '', // No ID = new component
+      name: `${component.name} (Kopie)`,
+      variations: component.variations ? [...component.variations] : [],
+    };
+    setEditingComponent(template);
+    setIsEditorOpen(true);
+  }, []);
+
   const handleUpdateComponentShapes = useCallback(async (id: string, name: string, shapes: Shape[], tileSize: TileSize, category?: string, labelingEnabled?: boolean, labelingPriority?: number, labelingColor?: string, autoConnectionsEnabled?: boolean) => {
     await updateComponent(id, name, shapes, tileSize, category, labelingEnabled, labelingPriority, labelingColor, autoConnectionsEnabled);
   }, [updateComponent]);
@@ -2557,6 +2568,7 @@ export function SchematicEditor() {
           onFilterTagChange={setFilterTag}
           onManageCategories={() => setIsCategoryManagerOpen(true)}
           appSettings={appSettings}
+          onUseAsTemplate={handleUseAsTemplate}
         />
       </div>
 
