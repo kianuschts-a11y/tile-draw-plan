@@ -1177,11 +1177,11 @@ export function Canvas({
     const cellX = gridX - tile.gridX;
     const cellY = gridY - tile.gridY;
     
-    // Arrow tool - toggle arrow on clicked connection (cycle through at crossings)
+    // Arrow tool - toggle arrow on clicked connection (nearest to click point)
     if (activeTool === 'arrow') {
-      const allConns = findAllConnectionsAtPosition(gridX, gridY);
+      const allConns = findConnectionsNearPoint(x, y);
       if (allConns.length > 0 && onConnectionArrowToggle) {
-        const posKey = `${gridX},${gridY}`;
+        const posKey = `${Math.round(x)},${Math.round(y)}`;
         let idx = 0;
         if (lastArrowClickPos === posKey) {
           idx = (lastArrowClickIndex + 1) % allConns.length;
