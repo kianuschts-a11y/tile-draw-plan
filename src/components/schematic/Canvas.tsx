@@ -1613,9 +1613,9 @@ export function Canvas({
         // Shape-IDs enden mit -h für horizontal, -v für vertikal
         const shapeId = shape.id || '';
         if (shapeId.endsWith('-h')) {
-          strokeColor = horizontalColor;
+          strokeColor = horizontalColor || verticalColor;
         } else if (shapeId.endsWith('-v')) {
-          strokeColor = verticalColor;
+          strokeColor = verticalColor || horizontalColor;
         } else {
           // Fallback: erste verfügbare Farbe
           strokeColor = horizontalColor || verticalColor;
