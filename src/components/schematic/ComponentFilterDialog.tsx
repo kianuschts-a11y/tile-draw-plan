@@ -1,7 +1,6 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Component } from "@/types/schematic";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -28,17 +27,13 @@ export function ComponentFilterDialog({
   excludedComponentIds,
   onExcludedComponentIdsChange,
 }: ComponentFilterDialogProps) {
-  const [localExcluded, setLocalExcluded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
-  // Sync on open
-  const handleOpenChange = (isOpen: boolean) => {
-    if (isOpen) {
-      setLocalExcluded(new Set(excludedComponentIds));
+  useEffect(() => {
+    if (open) {
       setSearch("");
     }
-    onOpenChange(isOpen);
-  };
+  }, [open]);
 
   const filteredComponents = useMemo(() => {
     const term = search.toLowerCase().trim();
@@ -48,34 +43,27 @@ export function ComponentFilterDialog({
   }, [components, search]);
 
   const toggleComponent = (id: string) => {
-    setLocalExcluded(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+    const next = new Set(excludedComponentIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    onExcludedComponentIdsChange(next);
   };
 
   const selectAll = () => {
-    setLocalExcluded(new Set());
+    onExcludedComponentIdsChange(new Set());
   };
 
   const deselectAll = () => {
-    setLocalExcluded(new Set(components.map(c => c.id)));
+    onExcludedComponentIdsChange(new Set(components.map(c => c.id)));
   };
 
-  const handleApply = () => {
-    onExcludedComponentIdsChange(localExcluded);
-    onOpenChange(false);
-  };
-
-  const includedCount = components.length - localExcluded.size;
+  const includedCount = components.filter(comp => !excludedComponentIds.has(comp.id)).length;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[80vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Komponenten-Filter</DialogTitle>
@@ -106,7 +94,7 @@ export function ComponentFilterDialog({
               <div key={comp.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-accent/50">
                 <Checkbox
                   id={`filter-${comp.id}`}
-                  checked={!localExcluded.has(comp.id)}
+                  checked={!excludedComponentIds.has(comp.id)}
                   onCheckedChange={() => toggleComponent(comp.id)}
                 />
                 <Label
@@ -129,7 +117,7 @@ export function ComponentFilterDialog({
         </div>
 
         <DialogFooter>
-          <Button onClick={handleApply}>Übernehmen</Button>
+          <Button onClick={() => onOpenChange(false)}>Schließen</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -121,43 +121,73 @@ export function ComponentSelectorDialog({
   
   // Group matching filter settings - per-component exclusion (persisted in localStorage)
   const FILTER_STORAGE_KEY = 'component-filter-excluded-ids';
-  
+
   const [excludedComponentIds, setExcludedComponentIds] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem(FILTER_STORAGE_KEY);
-      if (saved) {
-        const ids = JSON.parse(saved) as string[];
-        return new Set(ids);
-      }
-    } catch { /* ignore */ }
-    // Default: exclude labelingEnabled components
-    return new Set(components.filter(c => c.labelingEnabled).map(c => c.id));
+      if (!saved) return new Set();
+
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return new Set();
+
+      return new Set(parsed.filter((id): id is string => typeof id === 'string'));
+    } catch {
+      return new Set();
+    }
   });
+
+  const persistExcludedComponentIds = useCallback((ids: Set<string>) => {
+    try {
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(Array.from(ids)));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // Wrap setExcludedComponentIds to also persist to localStorage
   const updateExcludedComponentIds = useCallback((idsOrUpdater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
     setExcludedComponentIds(prev => {
       const next = typeof idsOrUpdater === 'function' ? idsOrUpdater(prev) : idsOrUpdater;
-      try {
-        localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(Array.from(next)));
-      } catch { /* ignore */ }
-      return next;
+      const normalizedNext = new Set(next);
+      persistExcludedComponentIds(normalizedNext);
+      return normalizedNext;
     });
-  }, []);
+  }, [persistExcludedComponentIds]);
 
-  // Auto-exclude new labelingEnabled components (only if not previously saved)
+  // Keep saved filters stable and remove stale IDs when the component list changes.
   useEffect(() => {
-    const hasSaved = localStorage.getItem(FILTER_STORAGE_KEY) !== null;
-    if (!hasSaved) {
-      updateExcludedComponentIds(prev => {
-        const next = new Set(prev);
-        for (const comp of components) {
-          if (comp.labelingEnabled) next.add(comp.id);
+    if (components.length === 0) return;
+
+    let storedIds: string[] | null = null;
+    try {
+      const saved = localStorage.getItem(FILTER_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          storedIds = parsed.filter((id): id is string => typeof id === 'string');
         }
-        return next;
-      });
+      }
+    } catch {
+      storedIds = null;
     }
-  }, [components, updateExcludedComponentIds]);
+
+    const validComponentIds = new Set(components.map(c => c.id));
+    const baseIds = storedIds ?? components.filter(c => c.labelingEnabled).map(c => c.id);
+    const sanitizedIds = new Set(baseIds.filter(id => validComponentIds.has(id)));
+
+    setExcludedComponentIds(prev => {
+      const unchanged = prev.size === sanitizedIds.size && Array.from(prev).every(id => sanitizedIds.has(id));
+      return unchanged ? prev : sanitizedIds;
+    });
+
+    const storageMatches = storedIds !== null
+      && storedIds.length === sanitizedIds.size
+      && storedIds.every(id => sanitizedIds.has(id));
+
+    if (!storageMatches) {
+      persistExcludedComponentIds(sanitizedIds);
+    }
+  }, [components, persistExcludedComponentIds]);
 
   const [minMatchPercent, setMinMatchPercent] = useState(0);
   const [onlyFullMatches, setOnlyFullMatches] = useState(false);
