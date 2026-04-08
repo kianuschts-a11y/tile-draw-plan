@@ -277,9 +277,10 @@ export function Canvas({
   // Annotation dragging
   const [isDraggingAnnotation, setIsDraggingAnnotation] = useState(false);
   const [annotationDragStart, setAnnotationDragStart] = useState<{ x: number; y: number } | null>(null);
-  // Arrow cycling state for connections at crossings
-  const [lastArrowClickPos, setLastArrowClickPos] = useState<string | null>(null);
-  const [lastArrowClickIndex, setLastArrowClickIndex] = useState(0);
+  // Arrow cycling state: track last toggled connection ID and cycle index for overlapping connections
+  const [lastArrowConnectionId, setLastArrowConnectionId] = useState<string | null>(null);
+  const [lastArrowGroupKey, setLastArrowGroupKey] = useState<string | null>(null);
+  const [lastArrowGroupIndex, setLastArrowGroupIndex] = useState(0);
   // Editing annotation text by double-click
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
 
