@@ -733,7 +733,7 @@ export function Canvas({
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findConnectionsNearPoint, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, handleArrowToggle]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Annotation line path drawing - grid cell based like connection tool
@@ -1218,17 +1218,7 @@ export function Canvas({
     
     // Arrow tool - toggle arrow on clicked connection (nearest to click point)
     if (activeTool === 'arrow') {
-      const allConns = findConnectionsNearPoint(x, y);
-      if (allConns.length > 0 && onConnectionArrowToggle) {
-        const posKey = `${Math.round(x)},${Math.round(y)}`;
-        let idx = 0;
-        if (lastArrowClickPos === posKey) {
-          idx = (lastArrowClickIndex + 1) % allConns.length;
-        }
-        setLastArrowClickPos(posKey);
-        setLastArrowClickIndex(idx);
-        onConnectionArrowToggle(allConns[idx].id);
-      }
+      handleArrowToggle(x, y);
       return;
     }
     
