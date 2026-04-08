@@ -277,9 +277,10 @@ export function Canvas({
   // Annotation dragging
   const [isDraggingAnnotation, setIsDraggingAnnotation] = useState(false);
   const [annotationDragStart, setAnnotationDragStart] = useState<{ x: number; y: number } | null>(null);
-  // Arrow cycling state for connections at crossings
-  const [lastArrowClickPos, setLastArrowClickPos] = useState<string | null>(null);
-  const [lastArrowClickIndex, setLastArrowClickIndex] = useState(0);
+  // Arrow cycling state: track last toggled connection ID and cycle index for overlapping connections
+  const [lastArrowConnectionId, setLastArrowConnectionId] = useState<string | null>(null);
+  const [lastArrowGroupKey, setLastArrowGroupKey] = useState<string | null>(null);
+  const [lastArrowGroupIndex, setLastArrowGroupIndex] = useState(0);
   // Editing annotation text by double-click
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
 
@@ -584,6 +585,7 @@ export function Canvas({
   }, [connections, tiles]);
 
   // Find connections nearest to a canvas pixel position, sorted by distance
+  // Only returns connections that are truly competing (within small epsilon of best match)
   const findConnectionsNearPoint = useCallback((canvasX: number, canvasY: number): CellConnection[] => {
     const results: { conn: CellConnection; dist: number }[] = [];
     
@@ -592,13 +594,11 @@ export function Canvas({
       const toTile = tiles.find(t => t.id === conn.toTileId);
       if (!fromTile || !toTile) continue;
       
-      // Line segment from center of fromCell to center of toCell
       const ax = (fromTile.gridX + conn.fromCellX + 0.5) * tileSize;
       const ay = (fromTile.gridY + conn.fromCellY + 0.5) * tileSize;
       const bx = (toTile.gridX + conn.toCellX + 0.5) * tileSize;
       const by = (toTile.gridY + conn.toCellY + 0.5) * tileSize;
       
-      // Distance from point to line segment
       const dx = bx - ax;
       const dy = by - ay;
       const lenSq = dx * dx + dy * dy;
@@ -608,15 +608,64 @@ export function Canvas({
       const projY = ay + t * dy;
       const dist = Math.sqrt((canvasX - projX) ** 2 + (canvasY - projY) ** 2);
       
-      // Only consider connections within 1 tile distance
       if (dist <= tileSize) {
         results.push({ conn, dist });
       }
     }
     
     results.sort((a, b) => a.dist - b.dist);
+    
+    // Only return connections that are truly overlapping with the best match
+    // (within 20% of tileSize from the best distance)
+    if (results.length > 1) {
+      const bestDist = results[0].dist;
+      const epsilon = tileSize * 0.2;
+      const competing = results.filter(r => r.dist - bestDist <= epsilon);
+      return competing.map(r => r.conn);
+    }
+    
     return results.map(r => r.conn);
   }, [connections, tiles, tileSize]);
+
+  // Shared arrow toggle logic: always toggle nearest connection first,
+  // only cycle to next overlapping connection when the current one has been fully cycled
+  const handleArrowToggle = useCallback((canvasX: number, canvasY: number) => {
+    const allConns = findConnectionsNearPoint(canvasX, canvasY);
+    if (allConns.length === 0 || !onConnectionArrowToggle) return;
+    
+    // Build a stable group key from sorted connection IDs
+    const groupKey = allConns.map(c => c.id).sort().join('|');
+    
+    if (allConns.length === 1) {
+      // Single connection: always toggle this one
+      setLastArrowConnectionId(allConns[0].id);
+      setLastArrowGroupKey(groupKey);
+      setLastArrowGroupIndex(0);
+      onConnectionArrowToggle(allConns[0].id);
+    } else {
+      // Multiple overlapping connections at this point
+      if (lastArrowGroupKey === groupKey) {
+        // Same group of connections - check if current connection just completed a full cycle (back to 'none')
+        const currentConn = allConns.find(c => c.id === lastArrowConnectionId);
+        if (currentConn && currentConn.arrowDirection === 'none') {
+          // Current connection was cycled back to none, move to next in group
+          const nextIdx = (lastArrowGroupIndex + 1) % allConns.length;
+          setLastArrowGroupIndex(nextIdx);
+          setLastArrowConnectionId(allConns[nextIdx].id);
+          onConnectionArrowToggle(allConns[nextIdx].id);
+        } else {
+          // Keep toggling the same connection
+          onConnectionArrowToggle(lastArrowConnectionId!);
+        }
+      } else {
+        // New group - start with nearest
+        setLastArrowGroupKey(groupKey);
+        setLastArrowGroupIndex(0);
+        setLastArrowConnectionId(allConns[0].id);
+        onConnectionArrowToggle(allConns[0].id);
+      }
+    }
+  }, [findConnectionsNearPoint, onConnectionArrowToggle, lastArrowConnectionId, lastArrowGroupKey, lastArrowGroupIndex]);
 
   // Find connection at a specific grid position (returns first match, for backward compat)
   const findConnectionAtPosition = useCallback((gridX: number, gridY: number): CellConnection | null => {
@@ -666,17 +715,7 @@ export function Canvas({
     
     // Arrow tool - toggle arrow on clicked connection (nearest to click point)
     if (activeTool === 'arrow') {
-      const allConns = findConnectionsNearPoint(x, y);
-      if (allConns.length > 0 && onConnectionArrowToggle) {
-        const posKey = `${Math.round(x)},${Math.round(y)}`;
-        let idx = 0;
-        if (lastArrowClickPos === posKey) {
-          idx = (lastArrowClickIndex + 1) % allConns.length;
-        }
-        setLastArrowClickPos(posKey);
-        setLastArrowClickIndex(idx);
-        onConnectionArrowToggle(allConns[idx].id);
-      }
+      handleArrowToggle(x, y);
       return;
     }
     
@@ -694,7 +733,7 @@ export function Canvas({
       setIsSelectionBox(true);
       onSelectionChange(new Set());
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, findConnectionsNearPoint, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, handleArrowToggle]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Annotation line path drawing - grid cell based like connection tool
@@ -1179,17 +1218,7 @@ export function Canvas({
     
     // Arrow tool - toggle arrow on clicked connection (nearest to click point)
     if (activeTool === 'arrow') {
-      const allConns = findConnectionsNearPoint(x, y);
-      if (allConns.length > 0 && onConnectionArrowToggle) {
-        const posKey = `${Math.round(x)},${Math.round(y)}`;
-        let idx = 0;
-        if (lastArrowClickPos === posKey) {
-          idx = (lastArrowClickIndex + 1) % allConns.length;
-        }
-        setLastArrowClickPos(posKey);
-        setLastArrowClickIndex(idx);
-        onConnectionArrowToggle(allConns[idx].id);
-      }
+      handleArrowToggle(x, y);
       return;
     }
     
@@ -1233,7 +1262,7 @@ export function Canvas({
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
       setIsDragging(true);
     }
-  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, findConnectionsNearPoint, onConnectionArrowToggle, lastArrowClickPos, lastArrowClickIndex]);
+  }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, handleArrowToggle]);
 
   // Track drag position for preview using draggingComponent from parent
   const handleDragOver = useCallback((e: React.DragEvent) => {
