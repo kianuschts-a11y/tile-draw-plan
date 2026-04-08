@@ -253,6 +253,8 @@ export function Canvas({
   const [isSelectionBox, setIsSelectionBox] = useState(false);
   const [selectionBoxStart, setSelectionBoxStart] = useState({ x: 0, y: 0 });
   const [selectionBoxEnd, setSelectionBoxEnd] = useState({ x: 0, y: 0 });
+  // Track selection before box-select started (for Shift+drag additive selection)
+  const selectionBeforeBoxRef = useRef<Set<string>>(new Set());
   
   // Drop preview state
   const [dropPreview, setDropPreview] = useState<{
@@ -731,7 +733,13 @@ export function Canvas({
       setSelectionBoxStart(pos);
       setSelectionBoxEnd(pos);
       setIsSelectionBox(true);
-      onSelectionChange(new Set());
+      // If Shift is held, preserve the current selection for additive box-select
+      if (e.shiftKey) {
+        selectionBeforeBoxRef.current = new Set(selectedTileIds);
+      } else {
+        selectionBeforeBoxRef.current = new Set();
+        onSelectionChange(new Set());
+      }
     }
   }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, handleArrowToggle]);
 
@@ -896,7 +904,8 @@ export function Canvas({
       const minY = Math.min(selectionBoxStart.y, pos.y);
       const maxY = Math.max(selectionBoxStart.y, pos.y);
       
-      const selectedIds = new Set<string>();
+      // Start with previously selected tiles if Shift was held
+      const selectedIds = new Set<string>(selectionBeforeBoxRef.current);
       for (const tile of tiles) {
         const tileX = tile.gridX * tileSize;
         const tileY = tile.gridY * tileSize;
@@ -1233,6 +1242,18 @@ export function Canvas({
     
     // In group mode, toggle selection on click
     if (isGroupMode) {
+      const newSelection = new Set(selectedTileIds);
+      if (newSelection.has(tile.id)) {
+        newSelection.delete(tile.id);
+      } else {
+        newSelection.add(tile.id);
+      }
+      onSelectionChange(newSelection);
+      return;
+    }
+    
+    if (e.shiftKey) {
+      // Shift+click: toggle this tile in/out of selection
       const newSelection = new Set(selectedTileIds);
       if (newSelection.has(tile.id)) {
         newSelection.delete(tile.id);
