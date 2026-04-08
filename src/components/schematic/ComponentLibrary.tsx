@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Pencil, Upload, Folder, Info, FileText, ChevronDown, ChevronRight, X, Settings2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Folder, Info, FileText, ChevronDown, ChevronRight, X, Settings2, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -72,6 +72,7 @@ interface ComponentLibraryProps {
   onFilterTagChange?: (tag: string) => void;
   onManageCategories?: () => void;
   appSettings?: AppSettings;
+  onUseAsTemplate?: (component: Component) => void;
 }
 
 function renderShape(shape: Shape, scaleX: number = 50, scaleY: number = 50) {
@@ -430,6 +431,13 @@ export function ComponentLibrary({
             <Pencil className="w-4 h-4 mr-2" />
             Bearbeiten
           </ContextMenuItem>
+          {onUseAsTemplate && (
+            <ContextMenuItem onClick={() => onUseAsTemplate(component)}>
+              <Copy className="w-4 h-4 mr-2" />
+              Als Vorlage verwenden
+            </ContextMenuItem>
+          )}
+          <ContextMenuSeparator />
           <ContextMenuItem 
             onClick={() => handleDeleteClick(component)}
             className="text-destructive"
