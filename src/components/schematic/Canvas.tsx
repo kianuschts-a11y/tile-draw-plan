@@ -583,6 +583,41 @@ export function Canvas({
     return found;
   }, [connections, tiles]);
 
+  // Find connections nearest to a canvas pixel position, sorted by distance
+  const findConnectionsNearPoint = useCallback((canvasX: number, canvasY: number): CellConnection[] => {
+    const results: { conn: CellConnection; dist: number }[] = [];
+    
+    for (const conn of connections) {
+      const fromTile = tiles.find(t => t.id === conn.fromTileId);
+      const toTile = tiles.find(t => t.id === conn.toTileId);
+      if (!fromTile || !toTile) continue;
+      
+      // Line segment from center of fromCell to center of toCell
+      const ax = (fromTile.gridX + conn.fromCellX + 0.5) * tileSize;
+      const ay = (fromTile.gridY + conn.fromCellY + 0.5) * tileSize;
+      const bx = (toTile.gridX + conn.toCellX + 0.5) * tileSize;
+      const by = (toTile.gridY + conn.toCellY + 0.5) * tileSize;
+      
+      // Distance from point to line segment
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lenSq = dx * dx + dy * dy;
+      let t = lenSq === 0 ? 0 : ((canvasX - ax) * dx + (canvasY - ay) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      const projX = ax + t * dx;
+      const projY = ay + t * dy;
+      const dist = Math.sqrt((canvasX - projX) ** 2 + (canvasY - projY) ** 2);
+      
+      // Only consider connections within 1 tile distance
+      if (dist <= tileSize) {
+        results.push({ conn, dist });
+      }
+    }
+    
+    results.sort((a, b) => a.dist - b.dist);
+    return results.map(r => r.conn);
+  }, [connections, tiles, tileSize]);
+
   // Find connection at a specific grid position (returns first match, for backward compat)
   const findConnectionAtPosition = useCallback((gridX: number, gridY: number): CellConnection | null => {
     const all = findAllConnectionsAtPosition(gridX, gridY);
