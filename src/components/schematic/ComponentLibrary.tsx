@@ -239,7 +239,8 @@ export function ComponentLibrary({
   filterTag,
   onFilterTagChange,
   onManageCategories,
-  appSettings
+  appSettings,
+  onUseAsTemplate
 }: ComponentLibraryProps) {
   const previewSize = 50;
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
