@@ -108,7 +108,8 @@ export function SchematicEditor() {
   const [projectMarken, setProjectMarken] = useState<Map<string, string>>(new Map());
   const [projectModelle, setProjectModelle] = useState<Map<string, string>>(new Map());
   const [projectCustomFields, setProjectCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
-  const [titleBlockData, setTitleBlockData] = useState<TitleBlockData>({
+  const [sheetCount, setSheetCount] = useState(1);
+  const [titleBlockDataPerSheet, setTitleBlockDataPerSheet] = useState<TitleBlockData[]>([{
     enabled: false,
     projekt: '',
     zeichnungsNr: '',
@@ -117,7 +118,16 @@ export function SchematicEditor() {
     aenderungen: '',
     gezeichnet: { name: '', datum: '' },
     geprueft: { name: '', datum: '' },
-  });
+  }]);
+  // Keep legacy single titleBlockData as a reference to the first sheet
+  const titleBlockData = titleBlockDataPerSheet[0];
+  const setTitleBlockData = useCallback((updater: TitleBlockData | ((prev: TitleBlockData) => TitleBlockData)) => {
+    setTitleBlockDataPerSheet(prev => {
+      const newData = [...prev];
+      newData[0] = typeof updater === 'function' ? updater(prev[0]) : updater;
+      return newData;
+    });
+  }, []);
   const [isTitleBlockEditorOpen, setIsTitleBlockEditorOpen] = useState(false);
   const [isBOMOpen, setIsBOMOpen] = useState(false);
   const [isMesskonzeptOpen, setIsMesskonzeptOpen] = useState(false);
