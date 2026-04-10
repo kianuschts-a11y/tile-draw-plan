@@ -837,8 +837,19 @@ export function SchematicEditor() {
     return false;
   }, [tiles, components]);
 
+  // Helper: determine which sheet a tile belongs to
+  const getSheetForTile = useCallback((tile: PlacedTile) => {
+    const paperSize = PAPER_SIZES[canvasState.paperFormat];
+    const paperWidthMM = canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width;
+    const singleSheetWidthPx = Math.floor((paperWidthMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    const gridCols = Math.floor(singleSheetWidthPx / canvasState.gridSize);
+    const gapCols = Math.ceil(20 / canvasState.gridSize);
+    const sheetWidthWithGap = gridCols + gapCols;
+    return Math.floor(tile.gridX / sheetWidthWithGap);
+  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
+
   // Auto-Verbindungslinien: Berechne gestrichelte Linien von Komponenten mit autoConnectionsEnabled
-  // zu allen Komponenten mit labelingEnabled
+  // zu allen Komponenten mit labelingEnabled (NUR innerhalb desselben Blattes)
   const autoConnectionLines = useMemo(() => {
     const lines: { fromTileId: string; toTileId: string; fromX: number; fromY: number; midX: number; midY: number; toX: number; toY: number }[] = [];
     
