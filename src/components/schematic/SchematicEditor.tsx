@@ -1790,7 +1790,7 @@ export function SchematicEditor() {
         img.src = url;
       });
     });
-  }, [canvasState, tiles, tileLabels, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise]);
+  }, [canvasState, tiles, tileLabels, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise, sheetCount]);
 
   // Handle export button click - always show dialog
   const handleExportClick = useCallback(() => {
