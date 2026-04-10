@@ -2041,6 +2041,74 @@ export function Canvas({
           const labelX = x + compWidth + 2; // Extend slightly beyond right edge
           const labelY = y + fontSize * 0.8; // Position near top edge
           
+          const isEditingLabel = editingLabelTileId === tile.id;
+          
+          if (isEditingLabel) {
+            return (
+              <g key={`label-${tile.id}`}>
+                <foreignObject
+                  x={labelX - fontSize * 3}
+                  y={y - 2}
+                  width={Math.max(80, fontSize * 6)}
+                  height={fontSize + 12}
+                  data-export-ignore="true"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                >
+                  <div style={{ width: '100%', height: '100%' }}>
+                    <input
+                      ref={(el) => {
+                        if (el) {
+                          requestAnimationFrame(() => {
+                            el.focus();
+                            el.select();
+                          });
+                        }
+                      }}
+                      defaultValue={labelData.label}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = (e.target as HTMLInputElement).value.trim();
+                          if (val && onTileLabelChange) {
+                            onTileLabelChange(tile.id, val);
+                          }
+                          setEditingLabelTileId(null);
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingLabelTileId(null);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (val && val !== labelData.label && onTileLabelChange) {
+                          onTileLabelChange(tile.id, val);
+                        }
+                        setEditingLabelTileId(null);
+                      }}
+                      style={{
+                        fontSize: `${fontSize}px`,
+                        border: '2px solid hsl(221.2, 83.2%, 53.3%)',
+                        outline: 'none',
+                        padding: '1px 4px',
+                        backgroundColor: 'white',
+                        color: labelData.color,
+                        width: '100%',
+                        fontFamily: 'sans-serif',
+                        fontWeight: 'bold',
+                        borderRadius: '3px',
+                        boxSizing: 'border-box' as const,
+                        textAlign: 'right' as const,
+                      }}
+                    />
+                  </div>
+                </foreignObject>
+              </g>
+            );
+          }
+          
           return (
             <g key={`label-${tile.id}`}>
               {/* Label text only - no background/border */}
@@ -2052,6 +2120,13 @@ export function Canvas({
                 fontWeight="bold"
                 fill={labelData.color}
                 textAnchor="end"
+                style={{ cursor: activeTool === 'select' ? 'pointer' : 'default' }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (activeTool === 'select') {
+                    setEditingLabelTileId(tile.id);
+                  }
+                }}
               >
                 {labelData.label}
               </text>
