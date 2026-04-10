@@ -2949,6 +2949,40 @@ export function SchematicEditor() {
         settings={appSettings}
         onSettingsChange={setAppSettings}
       />
+
+      {/* Sheet Selection Dialog for Template Insertion */}
+      <Dialog open={isSheetSelectOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsSheetSelectOpen(false);
+          setPendingTemplatePlan(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[320px]">
+          <DialogHeader>
+            <DialogTitle>Blatt auswählen</DialogTitle>
+            <DialogDescription>
+              Auf welchem Blatt soll die Vorlage eingefügt werden?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            {Array.from({ length: sheetCount }).map((_, idx) => (
+              <Button
+                key={idx}
+                variant="outline"
+                onClick={() => {
+                  if (pendingTemplatePlan) {
+                    insertPlanAsTemplate(pendingTemplatePlan, idx);
+                  }
+                  setIsSheetSelectOpen(false);
+                  setPendingTemplatePlan(null);
+                }}
+              >
+                Blatt {idx + 1}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
