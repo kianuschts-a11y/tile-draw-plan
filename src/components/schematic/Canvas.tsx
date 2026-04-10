@@ -335,9 +335,31 @@ export function Canvas({
 
   const tileSize = canvasState.gridSize;
   
-  // Calculate grid dimensions
+  // Calculate grid dimensions per sheet
   const gridCols = Math.floor(paperWidth / tileSize);
   const gridRows = Math.floor(paperHeight / tileSize);
+  
+  // Calculate gap in grid cells (round up to nearest cell)
+  const gapPx = SHEET_GAP;
+  const gapCols = Math.ceil(gapPx / tileSize);
+  
+  // Total width across all sheets (in grid cells)
+  const totalGridCols = sheetCount * gridCols + (sheetCount - 1) * gapCols;
+  
+  // Helper: get sheet index for a gridX position, or -1 if in gap
+  const getSheetForGridX = useCallback((gridX: number): number => {
+    const sheetWidthWithGap = gridCols + gapCols;
+    const sheetIndex = Math.floor(gridX / sheetWidthWithGap);
+    const posInSheet = gridX - sheetIndex * sheetWidthWithGap;
+    if (posInSheet >= gridCols) return -1; // In the gap
+    if (sheetIndex >= sheetCount) return -1;
+    return sheetIndex;
+  }, [gridCols, gapCols, sheetCount]);
+  
+  // Helper: get the pixel X offset for a given sheet index
+  const getSheetOffsetPx = useCallback((sheetIndex: number): number => {
+    return sheetIndex * (gridCols * tileSize + gapPx);
+  }, [gridCols, tileSize, gapPx]);
 
   // Get raw canvas position (not snapped to grid)
   const getCanvasPosition = useCallback((e: React.MouseEvent | React.DragEvent): { x: number; y: number } => {
@@ -361,10 +383,10 @@ export function Canvas({
     const gridX = Math.floor(x / tileSize);
     const gridY = Math.floor(y / tileSize);
     return { 
-      gridX: Math.max(0, Math.min(gridX, gridCols - 1)), 
+      gridX: Math.max(0, Math.min(gridX, totalGridCols - 1)), 
       gridY: Math.max(0, Math.min(gridY, gridRows - 1)) 
     };
-  }, [getCanvasPosition, tileSize, gridCols, gridRows]);
+  }, [getCanvasPosition, tileSize, totalGridCols, gridRows]);
 
   // Find tile at grid position and return the specific cell within that tile
   const getTileAndCellAtPosition = useCallback((gridX: number, gridY: number): {
