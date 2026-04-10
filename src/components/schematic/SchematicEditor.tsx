@@ -324,8 +324,27 @@ export function SchematicEditor() {
     setCanvasState(prev => ({ ...prev, zoom: Math.max(prev.zoom / 1.25, 0.25) }));
   }, []);
 
+  // Handle sheet count changes - sync titleBlockDataPerSheet
+  const handleSheetCountChange = useCallback((newCount: number) => {
+    setSheetCount(newCount);
+    setTitleBlockDataPerSheet(prev => {
+      const newArr = [...prev];
+      while (newArr.length < newCount) {
+        // Clone from the first sheet as template, with updated blattNr
+        const template = { ...newArr[0], blattNr: String(newArr.length + 1), blattzahl: String(newCount) };
+        newArr.push(template);
+      }
+      // Trim if reduced
+      if (newArr.length > newCount) {
+        newArr.length = newCount;
+      }
+      // Update blattzahl on all sheets
+      return newArr.map((d, i) => ({ ...d, blattNr: String(i + 1), blattzahl: String(newCount) }));
+    });
+  }, []);
+
   const handleResetView = useCallback(() => {
-    // Calculate zoom to fit the entire paper in the viewport
+    // Calculate zoom to fit all sheets in the viewport
     const container = document.querySelector('.schematic-canvas');
     if (!container) {
       setCanvasState(prev => ({ ...prev, zoom: 0.8, panX: 50, panY: 50 }));
@@ -336,15 +355,19 @@ export function SchematicEditor() {
     const paperSize = PAPER_SIZES[canvasState.paperFormat];
     const paperWidthMM = canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width;
     const paperHeightMM = canvasState.orientation === 'landscape' ? paperSize.width : paperSize.height;
-    const paperWidthPx = Math.floor((paperWidthMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    const singleSheetWidthPx = Math.floor((paperWidthMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
     const paperHeightPx = Math.floor((paperHeightMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    
+    // Total width including gaps between sheets
+    const SHEET_GAP = 20;
+    const totalWidthPx = sheetCount * singleSheetWidthPx + (sheetCount - 1) * SHEET_GAP;
     
     const padding = 40; // px padding around paper
     const availableWidth = containerRect.width - padding * 2;
     const availableHeight = containerRect.height - padding * 2;
     
-    const zoom = Math.min(availableWidth / paperWidthPx, availableHeight / paperHeightPx, 1.5);
-    const panX = (containerRect.width - paperWidthPx * zoom) / 2;
+    const zoom = Math.min(availableWidth / totalWidthPx, availableHeight / paperHeightPx, 1.5);
+    const panX = (containerRect.width - totalWidthPx * zoom) / 2;
     const panY = (containerRect.height - paperHeightPx * zoom) / 2;
     
     // Enable smooth transition
