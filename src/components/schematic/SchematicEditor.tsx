@@ -1342,8 +1342,8 @@ export function SchematicEditor() {
 
         // Clone SVG (same as image export)
         const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-        clonedSvg.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
-        clonedSvg.setAttribute('width', String(canvasWidth));
+        clonedSvg.setAttribute('viewBox', `0 0 ${totalCanvasWidth} ${canvasHeight}`);
+        clonedSvg.setAttribute('width', String(totalCanvasWidth));
         clonedSvg.setAttribute('height', String(canvasHeight));
 
         const transformGroup = clonedSvg.querySelector('g[transform]');
