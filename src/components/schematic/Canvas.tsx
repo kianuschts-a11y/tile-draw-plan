@@ -1341,7 +1341,7 @@ export function Canvas({
     setIsSelectionBox(false);
     setIsConnecting(false);
     setConnectionPath([]);
-  }, [isConnecting, connectionPath, activeTool, getTileAndCellAtPosition, connections, connectionColor, onConnectionsChange, isDrawingAnnotationLine, annotationLinePath, annotationColor, annotationLineStyle, onAnnotationLineCreate, isDraggingAnnotation]);
+  }, [isConnecting, connectionPath, activeTool, getTileAndCellAtPosition, connections, connectionColor, onConnectionsChange, isDrawingAnnotationLine, annotationLinePath, annotationColor, annotationLineStyle, onAnnotationLineCreate, isDraggingAnnotation, tiles, onTilesChange]);
 
   const handleTileMouseDown = useCallback((e: React.MouseEvent, tile: PlacedTile) => {
     e.stopPropagation();
