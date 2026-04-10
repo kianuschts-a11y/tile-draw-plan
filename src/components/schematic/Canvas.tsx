@@ -187,6 +187,7 @@ interface CanvasProps {
   titleBlockDataPerSheet?: TitleBlockData[];
   sheetCount?: number;
   tileLabels?: Map<string, { label: string; color: string }>;
+  onTileLabelChange?: (tileId: string, label: string) => void;
   excessTileIds?: Set<string>;
   autoConnectionLines?: AutoConnectionLine[];
   // Annotation props
