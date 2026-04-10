@@ -2500,11 +2500,16 @@ export function SchematicEditor() {
           orientation={canvasState.orientation}
           gridSize={canvasState.gridSize}
           titleBlockData={titleBlockData}
+          sheetCount={sheetCount}
           onPaperFormatChange={handlePaperFormatChange}
           onOrientationChange={handleOrientationChange}
           onGridSizeChange={handleGridSizeChange}
-          onTitleBlockToggle={(enabled) => setTitleBlockData(prev => ({ ...prev, enabled }))}
+          onTitleBlockToggle={(enabled) => {
+            // Toggle on all sheets
+            setTitleBlockDataPerSheet(prev => prev.map(d => ({ ...d, enabled })));
+          }}
           onEditTitleBlock={() => setIsTitleBlockEditorOpen(true)}
+          onSheetCountChange={handleSheetCountChange}
         />
         <div className="flex-1" />
         <HeaderActions
