@@ -2035,27 +2035,37 @@ export function Canvas({
           const x = tile.gridX * tileSize;
           const y = tile.gridY * tileSize;
           const compWidth = (tile.component.width || 1) * tileSize;
+          const compHeight = (tile.component.height || 1) * tileSize;
           
-          // Position label at top-right corner, extending beyond tile boundaries
-          const fontSize = Math.max(10, tileSize * 0.3);
-          const labelX = x + compWidth + 2; // Extend slightly beyond right edge
-          const labelY = y + fontSize * 0.8; // Position near top edge
+          // Font size proportional to component size (not tileSize alone)
+          const compDim = Math.min(compWidth, compHeight);
+          const fontSize = Math.max(8, Math.min(compDim * 0.35, tileSize * 0.5));
+          const labelX = x + compWidth + 2;
+          const labelY = y + fontSize * 0.8;
           
           const isEditingLabel = editingLabelTileId === tile.id;
           
           if (isEditingLabel) {
+            // Check for duplicate labels
+            const checkDuplicate = (val: string): boolean => {
+              for (const [tid, data] of tileLabels.entries()) {
+                if (tid !== tile.id && data.label === val) return true;
+              }
+              return false;
+            };
+            
             return (
               <g key={`label-${tile.id}`}>
                 <foreignObject
-                  x={labelX - fontSize * 3}
+                  x={labelX - fontSize * 5}
                   y={y - 2}
-                  width={Math.max(80, fontSize * 6)}
-                  height={fontSize + 12}
+                  width={Math.max(80, fontSize * 8)}
+                  height={fontSize + 28}
                   data-export-ignore="true"
                   onMouseDown={(e) => e.stopPropagation()}
                   onMouseUp={(e) => e.stopPropagation()}
                 >
-                  <div style={{ width: '100%', height: '100%' }}>
+                  <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                     <input
                       ref={(el) => {
                         if (el) {
@@ -2067,11 +2077,19 @@ export function Canvas({
                       }}
                       defaultValue={labelData.label}
                       onMouseDown={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        const hint = e.target.parentElement?.querySelector('[data-hint]') as HTMLElement;
+                        if (hint) {
+                          hint.style.display = val && checkDuplicate(val) ? 'block' : 'none';
+                        }
+                      }}
                       onKeyDown={(e) => {
                         e.stopPropagation();
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           const val = (e.target as HTMLInputElement).value.trim();
+                          if (val && checkDuplicate(val)) return;
                           if (val && onTileLabelChange) {
                             onTileLabelChange(tile.id, val);
                           }
@@ -2083,6 +2101,10 @@ export function Canvas({
                       }}
                       onBlur={(e) => {
                         const val = e.target.value.trim();
+                        if (val && checkDuplicate(val)) {
+                          setEditingLabelTileId(null);
+                          return;
+                        }
                         if (val && val !== labelData.label && onTileLabelChange) {
                           onTileLabelChange(tile.id, val);
                         }
@@ -2103,6 +2125,9 @@ export function Canvas({
                         textAlign: 'right' as const,
                       }}
                     />
+                    <span data-hint style={{ display: 'none', fontSize: '9px', color: '#dc2626', whiteSpace: 'nowrap', marginTop: '1px' }}>
+                      Beschriftung bereits vergeben
+                    </span>
                   </div>
                 </foreignObject>
               </g>
@@ -2111,7 +2136,6 @@ export function Canvas({
           
           return (
             <g key={`label-${tile.id}`}>
-              {/* Label text only - no background/border */}
               <text
                 x={labelX}
                 y={labelY}
