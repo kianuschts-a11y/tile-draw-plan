@@ -2463,27 +2463,22 @@ export function Canvas({
           />
         )}
 
-        {/* Title Block (Zeichenkopf) */}
-        {titleBlockData?.enabled && (
-          <TitleBlock
-            data={titleBlockData}
-            paperWidth={gridCols * tileSize}
-            paperHeight={gridRows * tileSize}
-            tileSize={tileSize}
-            onDataChange={() => {}}
-          />
-        )}
-
         {/* Paper dimensions label */}
-        <text
-          x={(gridCols * tileSize) / 2}
-          y={gridRows * tileSize + 20}
-          textAnchor="middle"
-          fontSize={12}
-          fill="hsl(var(--muted-foreground))"
-        >
-          {gridCols} × {gridRows} Kacheln ({tileSize}px)
-        </text>
+        {Array.from({ length: sheetCount }).map((_, sheetIdx) => {
+          const sheetOffsetPx = getSheetOffsetPx(sheetIdx);
+          return (
+            <text
+              key={`dim-label-${sheetIdx}`}
+              x={sheetOffsetPx + (gridCols * tileSize) / 2}
+              y={gridRows * tileSize + 20}
+              textAnchor="middle"
+              fontSize={12}
+              fill="hsl(var(--muted-foreground))"
+            >
+              Blatt {sheetIdx + 1}: {gridCols} × {gridRows} Kacheln ({tileSize}px)
+            </text>
+          );
+        })}
       </g>
     </svg>
   );
