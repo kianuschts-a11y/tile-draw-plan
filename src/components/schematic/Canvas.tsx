@@ -170,6 +170,9 @@ export interface AutoConnectionLine {
   toY: number;
 }
 
+// Gap between sheets in pixels
+const SHEET_GAP = 20;
+
 interface CanvasProps {
   tiles: PlacedTile[];
   selectedTileIds: Set<string>;
@@ -181,6 +184,8 @@ interface CanvasProps {
   isGroupMode?: boolean;
   components?: Component[];
   titleBlockData?: TitleBlockData;
+  titleBlockDataPerSheet?: TitleBlockData[];
+  sheetCount?: number;
   tileLabels?: Map<string, { label: string; color: string }>;
   excessTileIds?: Set<string>;
   autoConnectionLines?: AutoConnectionLine[];
@@ -218,6 +223,8 @@ export function Canvas({
   isGroupMode = false,
   components = [],
   titleBlockData,
+  titleBlockDataPerSheet = [],
+  sheetCount = 1,
   tileLabels = new Map(),
   excessTileIds = new Set(),
   autoConnectionLines = [],
@@ -328,9 +335,31 @@ export function Canvas({
 
   const tileSize = canvasState.gridSize;
   
-  // Calculate grid dimensions
+  // Calculate grid dimensions per sheet
   const gridCols = Math.floor(paperWidth / tileSize);
   const gridRows = Math.floor(paperHeight / tileSize);
+  
+  // Calculate gap in grid cells (round up to nearest cell)
+  const gapPx = SHEET_GAP;
+  const gapCols = Math.ceil(gapPx / tileSize);
+  
+  // Total width across all sheets (in grid cells)
+  const totalGridCols = sheetCount * gridCols + (sheetCount - 1) * gapCols;
+  
+  // Helper: get sheet index for a gridX position, or -1 if in gap
+  const getSheetForGridX = useCallback((gridX: number): number => {
+    const sheetWidthWithGap = gridCols + gapCols;
+    const sheetIndex = Math.floor(gridX / sheetWidthWithGap);
+    const posInSheet = gridX - sheetIndex * sheetWidthWithGap;
+    if (posInSheet >= gridCols) return -1; // In the gap
+    if (sheetIndex >= sheetCount) return -1;
+    return sheetIndex;
+  }, [gridCols, gapCols, sheetCount]);
+  
+  // Helper: get the pixel X offset for a given sheet index
+  const getSheetOffsetPx = useCallback((sheetIndex: number): number => {
+    return sheetIndex * (gridCols * tileSize + gapPx);
+  }, [gridCols, tileSize, gapPx]);
 
   // Get raw canvas position (not snapped to grid)
   const getCanvasPosition = useCallback((e: React.MouseEvent | React.DragEvent): { x: number; y: number } => {
@@ -354,10 +383,10 @@ export function Canvas({
     const gridX = Math.floor(x / tileSize);
     const gridY = Math.floor(y / tileSize);
     return { 
-      gridX: Math.max(0, Math.min(gridX, gridCols - 1)), 
+      gridX: Math.max(0, Math.min(gridX, totalGridCols - 1)), 
       gridY: Math.max(0, Math.min(gridY, gridRows - 1)) 
     };
-  }, [getCanvasPosition, tileSize, gridCols, gridRows]);
+  }, [getCanvasPosition, tileSize, totalGridCols, gridRows]);
 
   // Find tile at grid position and return the specific cell within that tile
   const getTileAndCellAtPosition = useCallback((gridX: number, gridY: number): {
@@ -433,14 +462,18 @@ export function Canvas({
     const compWidth = component.width || 1;
     const compHeight = component.height || 1;
     
-    if (gridX + compWidth > gridCols || gridY + compHeight > gridRows) {
-      return false;
-    }
-    
+    // Check all cells of the component
     for (let dx = 0; dx < compWidth; dx++) {
       for (let dy = 0; dy < compHeight; dy++) {
         const checkX = gridX + dx;
         const checkY = gridY + dy;
+        
+        // Check Y bounds
+        if (checkY >= gridRows) return false;
+        
+        // Check that the cell is on a valid sheet (not in a gap)
+        const sheet = getSheetForGridX(checkX);
+        if (sheet === -1) return false;
         
         // Check if position is occupied
         for (const tile of tiles) {
@@ -460,7 +493,7 @@ export function Canvas({
       }
     }
     return true;
-  }, [gridCols, gridRows, tiles]);
+  }, [gridRows, tiles, getSheetForGridX]);
 
   // Check if a connection already exists between two cells
   const connectionExists = useCallback((
@@ -1809,56 +1842,79 @@ export function Canvas({
       </defs>
 
       <g transform={`translate(${canvasState.panX}, ${canvasState.panY}) scale(${canvasState.zoom})`}>
-        {/* Paper shadow */}
-        <rect
-          x={4}
-          y={4}
-          width={gridCols * tileSize}
-          height={gridRows * tileSize}
-          fill="hsl(var(--foreground) / 0.1)"
-          rx={2}
-        />
-        
-        {/* Paper background */}
-        <rect
-          x={0}
-          y={0}
-          width={gridCols * tileSize}
-          height={gridRows * tileSize}
-          fill="white"
-          stroke="hsl(var(--border))"
-          strokeWidth={2}
-          rx={2}
-        />
-        
-        {/* Grid overlay - excluded from export */}
-        <rect
-          x={0}
-          y={0}
-          width={gridCols * tileSize}
-          height={gridRows * tileSize}
-          fill="url(#tile-grid)"
-          data-export-ignore="true"
-        />
-        {/* Right and bottom edge lines to complete the grid - excluded from export */}
-        <line 
-          x1={gridCols * tileSize} 
-          y1={0} 
-          x2={gridCols * tileSize} 
-          y2={gridRows * tileSize} 
-          stroke="hsl(var(--canvas-grid))" 
-          strokeWidth="1"
-          data-export-ignore="true"
-        />
-        <line 
-          x1={0} 
-          y1={gridRows * tileSize} 
-          x2={gridCols * tileSize} 
-          y2={gridRows * tileSize} 
-          stroke="hsl(var(--canvas-grid))" 
-          strokeWidth="1"
-          data-export-ignore="true"
-        />
+        {/* Render each sheet */}
+        {Array.from({ length: sheetCount }).map((_, sheetIdx) => {
+          const sheetOffsetPx = getSheetOffsetPx(sheetIdx);
+          return (
+            <g key={`sheet-${sheetIdx}`} transform={`translate(${sheetOffsetPx}, 0)`}>
+              {/* Paper shadow */}
+              <rect
+                x={4}
+                y={4}
+                width={gridCols * tileSize}
+                height={gridRows * tileSize}
+                fill="hsl(var(--foreground) / 0.1)"
+                rx={2}
+              />
+              
+              {/* Paper background */}
+              <rect
+                x={0}
+                y={0}
+                width={gridCols * tileSize}
+                height={gridRows * tileSize}
+                fill="white"
+                stroke="hsl(var(--border))"
+                strokeWidth={2}
+                rx={2}
+              />
+              
+              {/* Grid overlay - excluded from export */}
+              <rect
+                x={0}
+                y={0}
+                width={gridCols * tileSize}
+                height={gridRows * tileSize}
+                fill="url(#tile-grid)"
+                data-export-ignore="true"
+              />
+              {/* Right and bottom edge lines to complete the grid - excluded from export */}
+              <line 
+                x1={gridCols * tileSize} 
+                y1={0} 
+                x2={gridCols * tileSize} 
+                y2={gridRows * tileSize} 
+                stroke="hsl(var(--canvas-grid))" 
+                strokeWidth="1"
+                data-export-ignore="true"
+              />
+              <line 
+                x1={0} 
+                y1={gridRows * tileSize} 
+                x2={gridCols * tileSize} 
+                y2={gridRows * tileSize} 
+                stroke="hsl(var(--canvas-grid))" 
+                strokeWidth="1"
+                data-export-ignore="true"
+              />
+              
+              {/* Title Block per sheet */}
+              {titleBlockDataPerSheet[sheetIdx]?.enabled && (
+                <TitleBlock
+                  data={{
+                    ...titleBlockDataPerSheet[sheetIdx],
+                    blattNr: String(sheetIdx + 1),
+                    blattzahl: String(sheetCount),
+                  }}
+                  paperWidth={gridCols * tileSize}
+                  paperHeight={gridRows * tileSize}
+                  tileSize={tileSize}
+                  onDataChange={() => {}}
+                />
+              )}
+            </g>
+          );
+        })}
 
         {/* Drop preview indicator */}
         {dropPreview && (
@@ -2407,27 +2463,22 @@ export function Canvas({
           />
         )}
 
-        {/* Title Block (Zeichenkopf) */}
-        {titleBlockData?.enabled && (
-          <TitleBlock
-            data={titleBlockData}
-            paperWidth={gridCols * tileSize}
-            paperHeight={gridRows * tileSize}
-            tileSize={tileSize}
-            onDataChange={() => {}}
-          />
-        )}
-
         {/* Paper dimensions label */}
-        <text
-          x={(gridCols * tileSize) / 2}
-          y={gridRows * tileSize + 20}
-          textAnchor="middle"
-          fontSize={12}
-          fill="hsl(var(--muted-foreground))"
-        >
-          {gridCols} × {gridRows} Kacheln ({tileSize}px)
-        </text>
+        {Array.from({ length: sheetCount }).map((_, sheetIdx) => {
+          const sheetOffsetPx = getSheetOffsetPx(sheetIdx);
+          return (
+            <text
+              key={`dim-label-${sheetIdx}`}
+              x={sheetOffsetPx + (gridCols * tileSize) / 2}
+              y={gridRows * tileSize + 20}
+              textAnchor="middle"
+              fontSize={12}
+              fill="hsl(var(--muted-foreground))"
+            >
+              Blatt {sheetIdx + 1}: {gridCols} × {gridRows} Kacheln ({tileSize}px)
+            </text>
+          );
+        })}
       </g>
     </svg>
   );

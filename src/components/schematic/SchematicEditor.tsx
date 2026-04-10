@@ -108,7 +108,8 @@ export function SchematicEditor() {
   const [projectMarken, setProjectMarken] = useState<Map<string, string>>(new Map());
   const [projectModelle, setProjectModelle] = useState<Map<string, string>>(new Map());
   const [projectCustomFields, setProjectCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
-  const [titleBlockData, setTitleBlockData] = useState<TitleBlockData>({
+  const [sheetCount, setSheetCount] = useState(1);
+  const [titleBlockDataPerSheet, setTitleBlockDataPerSheet] = useState<TitleBlockData[]>([{
     enabled: false,
     projekt: '',
     zeichnungsNr: '',
@@ -117,7 +118,16 @@ export function SchematicEditor() {
     aenderungen: '',
     gezeichnet: { name: '', datum: '' },
     geprueft: { name: '', datum: '' },
-  });
+  }]);
+  // Keep legacy single titleBlockData as a reference to the first sheet
+  const titleBlockData = titleBlockDataPerSheet[0];
+  const setTitleBlockData = useCallback((updater: TitleBlockData | ((prev: TitleBlockData) => TitleBlockData)) => {
+    setTitleBlockDataPerSheet(prev => {
+      const newData = [...prev];
+      newData[0] = typeof updater === 'function' ? updater(prev[0]) : updater;
+      return newData;
+    });
+  }, []);
   const [isTitleBlockEditorOpen, setIsTitleBlockEditorOpen] = useState(false);
   const [isBOMOpen, setIsBOMOpen] = useState(false);
   const [isMesskonzeptOpen, setIsMesskonzeptOpen] = useState(false);
@@ -314,8 +324,27 @@ export function SchematicEditor() {
     setCanvasState(prev => ({ ...prev, zoom: Math.max(prev.zoom / 1.25, 0.25) }));
   }, []);
 
+  // Handle sheet count changes - sync titleBlockDataPerSheet
+  const handleSheetCountChange = useCallback((newCount: number) => {
+    setSheetCount(newCount);
+    setTitleBlockDataPerSheet(prev => {
+      const newArr = [...prev];
+      while (newArr.length < newCount) {
+        // Clone from the first sheet as template, with updated blattNr
+        const template = { ...newArr[0], blattNr: String(newArr.length + 1), blattzahl: String(newCount) };
+        newArr.push(template);
+      }
+      // Trim if reduced
+      if (newArr.length > newCount) {
+        newArr.length = newCount;
+      }
+      // Update blattzahl on all sheets
+      return newArr.map((d, i) => ({ ...d, blattNr: String(i + 1), blattzahl: String(newCount) }));
+    });
+  }, []);
+
   const handleResetView = useCallback(() => {
-    // Calculate zoom to fit the entire paper in the viewport
+    // Calculate zoom to fit all sheets in the viewport
     const container = document.querySelector('.schematic-canvas');
     if (!container) {
       setCanvasState(prev => ({ ...prev, zoom: 0.8, panX: 50, panY: 50 }));
@@ -326,15 +355,19 @@ export function SchematicEditor() {
     const paperSize = PAPER_SIZES[canvasState.paperFormat];
     const paperWidthMM = canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width;
     const paperHeightMM = canvasState.orientation === 'landscape' ? paperSize.width : paperSize.height;
-    const paperWidthPx = Math.floor((paperWidthMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    const singleSheetWidthPx = Math.floor((paperWidthMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
     const paperHeightPx = Math.floor((paperHeightMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    
+    // Total width including gaps between sheets
+    const SHEET_GAP = 20;
+    const totalWidthPx = sheetCount * singleSheetWidthPx + (sheetCount - 1) * SHEET_GAP;
     
     const padding = 40; // px padding around paper
     const availableWidth = containerRect.width - padding * 2;
     const availableHeight = containerRect.height - padding * 2;
     
-    const zoom = Math.min(availableWidth / paperWidthPx, availableHeight / paperHeightPx, 1.5);
-    const panX = (containerRect.width - paperWidthPx * zoom) / 2;
+    const zoom = Math.min(availableWidth / totalWidthPx, availableHeight / paperHeightPx, 1.5);
+    const panX = (containerRect.width - totalWidthPx * zoom) / 2;
     const panY = (containerRect.height - paperHeightPx * zoom) / 2;
     
     // Enable smooth transition
@@ -345,7 +378,7 @@ export function SchematicEditor() {
     }
     
     setCanvasState(prev => ({ ...prev, zoom, panX, panY }));
-  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
+  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize, sheetCount]);
 
   const handleDelete = useCallback(() => {
     // Delete selected annotation (line or text)
@@ -466,7 +499,9 @@ export function SchematicEditor() {
     const tileSize = canvasState.gridSize;
     const gridCols = Math.floor(paperWidthPx / tileSize);
     const gridRows = Math.floor(paperHeightPx / tileSize);
-    const canvasWidth = gridCols * tileSize;
+    const singleSheetWidth = gridCols * tileSize;
+    const SHEET_GAP = 20;
+    const canvasWidth = sheetCount * singleSheetWidth + (sheetCount - 1) * SHEET_GAP;
     const canvasHeight = gridRows * tileSize;
 
     // Clone the SVG to avoid modifying the original
@@ -577,7 +612,7 @@ export function SchematicEditor() {
       URL.revokeObjectURL(url);
     };
     img.src = url;
-  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
+  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize, sheetCount]);
 
   const handlePaperFormatChange = useCallback((format: PaperFormat) => {
     setCanvasState(prev => ({ ...prev, paperFormat: format }));
@@ -804,8 +839,19 @@ export function SchematicEditor() {
     return false;
   }, [tiles, components]);
 
+  // Helper: determine which sheet a tile belongs to
+  const getSheetForTile = useCallback((tile: PlacedTile) => {
+    const paperSize = PAPER_SIZES[canvasState.paperFormat];
+    const paperWidthMM = canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width;
+    const singleSheetWidthPx = Math.floor((paperWidthMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    const gridCols = Math.floor(singleSheetWidthPx / canvasState.gridSize);
+    const gapCols = Math.ceil(20 / canvasState.gridSize);
+    const sheetWidthWithGap = gridCols + gapCols;
+    return Math.floor(tile.gridX / sheetWidthWithGap);
+  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
+
   // Auto-Verbindungslinien: Berechne gestrichelte Linien von Komponenten mit autoConnectionsEnabled
-  // zu allen Komponenten mit labelingEnabled
+  // zu allen Komponenten mit labelingEnabled (NUR innerhalb desselben Blattes)
   const autoConnectionLines = useMemo(() => {
     const lines: { fromTileId: string; toTileId: string; fromX: number; fromY: number; midX: number; midY: number; toX: number; toY: number }[] = [];
     
@@ -863,7 +909,9 @@ export function SchematicEditor() {
     };
     
     // Für jede Auto-Connect-Komponente, erstelle orthogonale Linien zu allen beschrifteten Komponenten
+    // NUR innerhalb desselben Blattes
     for (const autoTile of autoConnectTiles) {
+      const autoSheet = getSheetForTile(autoTile);
       const autoWidth = autoTile.component.width || 1;
       const autoHeight = autoTile.component.height || 1;
       const autoShapes = (autoTile.component.shapes || []) as Shape[];
@@ -875,8 +923,8 @@ export function SchematicEditor() {
       const autoCenterX = autoTile.gridX + (autoBounds.minX + autoBounds.maxX) / 2;
       const autoCenterY = autoTile.gridY + (autoBounds.minY + autoBounds.maxY) / 2;
       
-      // Filtere Zielkomponenten (nicht sich selbst)
-      const targets = labeledTiles.filter(lt => lt.id !== autoTile.id);
+      // Filtere Zielkomponenten: nicht sich selbst UND auf dem gleichen Blatt
+      const targets = labeledTiles.filter(lt => lt.id !== autoTile.id && getSheetForTile(lt) === autoSheet);
       const connectionCount = targets.length;
       
       if (connectionCount === 0) continue;
@@ -1041,7 +1089,7 @@ export function SchematicEditor() {
     }
     
     return lines;
-  }, [tiles, components]);
+  }, [tiles, components, getSheetForTile]);
 
   // Annotation handlers
   const handleAnnotationLineCreate = useCallback((lineData: Omit<AnnotationLine, 'id'>) => {
@@ -1287,13 +1335,15 @@ export function SchematicEditor() {
         const tileSize = canvasState.gridSize;
         const gridCols = Math.floor(paperWidthPx / tileSize);
         const gridRows = Math.floor(paperHeightPx / tileSize);
-        const canvasWidth = gridCols * tileSize;
+        const singleSheetWidth = gridCols * tileSize;
+        const SHEET_GAP_PDF = 20;
+        const totalCanvasWidth = sheetCount * singleSheetWidth + (sheetCount - 1) * SHEET_GAP_PDF;
         const canvasHeight = gridRows * tileSize;
 
         // Clone SVG (same as image export)
         const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-        clonedSvg.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
-        clonedSvg.setAttribute('width', String(canvasWidth));
+        clonedSvg.setAttribute('viewBox', `0 0 ${totalCanvasWidth} ${canvasHeight}`);
+        clonedSvg.setAttribute('width', String(totalCanvasWidth));
         clonedSvg.setAttribute('height', String(canvasHeight));
 
         const transformGroup = clonedSvg.querySelector('g[transform]');
@@ -1346,12 +1396,12 @@ export function SchematicEditor() {
           if (content.includes('Kacheln') || content.includes('×')) text.remove();
         });
 
-        // Render SVG to canvas
-        const canvas = document.createElement('canvas');
+        // Render full SVG to canvas (all sheets)
+        const fullCanvas = document.createElement('canvas');
         const scale = 2;
-        canvas.width = canvasWidth * scale;
-        canvas.height = canvasHeight * scale;
-        const ctx = canvas.getContext('2d');
+        fullCanvas.width = totalCanvasWidth * scale;
+        fullCanvas.height = canvasHeight * scale;
+        const ctx = fullCanvas.getContext('2d');
         if (!ctx) return;
 
         const svgData = new XMLSerializer().serializeToString(clonedSvg);
@@ -1361,8 +1411,8 @@ export function SchematicEditor() {
         const img = new window.Image();
         img.onload = () => {
           ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.fillRect(0, 0, fullCanvas.width, fullCanvas.height);
+          ctx.drawImage(img, 0, 0, fullCanvas.width, fullCanvas.height);
           URL.revokeObjectURL(url);
 
           // Create PDF
@@ -1376,9 +1426,25 @@ export function SchematicEditor() {
           const pdfWidth = doc.internal.pageSize.getWidth();
           const pdfHeight = doc.internal.pageSize.getHeight();
 
-          // Add drawing image to page 1
-          const imgData = canvas.toDataURL('image/png');
-          doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+          // Add one PDF page per sheet
+          for (let sheetIdx = 0; sheetIdx < sheetCount; sheetIdx++) {
+            if (sheetIdx > 0) doc.addPage();
+            
+            // Extract the sheet region from the full canvas
+            const sheetCanvas = document.createElement('canvas');
+            sheetCanvas.width = singleSheetWidth * scale;
+            sheetCanvas.height = canvasHeight * scale;
+            const sheetCtx = sheetCanvas.getContext('2d');
+            if (!sheetCtx) continue;
+            
+            sheetCtx.fillStyle = 'white';
+            sheetCtx.fillRect(0, 0, sheetCanvas.width, sheetCanvas.height);
+            const srcX = sheetIdx * (singleSheetWidth + SHEET_GAP_PDF) * scale;
+            sheetCtx.drawImage(fullCanvas, srcX, 0, singleSheetWidth * scale, canvasHeight * scale, 0, 0, singleSheetWidth * scale, canvasHeight * scale);
+            
+            const imgData = sheetCanvas.toDataURL('image/png');
+            doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+          }
 
           // Collect BOM data and build position map
           const nonConnectionTiles = tiles.filter(t => !isConnectionBlock(t.component));
@@ -1609,21 +1675,25 @@ export function SchematicEditor() {
             }
           }
 
-          // Go back to page 1 - collect annotation data for pdf-lib post-processing
-          doc.setPage(1);
-
+          // Collect annotation data for pdf-lib post-processing (per sheet page)
           const componentBomMap = new Map(bomItems.map(item => [item.componentId, item]));
           const pdfPageHeight = doc.internal.pageSize.getHeight();
 
-          // Collect annotation data for post-processing with pdf-lib
-          const annotationData: { x: number; y: number; w: number; h: number; title: string; contents: string }[] = [];
+          const annotationData: { page: number; x: number; y: number; w: number; h: number; title: string; contents: string }[] = [];
+          
+          const gapColsPdf = Math.ceil(SHEET_GAP_PDF / tileSize);
+          const sheetWidthWithGapPdf = gridCols + gapColsPdf;
 
           for (const tile of nonConnectionTiles) {
             const bomItem = componentBomMap.get(tile.component.id);
             if (!bomItem) continue;
 
-            // Convert grid position to PDF coordinates (mm)
-            const tileX = (tile.gridX / gridCols) * pdfWidth;
+            // Determine which sheet this tile belongs to
+            const tileSheetIdx = Math.floor(tile.gridX / sheetWidthWithGapPdf);
+            const localGridX = tile.gridX - tileSheetIdx * sheetWidthWithGapPdf;
+            
+            // Convert grid position to PDF coordinates (mm) relative to the sheet
+            const tileX = (localGridX / gridCols) * pdfWidth;
             const tileY = (tile.gridY / gridRows) * pdfHeight;
             const tileW = ((tile.component.width || 1) / gridCols) * pdfWidth;
             const tileH = ((tile.component.height || 1) / gridRows) * pdfHeight;
@@ -1643,7 +1713,8 @@ export function SchematicEditor() {
             const pdfY2 = pdfPageHeight - tileY; // top
 
             annotationData.push({
-              x: tileX * 2.835, // mm to points (1mm = 2.835pt)
+              page: tileSheetIdx,
+              x: tileX * 2.835,
               y: pdfY1 * 2.835,
               w: (tileX + tileW) * 2.835,
               h: pdfY2 * 2.835,
@@ -1657,9 +1728,11 @@ export function SchematicEditor() {
           
           // Post-process with pdf-lib to add truly invisible annotations
           PDFDocument.load(jspdfOutput).then(async (pdfDoc) => {
-            const page = pdfDoc.getPages()[0]; // Page 1
+            const pages = pdfDoc.getPages();
             
             for (const annot of annotationData) {
+              const page = pages[annot.page] || pages[0];
+              
               // Create an empty appearance stream (XObject Form) - this hides the icon
               const emptyStream = pdfDoc.context.stream(new Uint8Array(0), {
                 Type: 'XObject',
@@ -1717,7 +1790,7 @@ export function SchematicEditor() {
         img.src = url;
       });
     });
-  }, [canvasState, tiles, tileLabels, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise]);
+  }, [canvasState, tiles, tileLabels, titleBlockData, projectKategorien, projectMarken, projectModelle, projectPreise, sheetCount]);
 
   // Handle export button click - always show dialog
   const handleExportClick = useCallback(() => {
@@ -2427,11 +2500,16 @@ export function SchematicEditor() {
           orientation={canvasState.orientation}
           gridSize={canvasState.gridSize}
           titleBlockData={titleBlockData}
+          sheetCount={sheetCount}
           onPaperFormatChange={handlePaperFormatChange}
           onOrientationChange={handleOrientationChange}
           onGridSizeChange={handleGridSizeChange}
-          onTitleBlockToggle={(enabled) => setTitleBlockData(prev => ({ ...prev, enabled }))}
+          onTitleBlockToggle={(enabled) => {
+            // Toggle on all sheets
+            setTitleBlockDataPerSheet(prev => prev.map(d => ({ ...d, enabled })));
+          }}
           onEditTitleBlock={() => setIsTitleBlockEditorOpen(true)}
+          onSheetCountChange={handleSheetCountChange}
         />
         <div className="flex-1" />
         <HeaderActions
@@ -2512,6 +2590,8 @@ export function SchematicEditor() {
             isGroupMode={isGroupMode}
             components={components}
             titleBlockData={titleBlockData}
+            titleBlockDataPerSheet={titleBlockDataPerSheet}
+            sheetCount={sheetCount}
             tileLabels={tileLabels}
             excessTileIds={excessTileIds}
             autoConnectionLines={autoConnectionLines}
@@ -2714,8 +2794,20 @@ export function SchematicEditor() {
       <TitleBlockEditor
         open={isTitleBlockEditorOpen}
         data={titleBlockData}
+        sheetCount={sheetCount}
+        allSheetData={titleBlockDataPerSheet}
         onClose={() => setIsTitleBlockEditorOpen(false)}
-        onSave={setTitleBlockData}
+        onSave={(data, sheetIndex) => {
+          if (sheetIndex !== undefined) {
+            setTitleBlockDataPerSheet(prev => {
+              const newArr = [...prev];
+              newArr[sheetIndex] = data;
+              return newArr;
+            });
+          } else {
+            setTitleBlockData(data);
+          }
+        }}
       />
 
       <BillOfMaterials
