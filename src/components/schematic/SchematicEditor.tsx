@@ -2621,6 +2621,16 @@ export function SchematicEditor() {
             titleBlockDataPerSheet={titleBlockDataPerSheet}
             sheetCount={sheetCount}
             tileLabels={tileLabels}
+            onTileLabelChange={(tileId, label) => {
+              setTileLabels(prev => {
+                const next = new Map(prev);
+                const existing = next.get(tileId);
+                if (existing) {
+                  next.set(tileId, { ...existing, label });
+                }
+                return next;
+              });
+            }}
             excessTileIds={excessTileIds}
             autoConnectionLines={autoConnectionLines}
             annotationLines={annotationLines}
