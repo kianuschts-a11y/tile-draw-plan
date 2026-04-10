@@ -1166,9 +1166,42 @@ export function Canvas({
           onConnectionsChange([...currentConnections, ...newConnectionsToAdd]);
         }
       } else if (activeTool === 'disconnect') {
-        // Collect all connections to remove at once
-        let currentConnections = [...connections];
+        // === Direction-aware disconnect: remove entire lines + downgrade blocks ===
         
+        // Step 1: Determine which directions to remove per grid cell on the path
+        // Map: "gridX,gridY" -> Set of directions to remove ('left'|'right'|'top'|'bottom')
+        const cellDirectionsToRemove = new Map<string, Set<string>>();
+        
+        for (let i = 0; i < connectionPath.length - 1; i++) {
+          const cell1 = connectionPath[i];
+          const cell2 = connectionPath[i + 1];
+          const dx = cell2.gridX - cell1.gridX;
+          const dy = cell2.gridY - cell1.gridY;
+          
+          const key1 = `${cell1.gridX},${cell1.gridY}`;
+          const key2 = `${cell2.gridX},${cell2.gridY}`;
+          
+          if (!cellDirectionsToRemove.has(key1)) cellDirectionsToRemove.set(key1, new Set());
+          if (!cellDirectionsToRemove.has(key2)) cellDirectionsToRemove.set(key2, new Set());
+          
+          if (dx > 0) {
+            cellDirectionsToRemove.get(key1)!.add('right');
+            cellDirectionsToRemove.get(key2)!.add('left');
+          } else if (dx < 0) {
+            cellDirectionsToRemove.get(key1)!.add('left');
+            cellDirectionsToRemove.get(key2)!.add('right');
+          }
+          if (dy > 0) {
+            cellDirectionsToRemove.get(key1)!.add('bottom');
+            cellDirectionsToRemove.get(key2)!.add('top');
+          } else if (dy < 0) {
+            cellDirectionsToRemove.get(key1)!.add('top');
+            cellDirectionsToRemove.get(key2)!.add('bottom');
+          }
+        }
+        
+        // Step 2: Remove connections between adjacent tiles on the path
+        let currentConnections = [...connections];
         for (let i = 0; i < connectionPath.length - 1; i++) {
           const cell1 = connectionPath[i];
           const cell2 = connectionPath[i + 1];
@@ -1190,8 +1223,8 @@ export function Canvas({
             );
             
             if (adjacency) {
-              // Remove connection at this cell
               currentConnections = currentConnections.filter(c => {
+                // Remove connections matching from side
                 if (c.fromTileId === tile1Info.tile.id && c.fromCellX === tile1Info.cellX && 
                     c.fromCellY === tile1Info.cellY && c.fromSide === adjacency.fromSide) {
                   return false;
@@ -1200,10 +1233,103 @@ export function Canvas({
                     c.toCellY === tile1Info.cellY && c.toSide === adjacency.fromSide) {
                   return false;
                 }
+                // Remove connections matching to side
+                if (c.fromTileId === tile2Info.tile.id && c.fromCellX === tile2Info.cellX && 
+                    c.fromCellY === tile2Info.cellY && c.fromSide === adjacency.toSide) {
+                  return false;
+                }
+                if (c.toTileId === tile2Info.tile.id && c.toCellX === tile2Info.cellX && 
+                    c.toCellY === tile2Info.cellY && c.toSide === adjacency.toSide) {
+                  return false;
+                }
                 return true;
               });
             }
           }
+        }
+        
+        // Step 3: Update/remove connection blocks on the path
+        let updatedTiles = [...tiles];
+        const tilesToRemove = new Set<string>();
+        const tileReplacements = new Map<string, Component>();
+        
+        for (const [key, dirsToRemove] of cellDirectionsToRemove.entries()) {
+          const [gx, gy] = key.split(',').map(Number);
+          
+          // Find connection block tile at this position
+          const tile = updatedTiles.find(t => {
+            const w = t.component.width || 1;
+            const h = t.component.height || 1;
+            return gx >= t.gridX && gx < t.gridX + w &&
+                   gy >= t.gridY && gy < t.gridY + h &&
+                   isConnectionBlock(t.component);
+          });
+          
+          if (!tile || tilesToRemove.has(tile.id)) continue;
+          
+          const existing = getExistingBlockDirections(tile.component);
+          
+          // Remove the specified directions
+          const remaining = {
+            left: existing.left && !dirsToRemove.has('left'),
+            right: existing.right && !dirsToRemove.has('right'),
+            top: existing.top && !dirsToRemove.has('top'),
+            bottom: existing.bottom && !dirsToRemove.has('bottom'),
+          };
+          
+          const remainingCount = [remaining.left, remaining.right, remaining.top, remaining.bottom].filter(Boolean).length;
+          
+          if (remainingCount === 0) {
+            // No directions left → remove block entirely
+            tilesToRemove.add(tile.id);
+          } else {
+            // Find the matching block for remaining directions
+            let newBlock: Component | null = null;
+            
+            if (remainingCount === 3) {
+              if (!remaining.top) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-t-top') || null;
+              else if (!remaining.bottom) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-t-bottom') || null;
+              else if (!remaining.left) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-t-left') || null;
+              else if (!remaining.right) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-t-right') || null;
+            } else if (remainingCount === 2) {
+              if (remaining.left && remaining.right) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-horizontal') || null;
+              else if (remaining.top && remaining.bottom) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-vertical') || null;
+              else if (remaining.right && remaining.bottom) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tl') || null;
+              else if (remaining.left && remaining.bottom) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-tr') || null;
+              else if (remaining.right && remaining.top) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-bl') || null;
+              else if (remaining.left && remaining.top) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-br') || null;
+            } else if (remainingCount === 1) {
+              // Single direction left - keep as a stub line
+              if (remaining.left || remaining.right) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-horizontal') || null;
+              else if (remaining.top || remaining.bottom) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-vertical') || null;
+            }
+            
+            if (newBlock && newBlock.id !== tile.component.id) {
+              tileReplacements.set(tile.id, newBlock);
+            }
+          }
+        }
+        
+        // Apply tile removals and replacements
+        if (tilesToRemove.size > 0 || tileReplacements.size > 0) {
+          // Also remove connections referencing removed tiles
+          for (const removedId of tilesToRemove) {
+            currentConnections = currentConnections.filter(c => 
+              c.fromTileId !== removedId && c.toTileId !== removedId
+            );
+          }
+          
+          updatedTiles = updatedTiles
+            .filter(t => !tilesToRemove.has(t.id))
+            .map(t => {
+              const replacement = tileReplacements.get(t.id);
+              if (replacement) {
+                return { ...t, component: replacement };
+              }
+              return t;
+            });
+          
+          onTilesChange(updatedTiles);
         }
         
         onConnectionsChange(currentConnections);
