@@ -378,7 +378,7 @@ export function SchematicEditor() {
     }
     
     setCanvasState(prev => ({ ...prev, zoom, panX, panY }));
-  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
+  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize, sheetCount]);
 
   const handleDelete = useCallback(() => {
     // Delete selected annotation (line or text)
