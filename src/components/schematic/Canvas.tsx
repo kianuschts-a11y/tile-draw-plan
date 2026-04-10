@@ -974,21 +974,24 @@ export function Canvas({
           const compW = tile.component.width || 1;
           const compH = tile.component.height || 1;
           
-          if (newX < 0 || newY < 0 || 
-              newY + compH > gridRows) {
+          if (newX < 0 || newY < 0) {
             canMove = false;
             break;
           }
           
-          // Check all cells are on valid sheets (not in gaps or beyond total width)
-          let allCellsValid = true;
+          // Check that at least one cell of the component is on a valid sheet
+          // (allow overflow beyond grid edges, but prevent placement entirely in gaps)
+          let anyCellOnSheet = false;
+          let anyCellInGap = false;
           for (let cx = 0; cx < compW; cx++) {
-            if (getSheetForGridX(newX + cx) === -1) {
-              allCellsValid = false;
-              break;
+            const sheet = getSheetForGridX(newX + cx);
+            if (sheet >= 0) {
+              anyCellOnSheet = true;
+            } else if (newX + cx < totalGridCols) {
+              anyCellInGap = true;
             }
           }
-          if (!allCellsValid) {
+          if (!anyCellOnSheet || anyCellInGap) {
             canMove = false;
             break;
           }
