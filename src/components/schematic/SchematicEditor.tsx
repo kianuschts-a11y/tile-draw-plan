@@ -1728,9 +1728,11 @@ export function SchematicEditor() {
           
           // Post-process with pdf-lib to add truly invisible annotations
           PDFDocument.load(jspdfOutput).then(async (pdfDoc) => {
-            const page = pdfDoc.getPages()[0]; // Page 1
+            const pages = pdfDoc.getPages();
             
             for (const annot of annotationData) {
+              const page = pages[annot.page] || pages[0];
+              
               // Create an empty appearance stream (XObject Form) - this hides the icon
               const emptyStream = pdfDoc.context.stream(new Uint8Array(0), {
                 Type: 'XObject',
