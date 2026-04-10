@@ -27,6 +27,7 @@ import { useSavedPlans, SavedPlanData, DrawingData, SavedPlanMetadata } from "@/
 import { useGroupCategories } from "@/hooks/useGroupCategories";
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Menu, Package } from "lucide-react";
 import { isConnectionBlock, CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { toast } from "sonner";
