@@ -1335,7 +1335,9 @@ export function SchematicEditor() {
         const tileSize = canvasState.gridSize;
         const gridCols = Math.floor(paperWidthPx / tileSize);
         const gridRows = Math.floor(paperHeightPx / tileSize);
-        const canvasWidth = gridCols * tileSize;
+        const singleSheetWidth = gridCols * tileSize;
+        const SHEET_GAP_PDF = 20;
+        const totalCanvasWidth = sheetCount * singleSheetWidth + (sheetCount - 1) * SHEET_GAP_PDF;
         const canvasHeight = gridRows * tileSize;
 
         // Clone SVG (same as image export)
