@@ -1411,8 +1411,8 @@ export function SchematicEditor() {
         const img = new window.Image();
         img.onload = () => {
           ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.fillRect(0, 0, fullCanvas.width, fullCanvas.height);
+          ctx.drawImage(img, 0, 0, fullCanvas.width, fullCanvas.height);
           URL.revokeObjectURL(url);
 
           // Create PDF
@@ -1426,9 +1426,25 @@ export function SchematicEditor() {
           const pdfWidth = doc.internal.pageSize.getWidth();
           const pdfHeight = doc.internal.pageSize.getHeight();
 
-          // Add drawing image to page 1
-          const imgData = canvas.toDataURL('image/png');
-          doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+          // Add one PDF page per sheet
+          for (let sheetIdx = 0; sheetIdx < sheetCount; sheetIdx++) {
+            if (sheetIdx > 0) doc.addPage();
+            
+            // Extract the sheet region from the full canvas
+            const sheetCanvas = document.createElement('canvas');
+            sheetCanvas.width = singleSheetWidth * scale;
+            sheetCanvas.height = canvasHeight * scale;
+            const sheetCtx = sheetCanvas.getContext('2d');
+            if (!sheetCtx) continue;
+            
+            sheetCtx.fillStyle = 'white';
+            sheetCtx.fillRect(0, 0, sheetCanvas.width, sheetCanvas.height);
+            const srcX = sheetIdx * (singleSheetWidth + SHEET_GAP_PDF) * scale;
+            sheetCtx.drawImage(fullCanvas, srcX, 0, singleSheetWidth * scale, canvasHeight * scale, 0, 0, singleSheetWidth * scale, canvasHeight * scale);
+            
+            const imgData = sheetCanvas.toDataURL('image/png');
+            doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+          }
 
           // Collect BOM data and build position map
           const nonConnectionTiles = tiles.filter(t => !isConnectionBlock(t.component));
