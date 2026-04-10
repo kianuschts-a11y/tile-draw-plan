@@ -1089,7 +1089,7 @@ export function SchematicEditor() {
     }
     
     return lines;
-  }, [tiles, components]);
+  }, [tiles, components, getSheetForTile]);
 
   // Annotation handlers
   const handleAnnotationLineCreate = useCallback((lineData: Omit<AnnotationLine, 'id'>) => {
