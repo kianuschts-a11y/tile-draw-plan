@@ -781,7 +781,7 @@ export function Canvas({
     if (isDrawingAnnotationLine && activeTool === 'annotate-line') {
       const { x, y } = getCanvasPosition(e);
       const { gridX, gridY } = getGridFromCanvas(x, y);
-      const clampedX = Math.max(0, Math.min(gridX, gridCols - 1));
+      const clampedX = Math.max(0, Math.min(gridX, totalGridCols - 1));
       const clampedY = Math.max(0, Math.min(gridY, gridRows - 1));
       
       setAnnotationLinePath(prev => {
@@ -857,7 +857,7 @@ export function Canvas({
       const { gridX, gridY } = getGridFromCanvas(x, y);
       
       // Clamp to grid bounds
-      const clampedX = Math.max(0, Math.min(gridX, gridCols - 1));
+      const clampedX = Math.max(0, Math.min(gridX, totalGridCols - 1));
       const clampedY = Math.max(0, Math.min(gridY, gridRows - 1));
       
       setConnectionPath(prev => {
