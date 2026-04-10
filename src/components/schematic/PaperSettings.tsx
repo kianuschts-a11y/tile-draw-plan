@@ -1,7 +1,7 @@
 import { PaperFormat, Orientation, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { RotateCw, Plus, Minus, Grid3X3, FileText, Edit } from "lucide-react";
+import { RotateCw, Plus, Minus, Grid3X3, FileText, Edit, FileStack } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -11,11 +11,13 @@ interface PaperSettingsProps {
   orientation: Orientation;
   gridSize: number;
   titleBlockData?: TitleBlockData;
+  sheetCount?: number;
   onPaperFormatChange: (format: PaperFormat) => void;
   onOrientationChange: (orientation: Orientation) => void;
   onGridSizeChange: (size: number) => void;
   onTitleBlockToggle?: (enabled: boolean) => void;
   onEditTitleBlock?: () => void;
+  onSheetCountChange?: (count: number) => void;
 }
 
 const MIN_GRID_SIZE = 20;
@@ -27,11 +29,13 @@ export function PaperSettings({
   orientation,
   gridSize,
   titleBlockData,
+  sheetCount = 1,
   onPaperFormatChange,
   onOrientationChange,
   onGridSizeChange,
   onTitleBlockToggle,
-  onEditTitleBlock
+  onEditTitleBlock,
+  onSheetCountChange
 }: PaperSettingsProps) {
   const handleGridIncrease = () => {
     onGridSizeChange(Math.min(gridSize + GRID_STEP, MAX_GRID_SIZE));
@@ -130,6 +134,48 @@ export function PaperSettings({
           <TooltipContent>Größere Kacheln (weniger Felder)</TooltipContent>
         </Tooltip>
       </div>
+
+      {/* Sheet Count Controls */}
+      {onSheetCountChange && (
+        <div className="flex items-center gap-1 ml-2 border-l pl-4">
+          <FileStack className="w-4 h-4 text-muted-foreground mr-1" />
+          <span className="text-xs text-muted-foreground">Blätter:</span>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onSheetCountChange(Math.max(1, sheetCount - 1))}
+                disabled={sheetCount <= 1}
+              >
+                <Minus className="w-3 h-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Letztes Blatt entfernen</TooltipContent>
+          </Tooltip>
+
+          <span className="text-xs font-mono w-8 text-center">
+            {sheetCount}
+          </span>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onSheetCountChange(sheetCount + 1)}
+                disabled={sheetCount >= 10}
+              >
+                <Plus className="w-3 h-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Neues Blatt hinzufügen</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
 
       {/* Title Block Toggle */}
       {onTitleBlockToggle && (
