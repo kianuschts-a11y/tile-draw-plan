@@ -1299,9 +1299,8 @@ export function Canvas({
               else if (remaining.right && remaining.top) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-bl') || null;
               else if (remaining.left && remaining.top) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-corner-br') || null;
             } else if (remainingCount === 1) {
-              // Single direction left - keep as a stub line
-              if (remaining.left || remaining.right) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-horizontal') || null;
-              else if (remaining.top || remaining.bottom) newBlock = CONNECTION_BLOCKS.find(b => b.id === 'connection-vertical') || null;
+              // Single direction left - dead end stub, remove entirely
+              tilesToRemove.add(tile.id);
             }
             
             if (newBlock && newBlock.id !== tile.component.id) {
