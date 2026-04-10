@@ -462,38 +462,42 @@ export function Canvas({
     const compWidth = component.width || 1;
     const compHeight = component.height || 1;
     
-    // Check all cells of the component
+    // At least one cell must be on a valid sheet, no cell may be in a gap
+    let anyCellOnSheet = false;
     for (let dx = 0; dx < compWidth; dx++) {
       for (let dy = 0; dy < compHeight; dy++) {
         const checkX = gridX + dx;
         const checkY = gridY + dy;
         
-        // Check Y bounds
-        if (checkY >= gridRows) return false;
-        
-        // Check that the cell is on a valid sheet (not in a gap)
+        // Cells beyond grid edges are allowed (overflow) but skip collision checks
         const sheet = getSheetForGridX(checkX);
-        if (sheet === -1) return false;
+        if (sheet === -1 && checkX >= 0 && checkX < totalGridCols) {
+          // Cell is in a gap between sheets — not allowed
+          return false;
+        }
         
-        // Check if position is occupied
-        for (const tile of tiles) {
-          if (tile.id === excludeTileId) continue;
+        if (sheet >= 0 && checkY >= 0 && checkY < gridRows) {
+          anyCellOnSheet = true;
           
-          const tileWidth = tile.component.width || 1;
-          const tileHeight = tile.component.height || 1;
-          
-          if (checkX >= tile.gridX && checkX < tile.gridX + tileWidth &&
-              checkY >= tile.gridY && checkY < tile.gridY + tileHeight) {
-            // Allow if it's a connection block (can be replaced)
-            if (!isConnectionBlock(tile.component)) {
-              return false;
+          // Check if position is occupied
+          for (const tile of tiles) {
+            if (tile.id === excludeTileId) continue;
+            
+            const tileWidth = tile.component.width || 1;
+            const tileHeight = tile.component.height || 1;
+            
+            if (checkX >= tile.gridX && checkX < tile.gridX + tileWidth &&
+                checkY >= tile.gridY && checkY < tile.gridY + tileHeight) {
+              if (!isConnectionBlock(tile.component)) {
+                return false;
+              }
             }
           }
         }
       }
     }
-    return true;
-  }, [gridRows, tiles, getSheetForGridX]);
+    return anyCellOnSheet;
+  }, [gridRows, tiles, getSheetForGridX, totalGridCols]);
 
   // Check if a connection already exists between two cells
   const connectionExists = useCallback((
