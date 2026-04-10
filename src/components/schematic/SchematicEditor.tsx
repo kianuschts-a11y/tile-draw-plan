@@ -2794,8 +2794,20 @@ export function SchematicEditor() {
       <TitleBlockEditor
         open={isTitleBlockEditorOpen}
         data={titleBlockData}
+        sheetCount={sheetCount}
+        allSheetData={titleBlockDataPerSheet}
         onClose={() => setIsTitleBlockEditorOpen(false)}
-        onSave={setTitleBlockData}
+        onSave={(data, sheetIndex) => {
+          if (sheetIndex !== undefined) {
+            setTitleBlockDataPerSheet(prev => {
+              const newArr = [...prev];
+              newArr[sheetIndex] = data;
+              return newArr;
+            });
+          } else {
+            setTitleBlockData(data);
+          }
+        }}
       />
 
       <BillOfMaterials
