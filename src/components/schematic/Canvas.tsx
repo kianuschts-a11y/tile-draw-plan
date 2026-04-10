@@ -971,10 +971,24 @@ export function Canvas({
           
           const newX = startPos.x + dx;
           const newY = startPos.y + dy;
+          const compW = tile.component.width || 1;
+          const compH = tile.component.height || 1;
           
           if (newX < 0 || newY < 0 || 
-              newX + (tile.component.width || 1) > gridCols ||
-              newY + (tile.component.height || 1) > gridRows) {
+              newY + compH > gridRows) {
+            canMove = false;
+            break;
+          }
+          
+          // Check all cells are on valid sheets (not in gaps or beyond total width)
+          let allCellsValid = true;
+          for (let cx = 0; cx < compW; cx++) {
+            if (getSheetForGridX(newX + cx) === -1) {
+              allCellsValid = false;
+              break;
+            }
+          }
+          if (!allCellsValid) {
             canMove = false;
             break;
           }
