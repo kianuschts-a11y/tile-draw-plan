@@ -223,6 +223,8 @@ export function Canvas({
   isGroupMode = false,
   components = [],
   titleBlockData,
+  titleBlockDataPerSheet = [],
+  sheetCount = 1,
   tileLabels = new Map(),
   excessTileIds = new Set(),
   autoConnectionLines = [],
