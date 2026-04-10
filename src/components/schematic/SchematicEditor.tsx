@@ -109,6 +109,8 @@ export function SchematicEditor() {
   const [projectModelle, setProjectModelle] = useState<Map<string, string>>(new Map());
   const [projectCustomFields, setProjectCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [sheetCount, setSheetCount] = useState(1);
+  const [pendingTemplatePlan, setPendingTemplatePlan] = useState<SavedPlanData | null>(null);
+  const [isSheetSelectOpen, setIsSheetSelectOpen] = useState(false);
   const [titleBlockDataPerSheet, setTitleBlockDataPerSheet] = useState<TitleBlockData[]>([{
     enabled: false,
     projekt: '',
