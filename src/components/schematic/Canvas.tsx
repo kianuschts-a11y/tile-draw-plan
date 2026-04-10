@@ -170,6 +170,9 @@ export interface AutoConnectionLine {
   toY: number;
 }
 
+// Gap between sheets in pixels
+const SHEET_GAP = 20;
+
 interface CanvasProps {
   tiles: PlacedTile[];
   selectedTileIds: Set<string>;
@@ -181,6 +184,8 @@ interface CanvasProps {
   isGroupMode?: boolean;
   components?: Component[];
   titleBlockData?: TitleBlockData;
+  titleBlockDataPerSheet?: TitleBlockData[];
+  sheetCount?: number;
   tileLabels?: Map<string, { label: string; color: string }>;
   excessTileIds?: Set<string>;
   autoConnectionLines?: AutoConnectionLine[];
