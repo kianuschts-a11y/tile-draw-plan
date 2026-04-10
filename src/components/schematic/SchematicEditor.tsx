@@ -2590,6 +2590,8 @@ export function SchematicEditor() {
             isGroupMode={isGroupMode}
             components={components}
             titleBlockData={titleBlockData}
+            titleBlockDataPerSheet={titleBlockDataPerSheet}
+            sheetCount={sheetCount}
             tileLabels={tileLabels}
             excessTileIds={excessTileIds}
             autoConnectionLines={autoConnectionLines}
