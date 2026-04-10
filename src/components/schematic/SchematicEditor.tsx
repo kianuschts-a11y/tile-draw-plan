@@ -612,7 +612,7 @@ export function SchematicEditor() {
       URL.revokeObjectURL(url);
     };
     img.src = url;
-  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
+  }, [canvasState.paperFormat, canvasState.orientation, canvasState.gridSize, sheetCount]);
 
   const handlePaperFormatChange = useCallback((format: PaperFormat) => {
     setCanvasState(prev => ({ ...prev, paperFormat: format }));
