@@ -1396,12 +1396,12 @@ export function SchematicEditor() {
           if (content.includes('Kacheln') || content.includes('×')) text.remove();
         });
 
-        // Render SVG to canvas
-        const canvas = document.createElement('canvas');
+        // Render full SVG to canvas (all sheets)
+        const fullCanvas = document.createElement('canvas');
         const scale = 2;
-        canvas.width = canvasWidth * scale;
-        canvas.height = canvasHeight * scale;
-        const ctx = canvas.getContext('2d');
+        fullCanvas.width = totalCanvasWidth * scale;
+        fullCanvas.height = canvasHeight * scale;
+        const ctx = fullCanvas.getContext('2d');
         if (!ctx) return;
 
         const svgData = new XMLSerializer().serializeToString(clonedSvg);
