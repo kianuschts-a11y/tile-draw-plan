@@ -1675,21 +1675,25 @@ export function SchematicEditor() {
             }
           }
 
-          // Go back to page 1 - collect annotation data for pdf-lib post-processing
-          doc.setPage(1);
-
+          // Collect annotation data for pdf-lib post-processing (per sheet page)
           const componentBomMap = new Map(bomItems.map(item => [item.componentId, item]));
           const pdfPageHeight = doc.internal.pageSize.getHeight();
 
-          // Collect annotation data for post-processing with pdf-lib
-          const annotationData: { x: number; y: number; w: number; h: number; title: string; contents: string }[] = [];
+          const annotationData: { page: number; x: number; y: number; w: number; h: number; title: string; contents: string }[] = [];
+          
+          const gapColsPdf = Math.ceil(SHEET_GAP_PDF / tileSize);
+          const sheetWidthWithGapPdf = gridCols + gapColsPdf;
 
           for (const tile of nonConnectionTiles) {
             const bomItem = componentBomMap.get(tile.component.id);
             if (!bomItem) continue;
 
-            // Convert grid position to PDF coordinates (mm)
-            const tileX = (tile.gridX / gridCols) * pdfWidth;
+            // Determine which sheet this tile belongs to
+            const tileSheetIdx = Math.floor(tile.gridX / sheetWidthWithGapPdf);
+            const localGridX = tile.gridX - tileSheetIdx * sheetWidthWithGapPdf;
+            
+            // Convert grid position to PDF coordinates (mm) relative to the sheet
+            const tileX = (localGridX / gridCols) * pdfWidth;
             const tileY = (tile.gridY / gridRows) * pdfHeight;
             const tileW = ((tile.component.width || 1) / gridCols) * pdfWidth;
             const tileH = ((tile.component.height || 1) / gridRows) * pdfHeight;
@@ -1709,7 +1713,8 @@ export function SchematicEditor() {
             const pdfY2 = pdfPageHeight - tileY; // top
 
             annotationData.push({
-              x: tileX * 2.835, // mm to points (1mm = 2.835pt)
+              page: tileSheetIdx,
+              x: tileX * 2.835,
               y: pdfY1 * 2.835,
               w: (tileX + tileW) * 2.835,
               h: pdfY2 * 2.835,
