@@ -907,7 +907,9 @@ export function SchematicEditor() {
     };
     
     // Für jede Auto-Connect-Komponente, erstelle orthogonale Linien zu allen beschrifteten Komponenten
+    // NUR innerhalb desselben Blattes
     for (const autoTile of autoConnectTiles) {
+      const autoSheet = getSheetForTile(autoTile);
       const autoWidth = autoTile.component.width || 1;
       const autoHeight = autoTile.component.height || 1;
       const autoShapes = (autoTile.component.shapes || []) as Shape[];
@@ -919,8 +921,8 @@ export function SchematicEditor() {
       const autoCenterX = autoTile.gridX + (autoBounds.minX + autoBounds.maxX) / 2;
       const autoCenterY = autoTile.gridY + (autoBounds.minY + autoBounds.maxY) / 2;
       
-      // Filtere Zielkomponenten (nicht sich selbst)
-      const targets = labeledTiles.filter(lt => lt.id !== autoTile.id);
+      // Filtere Zielkomponenten: nicht sich selbst UND auf dem gleichen Blatt
+      const targets = labeledTiles.filter(lt => lt.id !== autoTile.id && getSheetForTile(lt) === autoSheet);
       const connectionCount = targets.length;
       
       if (connectionCount === 0) continue;
