@@ -462,14 +462,18 @@ export function Canvas({
     const compWidth = component.width || 1;
     const compHeight = component.height || 1;
     
-    if (gridX + compWidth > gridCols || gridY + compHeight > gridRows) {
-      return false;
-    }
-    
+    // Check all cells of the component
     for (let dx = 0; dx < compWidth; dx++) {
       for (let dy = 0; dy < compHeight; dy++) {
         const checkX = gridX + dx;
         const checkY = gridY + dy;
+        
+        // Check Y bounds
+        if (checkY >= gridRows) return false;
+        
+        // Check that the cell is on a valid sheet (not in a gap)
+        const sheet = getSheetForGridX(checkX);
+        if (sheet === -1) return false;
         
         // Check if position is occupied
         for (const tile of tiles) {
@@ -489,7 +493,7 @@ export function Canvas({
       }
     }
     return true;
-  }, [gridCols, gridRows, tiles]);
+  }, [gridRows, tiles, getSheetForGridX]);
 
   // Check if a connection already exists between two cells
   const connectionExists = useCallback((
