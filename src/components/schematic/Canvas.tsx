@@ -294,6 +294,7 @@ export function Canvas({
   const [lastArrowGroupIndex, setLastArrowGroupIndex] = useState(0);
   // Editing annotation text by double-click
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
+  const [editingLabelTileId, setEditingLabelTileId] = useState<string | null>(null);
 
   // Wheel zoom with non-passive listener to prevent page scroll
   useEffect(() => {
