@@ -27,6 +27,7 @@ import { useSavedPlans, SavedPlanData, DrawingData, SavedPlanMetadata } from "@/
 import { useGroupCategories } from "@/hooks/useGroupCategories";
 import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Menu, Package } from "lucide-react";
 import { isConnectionBlock, CONNECTION_BLOCKS } from "@/lib/connectionBlocks";
 import { toast } from "sonner";
@@ -109,6 +110,8 @@ export function SchematicEditor() {
   const [projectModelle, setProjectModelle] = useState<Map<string, string>>(new Map());
   const [projectCustomFields, setProjectCustomFields] = useState<Map<string, Record<string, string | number>>>(new Map());
   const [sheetCount, setSheetCount] = useState(1);
+  const [pendingTemplatePlan, setPendingTemplatePlan] = useState<SavedPlanData | null>(null);
+  const [isSheetSelectOpen, setIsSheetSelectOpen] = useState(false);
   const [titleBlockDataPerSheet, setTitleBlockDataPerSheet] = useState<TitleBlockData[]>([{
     enabled: false,
     projekt: '',
@@ -2074,12 +2077,37 @@ export function SchematicEditor() {
   const handleUsePlanAsTemplate = useCallback((plan: SavedPlanData) => {
     if (!plan.drawingData?.tiles || plan.drawingData.tiles.length === 0) return;
 
+    if (sheetCount > 1) {
+      setPendingTemplatePlan(plan);
+      setIsSheetSelectOpen(true);
+      return;
+    }
+
+    insertPlanAsTemplate(plan, 0);
+  }, [sheetCount]);
+
+  const insertPlanAsTemplate = useCallback((plan: SavedPlanData, targetSheetIndex: number) => {
+    if (!plan.drawingData?.tiles || plan.drawingData.tiles.length === 0) return;
+
+    const paperSize = PAPER_SIZES[canvasState.paperFormat];
+    const paperWidthMM = canvasState.orientation === 'landscape' ? paperSize.height : paperSize.width;
+    const singleSheetWidthPx = Math.floor((paperWidthMM * MM_TO_PX) / canvasState.gridSize) * canvasState.gridSize;
+    const gridCols = Math.floor(singleSheetWidthPx / canvasState.gridSize);
+    const gapCols = Math.ceil(20 / canvasState.gridSize);
+    const sheetOffsetX = targetSheetIndex * (gridCols + gapCols);
+
     const planTiles = plan.drawingData.tiles;
     const planConnections = plan.drawingData.connections || [];
 
     const minX = Math.min(...planTiles.map(t => t.gridX));
     const minY = Math.min(...planTiles.map(t => t.gridY));
-    const maxGridY = tiles.length > 0 ? Math.max(...tiles.map(t => t.gridY + (t.component.height || 1))) + 1 : 0;
+    
+    // Find max Y on the target sheet only
+    const maxGridY = tiles.filter(t => {
+      const tileSheetX = t.gridX - sheetOffsetX;
+      return tileSheetX >= 0 && tileSheetX < gridCols;
+    }).reduce((max, t) => Math.max(max, t.gridY + (t.component.height || 1)), 0);
+    const startY = maxGridY > 0 ? maxGridY + 1 : 0;
 
     const oldToNewIdMap = new Map<string, string>();
     const newTiles: PlacedTile[] = [];
@@ -2090,8 +2118,8 @@ export function SchematicEditor() {
       newTiles.push({
         id: newId,
         component: tile.component,
-        gridX: tile.gridX - minX,
-        gridY: maxGridY + (tile.gridY - minY),
+        gridX: sheetOffsetX + (tile.gridX - minX),
+        gridY: startY + (tile.gridY - minY),
         rotation: tile.rotation
       });
     }
@@ -2108,8 +2136,8 @@ export function SchematicEditor() {
     setTiles(prev => [...prev, ...newTiles]);
     setConnections(prev => [...prev, ...newConnections]);
     setSelectedTileIds(new Set(newTiles.map(t => t.id)));
-    toast.success(`Vorlage "${plan.name}" eingefügt`);
-  }, [tiles]);
+    toast.success(`Vorlage "${plan.name}" auf Blatt ${targetSheetIndex + 1} eingefügt`);
+  }, [tiles, canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
 
   // Handle export image only from dialog
   const handleExportImageOnly = useCallback(() => {
@@ -2921,6 +2949,40 @@ export function SchematicEditor() {
         settings={appSettings}
         onSettingsChange={setAppSettings}
       />
+
+      {/* Sheet Selection Dialog for Template Insertion */}
+      <Dialog open={isSheetSelectOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsSheetSelectOpen(false);
+          setPendingTemplatePlan(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[320px]">
+          <DialogHeader>
+            <DialogTitle>Blatt auswählen</DialogTitle>
+            <DialogDescription>
+              Auf welchem Blatt soll die Vorlage eingefügt werden?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            {Array.from({ length: sheetCount }).map((_, idx) => (
+              <Button
+                key={idx}
+                variant="outline"
+                onClick={() => {
+                  if (pendingTemplatePlan) {
+                    insertPlanAsTemplate(pendingTemplatePlan, idx);
+                  }
+                  setIsSheetSelectOpen(false);
+                  setPendingTemplatePlan(null);
+                }}
+              >
+                Blatt {idx + 1}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
