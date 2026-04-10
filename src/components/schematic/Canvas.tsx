@@ -227,6 +227,7 @@ export function Canvas({
   titleBlockDataPerSheet = [],
   sheetCount = 1,
   tileLabels = new Map(),
+  onTileLabelChange,
   excessTileIds = new Set(),
   autoConnectionLines = [],
   annotationLines = [],
