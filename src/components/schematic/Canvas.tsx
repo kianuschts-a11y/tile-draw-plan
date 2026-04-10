@@ -1842,56 +1842,79 @@ export function Canvas({
       </defs>
 
       <g transform={`translate(${canvasState.panX}, ${canvasState.panY}) scale(${canvasState.zoom})`}>
-        {/* Paper shadow */}
-        <rect
-          x={4}
-          y={4}
-          width={gridCols * tileSize}
-          height={gridRows * tileSize}
-          fill="hsl(var(--foreground) / 0.1)"
-          rx={2}
-        />
-        
-        {/* Paper background */}
-        <rect
-          x={0}
-          y={0}
-          width={gridCols * tileSize}
-          height={gridRows * tileSize}
-          fill="white"
-          stroke="hsl(var(--border))"
-          strokeWidth={2}
-          rx={2}
-        />
-        
-        {/* Grid overlay - excluded from export */}
-        <rect
-          x={0}
-          y={0}
-          width={gridCols * tileSize}
-          height={gridRows * tileSize}
-          fill="url(#tile-grid)"
-          data-export-ignore="true"
-        />
-        {/* Right and bottom edge lines to complete the grid - excluded from export */}
-        <line 
-          x1={gridCols * tileSize} 
-          y1={0} 
-          x2={gridCols * tileSize} 
-          y2={gridRows * tileSize} 
-          stroke="hsl(var(--canvas-grid))" 
-          strokeWidth="1"
-          data-export-ignore="true"
-        />
-        <line 
-          x1={0} 
-          y1={gridRows * tileSize} 
-          x2={gridCols * tileSize} 
-          y2={gridRows * tileSize} 
-          stroke="hsl(var(--canvas-grid))" 
-          strokeWidth="1"
-          data-export-ignore="true"
-        />
+        {/* Render each sheet */}
+        {Array.from({ length: sheetCount }).map((_, sheetIdx) => {
+          const sheetOffsetPx = getSheetOffsetPx(sheetIdx);
+          return (
+            <g key={`sheet-${sheetIdx}`} transform={`translate(${sheetOffsetPx}, 0)`}>
+              {/* Paper shadow */}
+              <rect
+                x={4}
+                y={4}
+                width={gridCols * tileSize}
+                height={gridRows * tileSize}
+                fill="hsl(var(--foreground) / 0.1)"
+                rx={2}
+              />
+              
+              {/* Paper background */}
+              <rect
+                x={0}
+                y={0}
+                width={gridCols * tileSize}
+                height={gridRows * tileSize}
+                fill="white"
+                stroke="hsl(var(--border))"
+                strokeWidth={2}
+                rx={2}
+              />
+              
+              {/* Grid overlay - excluded from export */}
+              <rect
+                x={0}
+                y={0}
+                width={gridCols * tileSize}
+                height={gridRows * tileSize}
+                fill="url(#tile-grid)"
+                data-export-ignore="true"
+              />
+              {/* Right and bottom edge lines to complete the grid - excluded from export */}
+              <line 
+                x1={gridCols * tileSize} 
+                y1={0} 
+                x2={gridCols * tileSize} 
+                y2={gridRows * tileSize} 
+                stroke="hsl(var(--canvas-grid))" 
+                strokeWidth="1"
+                data-export-ignore="true"
+              />
+              <line 
+                x1={0} 
+                y1={gridRows * tileSize} 
+                x2={gridCols * tileSize} 
+                y2={gridRows * tileSize} 
+                stroke="hsl(var(--canvas-grid))" 
+                strokeWidth="1"
+                data-export-ignore="true"
+              />
+              
+              {/* Title Block per sheet */}
+              {titleBlockDataPerSheet[sheetIdx]?.enabled && (
+                <TitleBlock
+                  data={{
+                    ...titleBlockDataPerSheet[sheetIdx],
+                    blattNr: String(sheetIdx + 1),
+                    blattzahl: String(sheetCount),
+                  }}
+                  paperWidth={gridCols * tileSize}
+                  paperHeight={gridRows * tileSize}
+                  tileSize={tileSize}
+                  onDataChange={() => {}}
+                />
+              )}
+            </g>
+          );
+        })}
 
         {/* Drop preview indicator */}
         {dropPreview && (
