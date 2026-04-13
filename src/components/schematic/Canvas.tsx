@@ -1054,10 +1054,22 @@ export function Canvas({
             }
             return t;
           }));
+          
+          // Also move selected annotation lines by the delta change
+          if (selectedAnnotationLineIds.size > 0) {
+            const moveDx = dx - lastDragDelta.dx;
+            const moveDy = dy - lastDragDelta.dy;
+            if (moveDx !== 0 || moveDy !== 0) {
+              for (const annLineId of selectedAnnotationLineIds) {
+                onAnnotationLineMove?.(annLineId, moveDx, moveDy);
+              }
+            }
+          }
+          setLastDragDelta({ dx, dy });
         }
       }
     }
-  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions, isDrawingAnnotationLine, isDraggingAnnotation, selectedAnnotationId, annotationDragStart, annotationLines, onAnnotationLineMove, onAnnotationTextMove]);
+  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions, isDrawingAnnotationLine, isDraggingAnnotation, selectedAnnotationId, annotationDragStart, annotationLines, onAnnotationLineMove, onAnnotationTextMove, selectedAnnotationLineIds, lastDragDelta, onAnnotationLineSelectionChange]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     // Finish annotation line drawing - create from path
