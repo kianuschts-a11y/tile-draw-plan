@@ -2771,6 +2771,7 @@ export function SchematicEditor() {
             annotationFontSize={annotationFontSize}
             selectedAnnotationId={selectedAnnotationId}
             selectedAnnotationLineIds={selectedAnnotationLineIds}
+            selectedAnnotationTextIds={selectedAnnotationTextIds}
             onAnnotationLineCreate={handleAnnotationLineCreate}
             onAnnotationTextCreate={handleAnnotationTextCreate}
             onAnnotationTextUpdate={handleAnnotationTextUpdate}
@@ -2778,6 +2779,7 @@ export function SchematicEditor() {
             onAnnotationLineMove={handleAnnotationLineMove}
             onAnnotationTextMove={handleAnnotationTextMove}
             onAnnotationLineSelectionChange={setSelectedAnnotationLineIds}
+            onAnnotationTextSelectionChange={setSelectedAnnotationTextIds}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
