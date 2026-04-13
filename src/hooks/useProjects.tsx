@@ -20,22 +20,34 @@ export function useProjects() {
       id: crypto.randomUUID(), name, componentQuantities,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
-    persist([newProject, ...projects]);
+    setProjects(prev => {
+      const updated = [newProject, ...prev];
+      saveToStorage(STORAGE_KEY, updated);
+      return updated;
+    });
     toast.success('Projekt erstellt');
     return newProject;
-  }, [projects, persist]);
+  }, []);
 
   const updateProject = useCallback(async (id: string, name: string, componentQuantities: ComponentQuantity[]): Promise<boolean> => {
-    persist(projects.map(p => p.id === id ? { ...p, name, componentQuantities } : p));
+    setProjects(prev => {
+      const updated = prev.map(p => p.id === id ? { ...p, name, componentQuantities } : p);
+      saveToStorage(STORAGE_KEY, updated);
+      return updated;
+    });
     toast.success('Projekt aktualisiert');
     return true;
-  }, [projects, persist]);
+  }, []);
 
   const deleteProject = useCallback(async (id: string): Promise<boolean> => {
-    persist(projects.filter(p => p.id !== id));
+    setProjects(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      saveToStorage(STORAGE_KEY, updated);
+      return updated;
+    });
     toast.success('Projekt gelöscht');
     return true;
-  }, [projects, persist]);
+  }, []);
 
   const findMatchingGroups = useCallback((
     projectQuantities: ComponentQuantity[],
