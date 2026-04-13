@@ -2008,6 +2008,7 @@ export function SchematicEditor() {
     const metadata: SavedPlanMetadata = {
       paperFormat: canvasState.paperFormat,
       orientation: canvasState.orientation,
+      gridSize: canvasState.gridSize,
       titleBlockData: titleBlockData.enabled ? titleBlockData : undefined,
       projectDescriptions: mapToObj(projectDescriptions),
       projectKategorien: mapToObj(projectKategorien),
