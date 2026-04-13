@@ -2768,12 +2768,14 @@ export function SchematicEditor() {
             annotationColor={annotationColor}
             annotationFontSize={annotationFontSize}
             selectedAnnotationId={selectedAnnotationId}
+            selectedAnnotationLineIds={selectedAnnotationLineIds}
             onAnnotationLineCreate={handleAnnotationLineCreate}
             onAnnotationTextCreate={handleAnnotationTextCreate}
             onAnnotationTextUpdate={handleAnnotationTextUpdate}
             onAnnotationSelect={handleAnnotationSelect}
             onAnnotationLineMove={handleAnnotationLineMove}
             onAnnotationTextMove={handleAnnotationTextMove}
+            onAnnotationLineSelectionChange={setSelectedAnnotationLineIds}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
