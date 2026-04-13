@@ -365,6 +365,32 @@ export function GroupPreview({ group, components, maxSize = 100, showBorder = fa
           />
         );
       })}
+      {/* Render annotation lines */}
+      {group.layoutData.annotationLines?.map((annLine, annIdx) => {
+        const points = annLine.path.map(p => 
+          `${padding + (p.relativeX + 0.5) * scale},${padding + (p.relativeY + 0.5) * scale}`
+        ).join(' ');
+        const unit = scale * 0.1;
+        let dashArray: string | undefined;
+        switch (annLine.lineStyle) {
+          case 'dashed': dashArray = `${unit * 2} ${unit}`; break;
+          case 'dotted': dashArray = `${unit * 0.5} ${unit}`; break;
+          case 'dash-dot': dashArray = `${unit * 2} ${unit} ${unit * 0.5} ${unit}`; break;
+          default: dashArray = undefined;
+        }
+        return (
+          <polyline
+            key={`ann-${annIdx}`}
+            points={points}
+            fill="none"
+            stroke={annLine.color}
+            strokeWidth={Math.max(0.5, annLine.strokeWidth * (scale / 20))}
+            strokeDasharray={dashArray}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        );
+      })}
     </svg>
   );
 }
