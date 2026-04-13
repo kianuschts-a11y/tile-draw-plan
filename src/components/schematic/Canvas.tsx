@@ -273,6 +273,8 @@ export function Canvas({
   const [selectionBoxEnd, setSelectionBoxEnd] = useState({ x: 0, y: 0 });
   // Track selection before box-select started (for Shift+drag additive selection)
   const selectionBeforeBoxRef = useRef<Set<string>>(new Set());
+  const annotationLineSelectionBeforeBoxRef = useRef<Set<string>>(new Set());
+  const annotationTextSelectionBeforeBoxRef = useRef<Set<string>>(new Set());
   
   // Drop preview state
   const [dropPreview, setDropPreview] = useState<{
