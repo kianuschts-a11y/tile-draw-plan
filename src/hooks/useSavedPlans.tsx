@@ -60,12 +60,61 @@ function mapDbToSavedPlan(row: any): SavedPlanData {
   };
 }
 
+const LOCAL_STORAGE_KEYS = [
+  'schematic-editor-saved-plans',
+  'schematic-editor-plans',
+  'savedPlans',
+];
+const MIGRATION_FLAG = 'saved-plans-migrated-to-db';
+
 export function useSavedPlans() {
   const [savedPlans, setSavedPlans] = useState<SavedPlanData[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const migrateLocalStorageToDb = useCallback(async () => {
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+
+    for (const key of LOCAL_STORAGE_KEYS) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const localPlans: SavedPlanData[] = JSON.parse(raw);
+        if (!Array.isArray(localPlans) || localPlans.length === 0) continue;
+
+        for (const plan of localPlans) {
+          const { paperFormat, orientation, titleBlockData, projectDescriptions,
+            projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields,
+            ...rest } = plan;
+          const metadata: SavedPlanMetadata = {
+            paperFormat, orientation, titleBlockData, projectDescriptions,
+            projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields,
+          };
+
+          await supabase.from('saved_plans').upsert({
+            id: plan.id,
+            company_id: DEFAULT_COMPANY_ID,
+            name: plan.name,
+            component_quantities: (plan.componentQuantities || []) as any,
+            drawing_data: (plan.drawingData || { tiles: [], connections: [] }) as any,
+            matched_group_id: plan.matchedGroupId || null,
+            metadata: metadata as any,
+          }, { onConflict: 'id' });
+        }
+
+        console.log(`Migrated ${localPlans.length} plans from localStorage key "${key}"`);
+        toast.success(`${localPlans.length} lokale Projekte in die Datenbank migriert`);
+      } catch (e) {
+        console.error(`Error migrating localStorage key "${key}":`, e);
+      }
+    }
+
+    localStorage.setItem(MIGRATION_FLAG, 'true');
+  }, []);
+
   const fetchPlans = useCallback(async () => {
     try {
+      await migrateLocalStorageToDb();
+
       const { data, error } = await supabase
         .from('saved_plans')
         .select('*')
@@ -78,7 +127,7 @@ export function useSavedPlans() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [migrateLocalStorageToDb]);
 
   useEffect(() => {
     fetchPlans();
