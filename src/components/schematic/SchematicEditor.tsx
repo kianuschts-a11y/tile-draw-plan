@@ -2376,6 +2376,7 @@ export function SchematicEditor() {
     let currentX = startX;
     const allNewTiles: PlacedTile[] = [];
     const allNewConnections: CellConnection[] = [];
+    const allNewAnnotationLines: AnnotationLine[] = [];
     
     // For positioning: 2 groups = left/right, 3+ = grid pattern
     if (groupBounds.length === 2) {
