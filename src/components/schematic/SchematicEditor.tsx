@@ -478,16 +478,9 @@ export function SchematicEditor() {
           e.preventDefault();
           handleRotate();
         }
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && selectedAnnotationType) {
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedAnnotationId || selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0)) {
         e.preventDefault();
-        if (selectedAnnotationType === 'line') {
-          setAnnotationLines(prev => prev.filter(l => l.id !== selectedAnnotationId));
-        } else {
-          setAnnotationTexts(prev => prev.filter(t => t.id !== selectedAnnotationId));
-        }
-        setSelectedAnnotationId(null);
-        setSelectedAnnotationType(null);
-        scheduleSave();
+        handleDelete();
       }
     };
 
