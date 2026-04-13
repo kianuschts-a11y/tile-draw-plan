@@ -744,8 +744,25 @@ export function SchematicEditor() {
       }
     }
     
+    // Create annotation lines from layout data
+    const newAnnotationLines: AnnotationLine[] = [];
+    if (group.layoutData.annotationLines) {
+      for (const annData of group.layoutData.annotationLines) {
+        newAnnotationLines.push({
+          id: generateId(),
+          path: annData.path.map(p => ({ gridX: gridX + p.relativeX, gridY: gridY + p.relativeY })),
+          color: annData.color,
+          strokeWidth: annData.strokeWidth,
+          lineStyle: annData.lineStyle as AnnotationLine['lineStyle'],
+        });
+      }
+    }
+
     setTiles(prev => [...prev, ...newTiles]);
     setConnections(prev => [...prev, ...newConnections]);
+    if (newAnnotationLines.length > 0) {
+      setAnnotationLines(prev => [...prev, ...newAnnotationLines]);
+    }
     setSelectedTileIds(new Set(newTileIds));
   }, [groups, components, savedPlans]);
 
