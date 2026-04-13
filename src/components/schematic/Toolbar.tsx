@@ -369,8 +369,8 @@ export function Toolbar({
           icon={Minus}
           label="Linie"
           shortcut="L"
-          isActive={activeTool === 'annotate-line'}
-          onClick={() => onToolChange('annotate-line')}
+        isActive={activeTool === 'annotate-line'}
+          onClick={() => onToolChange(activeTool === 'annotate-line' ? 'select' : 'annotate-line')}
           disabled={isGroupMode}
         />
         {activeTool === 'annotate-line' && (
@@ -422,8 +422,8 @@ export function Toolbar({
           icon={Type}
           label="Text"
           shortcut="T"
-          isActive={activeTool === 'annotate-text'}
-          onClick={() => onToolChange('annotate-text')}
+        isActive={activeTool === 'annotate-text'}
+          onClick={() => onToolChange(activeTool === 'annotate-text' ? 'select' : 'annotate-text')}
           disabled={isGroupMode}
         />
         {activeTool === 'annotate-text' && (
