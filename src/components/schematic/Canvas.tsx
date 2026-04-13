@@ -2226,7 +2226,7 @@ export function Canvas({
 
         {/* Annotationsebene - Markierungslinien (path-based) */}
         {annotationLines.map(line => {
-          const isSelected = selectedAnnotationId === line.id;
+          const isSelected = selectedAnnotationId === line.id || selectedAnnotationLineIds.has(line.id);
           const unit = tileSize * 0.1;
           let dashArray: string | undefined;
           switch (line.lineStyle) {
