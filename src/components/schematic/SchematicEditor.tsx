@@ -147,6 +147,7 @@ export function SchematicEditor() {
   const [annotationFontSize, setAnnotationFontSize] = useState<number>(14);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [selectedAnnotationType, setSelectedAnnotationType] = useState<'line' | 'text' | null>(null);
+  const [selectedAnnotationLineIds, setSelectedAnnotationLineIds] = useState<Set<string>>(new Set());
 
   // Clear annotation selection when tiles are selected
   useEffect(() => {
