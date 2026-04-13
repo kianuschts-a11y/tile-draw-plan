@@ -198,6 +198,7 @@ interface CanvasProps {
   annotationFontSize?: number;
   selectedAnnotationId?: string | null;
   selectedAnnotationLineIds?: Set<string>;
+  selectedAnnotationTextIds?: Set<string>;
   onAnnotationLineCreate?: (line: Omit<AnnotationLine, 'id'>) => void;
   onAnnotationTextCreate?: (text: Omit<AnnotationText, 'id'>) => void;
   onAnnotationTextUpdate?: (id: string, updates: { text?: string; color?: string; fontSize?: number }) => void;
@@ -205,6 +206,7 @@ interface CanvasProps {
   onAnnotationLineMove?: (id: string, dx: number, dy: number) => void;
   onAnnotationTextMove?: (id: string, dx: number, dy: number) => void;
   onAnnotationLineSelectionChange?: (ids: Set<string>) => void;
+  onAnnotationTextSelectionChange?: (ids: Set<string>) => void;
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
