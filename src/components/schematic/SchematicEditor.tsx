@@ -284,6 +284,7 @@ export function SchematicEditor() {
       setSelectedTileIds(new Set());
       setSelectedAnnotationId(null);
       setSelectedAnnotationType(null);
+      setSelectedAnnotationLineIds(new Set());
       setHistoryVersion(v => v + 1);
       // Flag nach kurzer Zeit zurücksetzen
       setTimeout(() => {
