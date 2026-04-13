@@ -400,7 +400,7 @@ export function SchematicEditor() {
       scheduleSave();
       return;
     }
-    if (selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0) {
+    if (selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0 || selectedAnnotationTextIds.size > 0) {
       if (selectedTileIds.size > 0) {
         setConnections(prev => prev.filter(c => 
           !selectedTileIds.has(c.fromTileId) && !selectedTileIds.has(c.toTileId)
@@ -417,8 +417,12 @@ export function SchematicEditor() {
         setAnnotationLines(prev => prev.filter(l => !selectedAnnotationLineIds.has(l.id)));
         setSelectedAnnotationLineIds(new Set());
       }
+      if (selectedAnnotationTextIds.size > 0) {
+        setAnnotationTexts(prev => prev.filter(t => !selectedAnnotationTextIds.has(t.id)));
+        setSelectedAnnotationTextIds(new Set());
+      }
     }
-  }, [selectedTileIds, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds]);
+  }, [selectedTileIds, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds, selectedAnnotationTextIds]);
 
   // Rotate selected tiles 90 degrees clockwise
   // The component is rotated visually using SVG transform, shapes stay unchanged
