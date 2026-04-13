@@ -38,6 +38,7 @@ export interface SavedPlanData {
   updatedAt?: string;
   paperFormat?: PaperFormat;
   orientation?: Orientation;
+  gridSize?: number;
   titleBlockData?: TitleBlockData;
   projectDescriptions?: Record<string, string[]>;
   projectKategorien?: Record<string, string>;
