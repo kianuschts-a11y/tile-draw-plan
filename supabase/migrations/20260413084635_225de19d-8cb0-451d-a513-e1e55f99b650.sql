@@ -1,0 +1,1 @@
+ALTER TABLE public.saved_plans ADD COLUMN metadata jsonb DEFAULT '{}'::jsonb;

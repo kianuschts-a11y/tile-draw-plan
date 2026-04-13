@@ -251,6 +251,7 @@ export type Database = {
           drawing_data: Json
           id: string
           matched_group_id: string | null
+          metadata: Json | null
           name: string
           updated_at: string
         }
@@ -261,6 +262,7 @@ export type Database = {
           drawing_data?: Json
           id?: string
           matched_group_id?: string | null
+          metadata?: Json | null
           name: string
           updated_at?: string
         }
@@ -271,6 +273,7 @@ export type Database = {
           drawing_data?: Json
           id?: string
           matched_group_id?: string | null
+          metadata?: Json | null
           name?: string
           updated_at?: string
         }
