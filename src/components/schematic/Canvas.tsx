@@ -783,6 +783,7 @@ export function Canvas({
       } else {
         selectionBeforeBoxRef.current = new Set();
         onSelectionChange(new Set());
+        onAnnotationLineSelectionChange?.(new Set());
       }
     }
   }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, handleArrowToggle]);
