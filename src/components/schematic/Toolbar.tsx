@@ -166,7 +166,7 @@ export function Toolbar({
         label="Bewegen"
         shortcut="H"
         isActive={activeTool === 'pan'}
-        onClick={() => onToolChange('pan')}
+        onClick={() => onToolChange(activeTool === 'pan' ? 'select' : 'pan')}
         disabled={isGroupMode}
       />
       {/* Connection Color Picker - directly above Connect */}
@@ -205,7 +205,7 @@ export function Toolbar({
         label="Verbinden"
         shortcut="C"
         isActive={activeTool === 'connect'}
-        onClick={() => onToolChange('connect')}
+        onClick={() => onToolChange(activeTool === 'connect' ? 'select' : 'connect')}
         disabled={isGroupMode}
       />
       <ToolButton
@@ -213,7 +213,7 @@ export function Toolbar({
         label="Verbindung lösen"
         shortcut="X"
         isActive={activeTool === 'disconnect'}
-        onClick={() => onToolChange('disconnect')}
+        onClick={() => onToolChange(activeTool === 'disconnect' ? 'select' : 'disconnect')}
         disabled={isGroupMode}
       />
       <ToolButton
@@ -221,7 +221,7 @@ export function Toolbar({
         label="Pfeil hinzufügen/wechseln"
         shortcut="A"
         isActive={activeTool === 'arrow'}
-        onClick={() => onToolChange('arrow')}
+        onClick={() => onToolChange(activeTool === 'arrow' ? 'select' : 'arrow')}
         disabled={isGroupMode}
       />
 
