@@ -2178,8 +2178,44 @@ export function SchematicEditor() {
       }
     }
 
+    // Restore annotation lines with offset
+    const newAnnotationLines: AnnotationLine[] = [];
+    if (plan.drawingData.annotationLines) {
+      for (const annLine of plan.drawingData.annotationLines) {
+        newAnnotationLines.push({
+          ...annLine,
+          id: generateId(),
+          path: annLine.path.map(p => ({
+            gridX: sheetOffsetX + (p.gridX - minX),
+            gridY: startY + (p.gridY - minY),
+          })),
+        });
+      }
+    }
+
+    // Restore annotation texts with offset
+    const newAnnotationTexts: AnnotationText[] = [];
+    if (plan.drawingData.annotationTexts) {
+      const offsetXPx = sheetOffsetX * canvasState.gridSize - minX * canvasState.gridSize;
+      const offsetYPx = startY * canvasState.gridSize - minY * canvasState.gridSize;
+      for (const annText of plan.drawingData.annotationTexts) {
+        newAnnotationTexts.push({
+          ...annText,
+          id: generateId(),
+          x: annText.x + offsetXPx,
+          y: annText.y + offsetYPx,
+        });
+      }
+    }
+
     setTiles(prev => [...prev, ...newTiles]);
     setConnections(prev => [...prev, ...newConnections]);
+    if (newAnnotationLines.length > 0) {
+      setAnnotationLines(prev => [...prev, ...newAnnotationLines]);
+    }
+    if (newAnnotationTexts.length > 0) {
+      setAnnotationTexts(prev => [...prev, ...newAnnotationTexts]);
+    }
     setSelectedTileIds(new Set(newTiles.map(t => t.id)));
     toast.success(`Vorlage "${plan.name}" auf Blatt ${targetSheetIndex + 1} eingefügt`);
   }, [tiles, canvasState.paperFormat, canvasState.orientation, canvasState.gridSize]);
