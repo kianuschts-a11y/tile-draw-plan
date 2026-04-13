@@ -397,20 +397,25 @@ export function SchematicEditor() {
       scheduleSave();
       return;
     }
-    if (selectedTileIds.size > 0) {
-      setConnections(prev => prev.filter(c => 
-        !selectedTileIds.has(c.fromTileId) && !selectedTileIds.has(c.toTileId)
-      ));
-      setTiles(prev => prev.filter(t => !selectedTileIds.has(t.id)));
-      // Also remove deleted tiles from excessTileIds
-      setExcessTileIds(prev => {
-        const next = new Set(prev);
-        selectedTileIds.forEach(id => next.delete(id));
-        return next;
-      });
-      setSelectedTileIds(new Set());
+    if (selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0) {
+      if (selectedTileIds.size > 0) {
+        setConnections(prev => prev.filter(c => 
+          !selectedTileIds.has(c.fromTileId) && !selectedTileIds.has(c.toTileId)
+        ));
+        setTiles(prev => prev.filter(t => !selectedTileIds.has(t.id)));
+        setExcessTileIds(prev => {
+          const next = new Set(prev);
+          selectedTileIds.forEach(id => next.delete(id));
+          return next;
+        });
+        setSelectedTileIds(new Set());
+      }
+      if (selectedAnnotationLineIds.size > 0) {
+        setAnnotationLines(prev => prev.filter(l => !selectedAnnotationLineIds.has(l.id)));
+        setSelectedAnnotationLineIds(new Set());
+      }
     }
-  }, [selectedTileIds, selectedAnnotationId, selectedAnnotationType]);
+  }, [selectedTileIds, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds]);
 
   // Rotate selected tiles 90 degrees clockwise
   // The component is rotated visually using SVG transform, shapes stay unchanged
