@@ -261,6 +261,7 @@ export function Canvas({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartPositions, setDragStartPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [dragStartMousePos, setDragStartMousePos] = useState({ x: 0, y: 0 });
+  const [lastDragDelta, setLastDragDelta] = useState({ dx: 0, dy: 0 });
   
   // Selection box state
   const [isSelectionBox, setIsSelectionBox] = useState(false);
