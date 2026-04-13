@@ -486,7 +486,7 @@ export function SchematicEditor() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, handleRotate, selectedTileIds.size, isGroupMode, selectedAnnotationId, selectedAnnotationType]);
+  }, [handleUndo, handleRedo, handleRotate, handleDelete, selectedTileIds.size, isGroupMode, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds.size]);
 
   const handleExport = useCallback(() => {
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
