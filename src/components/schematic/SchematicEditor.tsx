@@ -1329,9 +1329,20 @@ export function SchematicEditor() {
       arrowDirection: conn.arrowDirection
     }));
     
+    // Capture all annotation lines
+    const groupAnnotationLines: GroupAnnotationLineData[] = annotationLines
+      .filter(l => l.path.length >= 2)
+      .map(line => ({
+        path: line.path.map(p => ({ relativeX: p.gridX - minX, relativeY: p.gridY - minY })),
+        color: line.color,
+        strokeWidth: line.strokeWidth,
+        lineStyle: line.lineStyle,
+      }));
+
     const layoutData: GroupLayoutData = {
       tiles: tileData,
-      connections: connectionData
+      connections: connectionData,
+      annotationLines: groupAnnotationLines.length > 0 ? groupAnnotationLines : undefined,
     };
     
     await createGroup(name, componentIds, layoutData);
