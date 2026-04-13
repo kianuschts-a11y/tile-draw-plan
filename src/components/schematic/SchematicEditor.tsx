@@ -2018,7 +2018,7 @@ export function SchematicEditor() {
       projectCustomFields: mapToObj(projectCustomFields),
     };
     return { componentQuantities, drawingData, metadata };
-  }, [tiles, connections, annotationLines, annotationTexts, tileLabels, canvasState.paperFormat, canvasState.orientation, titleBlockData, projectDescriptions, projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields]);
+  }, [tiles, connections, annotationLines, annotationTexts, tileLabels, canvasState.paperFormat, canvasState.orientation, canvasState.gridSize, titleBlockData, projectDescriptions, projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields]);
 
   // Handle save project + export image from dialog
   const handleSaveProjectAndExportImage = useCallback(async (projectName: string) => {
