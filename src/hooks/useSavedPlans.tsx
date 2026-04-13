@@ -19,6 +19,7 @@ export interface SavedPlanMetadata {
   paperFormat?: PaperFormat;
   orientation?: Orientation;
   gridSize?: number;
+  sheetCount?: number;
   titleBlockData?: TitleBlockData;
   projectDescriptions?: Record<string, string[]>;
   projectKategorien?: Record<string, string>;
@@ -39,6 +40,7 @@ export interface SavedPlanData {
   paperFormat?: PaperFormat;
   orientation?: Orientation;
   gridSize?: number;
+  sheetCount?: number;
   titleBlockData?: TitleBlockData;
   projectDescriptions?: Record<string, string[]>;
   projectKategorien?: Record<string, string>;

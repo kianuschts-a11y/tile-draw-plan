@@ -787,14 +787,18 @@ export function Canvas({
       // If Shift is held, preserve the current selection for additive box-select
       if (e.shiftKey) {
         selectionBeforeBoxRef.current = new Set(selectedTileIds);
+        annotationLineSelectionBeforeBoxRef.current = new Set(selectedAnnotationLineIds);
+        annotationTextSelectionBeforeBoxRef.current = new Set(selectedAnnotationTextIds);
       } else {
         selectionBeforeBoxRef.current = new Set();
+        annotationLineSelectionBeforeBoxRef.current = new Set();
+        annotationTextSelectionBeforeBoxRef.current = new Set();
         onSelectionChange(new Set());
         onAnnotationLineSelectionChange?.(new Set());
         onAnnotationTextSelectionChange?.(new Set());
       }
     }
-  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, handleArrowToggle]);
+  }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, handleArrowToggle, selectedTileIds, selectedAnnotationLineIds, selectedAnnotationTextIds, onAnnotationLineSelectionChange, onAnnotationTextSelectionChange]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Annotation line path drawing - grid cell based like connection tool
@@ -957,7 +961,7 @@ export function Canvas({
       const minY = Math.min(selectionBoxStart.y, pos.y);
       const maxY = Math.max(selectionBoxStart.y, pos.y);
       
-      // Start with previously selected tiles if Shift was held
+      // Start with previously selected items if Shift was held
       const selectedIds = new Set<string>(selectionBeforeBoxRef.current);
       for (const tile of tiles) {
         const tileX = tile.gridX * tileSize;
@@ -972,24 +976,48 @@ export function Canvas({
       }
       onSelectionChange(selectedIds);
 
-      // Also select annotation lines that intersect the selection box
-      const selectedAnnLineIds = new Set<string>();
+      const selectedAnnLineIds = new Set<string>(annotationLineSelectionBeforeBoxRef.current);
       for (const annLine of annotationLines) {
-        const lineIntersects = annLine.path.some(p => {
-          const px = p.gridX * tileSize;
-          const py = p.gridY * tileSize;
+        let lineIntersects = annLine.path.some(p => {
+          const px = (p.gridX + 0.5) * tileSize;
+          const py = (p.gridY + 0.5) * tileSize;
           return px >= minX && px <= maxX && py >= minY && py <= maxY;
         });
+
+        if (!lineIntersects) {
+          for (let i = 0; i < annLine.path.length - 1; i++) {
+            const a = annLine.path[i];
+            const b = annLine.path[i + 1];
+            const x1 = (a.gridX + 0.5) * tileSize;
+            const y1 = (a.gridY + 0.5) * tileSize;
+            const x2 = (b.gridX + 0.5) * tileSize;
+            const y2 = (b.gridY + 0.5) * tileSize;
+
+            if (Math.min(x1, x2) <= maxX && Math.max(x1, x2) >= minX && Math.min(y1, y2) <= maxY && Math.max(y1, y2) >= minY) {
+              lineIntersects = true;
+              break;
+            }
+          }
+        }
+
         if (lineIntersects) {
           selectedAnnLineIds.add(annLine.id);
         }
       }
       onAnnotationLineSelectionChange?.(selectedAnnLineIds);
 
-      // Also select annotation texts that intersect the selection box
-      const selectedAnnTextIds = new Set<string>();
+      const selectedAnnTextIds = new Set<string>(annotationTextSelectionBeforeBoxRef.current);
       for (const annText of annotationTexts) {
-        if (annText.x >= minX && annText.x <= maxX && annText.y >= minY && annText.y <= maxY) {
+        const textLines = annText.text.split('\n');
+        const lineHeight = annText.fontSize * 1.2;
+        const textWidth = Math.max(...textLines.map(line => line.length), 1) * annText.fontSize * 0.6;
+        const textHeight = Math.max(textLines.length * lineHeight, annText.fontSize);
+        const textMinX = annText.x;
+        const textMaxX = annText.x + textWidth;
+        const textMinY = annText.y - annText.fontSize / 2;
+        const textMaxY = textMinY + textHeight;
+
+        if (textMinX < maxX && textMaxX > minX && textMinY < maxY && textMaxY > minY) {
           selectedAnnTextIds.add(annText.id);
         }
       }
