@@ -2309,6 +2309,18 @@ export function SchematicEditor() {
         }
       }
       
+      // Create annotation lines from layout data
+      if (group.layoutData.annotationLines) {
+        const newAnnotationLines: AnnotationLine[] = group.layoutData.annotationLines.map(annData => ({
+          id: generateNewId(),
+          path: annData.path.map(p => ({ gridX: p.relativeX, gridY: offsetY + p.relativeY })),
+          color: annData.color,
+          strokeWidth: annData.strokeWidth,
+          lineStyle: annData.lineStyle as AnnotationLine['lineStyle'],
+        }));
+        setAnnotationLines(prev => [...prev, ...newAnnotationLines]);
+      }
+
       setTiles(prev => [...prev, ...newTiles]);
       setConnections(prev => [...prev, ...newConnections]);
     }
