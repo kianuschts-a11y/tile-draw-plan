@@ -2008,6 +2008,7 @@ export function SchematicEditor() {
     const metadata: SavedPlanMetadata = {
       paperFormat: canvasState.paperFormat,
       orientation: canvasState.orientation,
+      gridSize: canvasState.gridSize,
       titleBlockData: titleBlockData.enabled ? titleBlockData : undefined,
       projectDescriptions: mapToObj(projectDescriptions),
       projectKategorien: mapToObj(projectKategorien),
@@ -2017,7 +2018,7 @@ export function SchematicEditor() {
       projectCustomFields: mapToObj(projectCustomFields),
     };
     return { componentQuantities, drawingData, metadata };
-  }, [tiles, connections, annotationLines, annotationTexts, tileLabels, canvasState.paperFormat, canvasState.orientation, titleBlockData, projectDescriptions, projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields]);
+  }, [tiles, connections, annotationLines, annotationTexts, tileLabels, canvasState.paperFormat, canvasState.orientation, canvasState.gridSize, titleBlockData, projectDescriptions, projectKategorien, projectMarken, projectModelle, projectPreise, projectCustomFields]);
 
   // Handle save project + export image from dialog
   const handleSaveProjectAndExportImage = useCallback(async (projectName: string) => {
@@ -2054,12 +2055,13 @@ export function SchematicEditor() {
     setSelectedAnnotationType(null);
     setExcessTileIds(new Set());
 
-    // Restore paper format and orientation
-    if (plan.paperFormat || plan.orientation) {
+    // Restore paper format, orientation, and grid size
+    if (plan.paperFormat || plan.orientation || plan.gridSize) {
       setCanvasState(prev => ({
         ...prev,
         ...(plan.paperFormat ? { paperFormat: plan.paperFormat } : {}),
         ...(plan.orientation ? { orientation: plan.orientation } : {}),
+        ...(plan.gridSize ? { gridSize: plan.gridSize } : {}),
       }));
     }
 
