@@ -962,6 +962,20 @@ export function Canvas({
         }
       }
       onSelectionChange(selectedIds);
+
+      // Also select annotation lines that intersect the selection box
+      const selectedAnnLineIds = new Set<string>();
+      for (const annLine of annotationLines) {
+        const lineIntersects = annLine.path.some(p => {
+          const px = p.gridX * tileSize;
+          const py = p.gridY * tileSize;
+          return px >= minX && px <= maxX && py >= minY && py <= maxY;
+        });
+        if (lineIntersects) {
+          selectedAnnLineIds.add(annLine.id);
+        }
+      }
+      onAnnotationLineSelectionChange?.(selectedAnnLineIds);
       return;
     }
 
