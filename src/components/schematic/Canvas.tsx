@@ -2301,7 +2301,7 @@ export function Canvas({
 
         {/* Annotationsebene - Textfelder */}
         {annotationTexts.map(text => {
-          const isSelected = selectedAnnotationId === text.id;
+          const isSelected = selectedAnnotationId === text.id || selectedAnnotationTextIds.has(text.id);
           const isEditing = editingAnnotationId === text.id;
           const lines = text.text.split('\n');
           const lineHeight = text.fontSize * 1.2;
