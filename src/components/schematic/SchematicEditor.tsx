@@ -485,7 +485,7 @@ export function SchematicEditor() {
           e.preventDefault();
           handleRotate();
         }
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedAnnotationId || selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0)) {
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedAnnotationId || selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0 || selectedAnnotationTextIds.size > 0)) {
         e.preventDefault();
         handleDelete();
       }
