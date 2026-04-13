@@ -2422,6 +2422,19 @@ export function SchematicEditor() {
             }
           }
           
+          // Create annotation lines
+          if (group.layoutData.annotationLines) {
+            for (const annData of group.layoutData.annotationLines) {
+              allNewAnnotationLines.push({
+                id: generateNewId(),
+                path: annData.path.map(p => ({ gridX: currentX + p.relativeX, gridY: maxExistingY + offsetY + p.relativeY })),
+                color: annData.color,
+                strokeWidth: annData.strokeWidth,
+                lineStyle: annData.lineStyle as AnnotationLine['lineStyle'],
+              });
+            }
+          }
+
           allNewTiles.push(...newTiles);
         }
         
