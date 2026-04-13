@@ -148,6 +148,7 @@ export function SchematicEditor() {
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [selectedAnnotationType, setSelectedAnnotationType] = useState<'line' | 'text' | null>(null);
   const [selectedAnnotationLineIds, setSelectedAnnotationLineIds] = useState<Set<string>>(new Set());
+  const [selectedAnnotationTextIds, setSelectedAnnotationTextIds] = useState<Set<string>>(new Set());
 
   // Clear annotation selection when tiles are selected
   useEffect(() => {
@@ -285,6 +286,7 @@ export function SchematicEditor() {
       setSelectedAnnotationId(null);
       setSelectedAnnotationType(null);
       setSelectedAnnotationLineIds(new Set());
+      setSelectedAnnotationTextIds(new Set());
       setHistoryVersion(v => v + 1);
       // Flag nach kurzer Zeit zurücksetzen
       setTimeout(() => {
@@ -314,6 +316,7 @@ export function SchematicEditor() {
       setSelectedAnnotationId(null);
       setSelectedAnnotationType(null);
       setSelectedAnnotationLineIds(new Set());
+      setSelectedAnnotationTextIds(new Set());
       setHistoryVersion(v => v + 1);
       // Flag nach kurzer Zeit zurücksetzen
       setTimeout(() => {
@@ -399,7 +402,7 @@ export function SchematicEditor() {
       scheduleSave();
       return;
     }
-    if (selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0) {
+    if (selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0 || selectedAnnotationTextIds.size > 0) {
       if (selectedTileIds.size > 0) {
         setConnections(prev => prev.filter(c => 
           !selectedTileIds.has(c.fromTileId) && !selectedTileIds.has(c.toTileId)
@@ -416,8 +419,12 @@ export function SchematicEditor() {
         setAnnotationLines(prev => prev.filter(l => !selectedAnnotationLineIds.has(l.id)));
         setSelectedAnnotationLineIds(new Set());
       }
+      if (selectedAnnotationTextIds.size > 0) {
+        setAnnotationTexts(prev => prev.filter(t => !selectedAnnotationTextIds.has(t.id)));
+        setSelectedAnnotationTextIds(new Set());
+      }
     }
-  }, [selectedTileIds, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds]);
+  }, [selectedTileIds, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds, selectedAnnotationTextIds]);
 
   // Rotate selected tiles 90 degrees clockwise
   // The component is rotated visually using SVG transform, shapes stay unchanged
@@ -478,7 +485,7 @@ export function SchematicEditor() {
           e.preventDefault();
           handleRotate();
         }
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedAnnotationId || selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0)) {
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedAnnotationId || selectedTileIds.size > 0 || selectedAnnotationLineIds.size > 0 || selectedAnnotationTextIds.size > 0)) {
         e.preventDefault();
         handleDelete();
       }
@@ -486,7 +493,7 @@ export function SchematicEditor() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, handleRotate, handleDelete, selectedTileIds.size, isGroupMode, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds.size]);
+  }, [handleUndo, handleRedo, handleRotate, handleDelete, selectedTileIds.size, isGroupMode, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds.size, selectedAnnotationTextIds.size]);
 
   const handleExport = useCallback(() => {
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
@@ -2764,6 +2771,7 @@ export function SchematicEditor() {
             annotationFontSize={annotationFontSize}
             selectedAnnotationId={selectedAnnotationId}
             selectedAnnotationLineIds={selectedAnnotationLineIds}
+            selectedAnnotationTextIds={selectedAnnotationTextIds}
             onAnnotationLineCreate={handleAnnotationLineCreate}
             onAnnotationTextCreate={handleAnnotationTextCreate}
             onAnnotationTextUpdate={handleAnnotationTextUpdate}
@@ -2771,6 +2779,7 @@ export function SchematicEditor() {
             onAnnotationLineMove={handleAnnotationLineMove}
             onAnnotationTextMove={handleAnnotationTextMove}
             onAnnotationLineSelectionChange={setSelectedAnnotationLineIds}
+            onAnnotationTextSelectionChange={setSelectedAnnotationTextIds}
             onTilesChange={setTiles}
             onSelectionChange={setSelectedTileIds}
             onCanvasStateChange={setCanvasState}
