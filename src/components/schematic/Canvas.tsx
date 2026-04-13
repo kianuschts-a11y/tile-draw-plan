@@ -197,12 +197,14 @@ interface CanvasProps {
   annotationColor?: string;
   annotationFontSize?: number;
   selectedAnnotationId?: string | null;
+  selectedAnnotationLineIds?: Set<string>;
   onAnnotationLineCreate?: (line: Omit<AnnotationLine, 'id'>) => void;
   onAnnotationTextCreate?: (text: Omit<AnnotationText, 'id'>) => void;
   onAnnotationTextUpdate?: (id: string, updates: { text?: string; color?: string; fontSize?: number }) => void;
   onAnnotationSelect?: (id: string | null, type?: 'line' | 'text') => void;
   onAnnotationLineMove?: (id: string, dx: number, dy: number) => void;
   onAnnotationTextMove?: (id: string, dx: number, dy: number) => void;
+  onAnnotationLineSelectionChange?: (ids: Set<string>) => void;
   onTilesChange: (tiles: PlacedTile[]) => void;
   onSelectionChange: (ids: Set<string>) => void;
   onCanvasStateChange: (state: CanvasState) => void;
@@ -236,12 +238,14 @@ export function Canvas({
   annotationColor = '#000000',
   annotationFontSize = 14,
   selectedAnnotationId = null,
+  selectedAnnotationLineIds = new Set<string>(),
   onAnnotationLineCreate,
   onAnnotationTextCreate,
   onAnnotationTextUpdate,
   onAnnotationSelect,
   onAnnotationLineMove,
   onAnnotationTextMove,
+  onAnnotationLineSelectionChange,
   onTilesChange,
   onSelectionChange,
   onCanvasStateChange,
@@ -257,6 +261,7 @@ export function Canvas({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartPositions, setDragStartPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [dragStartMousePos, setDragStartMousePos] = useState({ x: 0, y: 0 });
+  const [lastDragDelta, setLastDragDelta] = useState({ dx: 0, dy: 0 });
   
   // Selection box state
   const [isSelectionBox, setIsSelectionBox] = useState(false);
@@ -779,6 +784,7 @@ export function Canvas({
       } else {
         selectionBeforeBoxRef.current = new Set();
         onSelectionChange(new Set());
+        onAnnotationLineSelectionChange?.(new Set());
       }
     }
   }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, handleArrowToggle]);
@@ -958,6 +964,20 @@ export function Canvas({
         }
       }
       onSelectionChange(selectedIds);
+
+      // Also select annotation lines that intersect the selection box
+      const selectedAnnLineIds = new Set<string>();
+      for (const annLine of annotationLines) {
+        const lineIntersects = annLine.path.some(p => {
+          const px = p.gridX * tileSize;
+          const py = p.gridY * tileSize;
+          return px >= minX && px <= maxX && py >= minY && py <= maxY;
+        });
+        if (lineIntersects) {
+          selectedAnnLineIds.add(annLine.id);
+        }
+      }
+      onAnnotationLineSelectionChange?.(selectedAnnLineIds);
       return;
     }
 
@@ -1034,10 +1054,22 @@ export function Canvas({
             }
             return t;
           }));
+          
+          // Also move selected annotation lines by the delta change
+          if (selectedAnnotationLineIds.size > 0) {
+            const moveDx = dx - lastDragDelta.dx;
+            const moveDy = dy - lastDragDelta.dy;
+            if (moveDx !== 0 || moveDy !== 0) {
+              for (const annLineId of selectedAnnotationLineIds) {
+                onAnnotationLineMove?.(annLineId, moveDx, moveDy);
+              }
+            }
+          }
+          setLastDragDelta({ dx, dy });
         }
       }
     }
-  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions, isDrawingAnnotationLine, isDraggingAnnotation, selectedAnnotationId, annotationDragStart, annotationLines, onAnnotationLineMove, onAnnotationTextMove]);
+  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions, isDrawingAnnotationLine, isDraggingAnnotation, selectedAnnotationId, annotationDragStart, annotationLines, onAnnotationLineMove, onAnnotationTextMove, selectedAnnotationLineIds, lastDragDelta, onAnnotationLineSelectionChange]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     // Finish annotation line drawing - create from path
@@ -1457,12 +1489,15 @@ export function Canvas({
         }
       }
       setDragStartPositions(startPositions);
+      setLastDragDelta({ dx: 0, dy: 0 });
       setIsDragging(true);
     } else {
       onSelectionChange(new Set([tile.id]));
+      onAnnotationLineSelectionChange?.(new Set());
       const pos = getCanvasPosition(e);
       setDragStartMousePos(pos);
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
+      setLastDragDelta({ dx: 0, dy: 0 });
       setIsDragging(true);
     }
   }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, handleArrowToggle]);
@@ -2191,7 +2226,7 @@ export function Canvas({
 
         {/* Annotationsebene - Markierungslinien (path-based) */}
         {annotationLines.map(line => {
-          const isSelected = selectedAnnotationId === line.id;
+          const isSelected = selectedAnnotationId === line.id || selectedAnnotationLineIds.has(line.id);
           const unit = tileSize * 0.1;
           let dashArray: string | undefined;
           switch (line.lineStyle) {
