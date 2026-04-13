@@ -286,6 +286,7 @@ export function SchematicEditor() {
       setSelectedAnnotationId(null);
       setSelectedAnnotationType(null);
       setSelectedAnnotationLineIds(new Set());
+      setSelectedAnnotationTextIds(new Set());
       setHistoryVersion(v => v + 1);
       // Flag nach kurzer Zeit zurücksetzen
       setTimeout(() => {
@@ -315,6 +316,7 @@ export function SchematicEditor() {
       setSelectedAnnotationId(null);
       setSelectedAnnotationType(null);
       setSelectedAnnotationLineIds(new Set());
+      setSelectedAnnotationTextIds(new Set());
       setHistoryVersion(v => v + 1);
       // Flag nach kurzer Zeit zurücksetzen
       setTimeout(() => {
@@ -491,7 +493,7 @@ export function SchematicEditor() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, handleRotate, handleDelete, selectedTileIds.size, isGroupMode, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds.size]);
+  }, [handleUndo, handleRedo, handleRotate, handleDelete, selectedTileIds.size, isGroupMode, selectedAnnotationId, selectedAnnotationType, selectedAnnotationLineIds.size, selectedAnnotationTextIds.size]);
 
   const handleExport = useCallback(() => {
     const svgElement = document.querySelector('.schematic-canvas svg') as SVGSVGElement;
