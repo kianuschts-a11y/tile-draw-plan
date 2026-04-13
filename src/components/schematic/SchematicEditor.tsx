@@ -1249,9 +1249,26 @@ export function SchematicEditor() {
       arrowDirection: conn.arrowDirection
     }));
     
+    // Capture annotation lines within the bounding box
+    const groupAnnotationLines: GroupAnnotationLineData[] = [];
+    for (const line of annotationLines) {
+      const allInBounds = line.path.every(p => 
+        p.gridX >= minX && p.gridX <= maxBoundX + 1 && p.gridY >= minY && p.gridY <= maxBoundY + 1
+      );
+      if (allInBounds && line.path.length >= 2) {
+        groupAnnotationLines.push({
+          path: line.path.map(p => ({ relativeX: p.gridX - minX, relativeY: p.gridY - minY })),
+          color: line.color,
+          strokeWidth: line.strokeWidth,
+          lineStyle: line.lineStyle,
+        });
+      }
+    }
+
     const layoutData: GroupLayoutData = {
       tiles: tileData,
-      connections: connectionData
+      connections: connectionData,
+      annotationLines: groupAnnotationLines.length > 0 ? groupAnnotationLines : undefined,
     };
     
     // Store pending data and open category dialog with name pre-filled
