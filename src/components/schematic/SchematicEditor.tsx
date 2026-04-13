@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import lavaLogo from "@/assets/lava-logo.svg";
 import { PDFDocument, PDFName, PDFArray, PDFString } from "pdf-lib";
-import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, GroupAnnotationLineData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { AnnotationLine, AnnotationText, LineStyle } from "@/types/annotations";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile, AutoConnectionLine } from "./Canvas";
@@ -744,8 +744,25 @@ export function SchematicEditor() {
       }
     }
     
+    // Create annotation lines from layout data
+    const newAnnotationLines: AnnotationLine[] = [];
+    if (group.layoutData.annotationLines) {
+      for (const annData of group.layoutData.annotationLines) {
+        newAnnotationLines.push({
+          id: generateId(),
+          path: annData.path.map(p => ({ gridX: gridX + p.relativeX, gridY: gridY + p.relativeY })),
+          color: annData.color,
+          strokeWidth: annData.strokeWidth,
+          lineStyle: annData.lineStyle as AnnotationLine['lineStyle'],
+        });
+      }
+    }
+
     setTiles(prev => [...prev, ...newTiles]);
     setConnections(prev => [...prev, ...newConnections]);
+    if (newAnnotationLines.length > 0) {
+      setAnnotationLines(prev => [...prev, ...newAnnotationLines]);
+    }
     setSelectedTileIds(new Set(newTileIds));
   }, [groups, components, savedPlans]);
 
@@ -1249,9 +1266,26 @@ export function SchematicEditor() {
       arrowDirection: conn.arrowDirection
     }));
     
+    // Capture annotation lines within the bounding box
+    const groupAnnotationLines: GroupAnnotationLineData[] = [];
+    for (const line of annotationLines) {
+      const allInBounds = line.path.every(p => 
+        p.gridX >= minX && p.gridX <= maxBoundX + 1 && p.gridY >= minY && p.gridY <= maxBoundY + 1
+      );
+      if (allInBounds && line.path.length >= 2) {
+        groupAnnotationLines.push({
+          path: line.path.map(p => ({ relativeX: p.gridX - minX, relativeY: p.gridY - minY })),
+          color: line.color,
+          strokeWidth: line.strokeWidth,
+          lineStyle: line.lineStyle,
+        });
+      }
+    }
+
     const layoutData: GroupLayoutData = {
       tiles: tileData,
-      connections: connectionData
+      connections: connectionData,
+      annotationLines: groupAnnotationLines.length > 0 ? groupAnnotationLines : undefined,
     };
     
     // Store pending data and open category dialog with name pre-filled
@@ -1259,7 +1293,7 @@ export function SchematicEditor() {
     setPendingGroupName(name);
     setIsGroupCategoryDialogOpen(true);
     setSelectedTileIds(new Set());
-  }, [selectedTileIds, tiles, connections]);
+  }, [selectedTileIds, tiles, connections, annotationLines]);
 
   // State for pending group name from toolbar
   const [pendingGroupName, setPendingGroupName] = useState("");
@@ -1312,9 +1346,20 @@ export function SchematicEditor() {
       arrowDirection: conn.arrowDirection
     }));
     
+    // Capture all annotation lines
+    const groupAnnotationLines: GroupAnnotationLineData[] = annotationLines
+      .filter(l => l.path.length >= 2)
+      .map(line => ({
+        path: line.path.map(p => ({ relativeX: p.gridX - minX, relativeY: p.gridY - minY })),
+        color: line.color,
+        strokeWidth: line.strokeWidth,
+        lineStyle: line.lineStyle,
+      }));
+
     const layoutData: GroupLayoutData = {
       tiles: tileData,
-      connections: connectionData
+      connections: connectionData,
+      annotationLines: groupAnnotationLines.length > 0 ? groupAnnotationLines : undefined,
     };
     
     await createGroup(name, componentIds, layoutData);
@@ -2264,6 +2309,18 @@ export function SchematicEditor() {
         }
       }
       
+      // Create annotation lines from layout data
+      if (group.layoutData.annotationLines) {
+        const newAnnotationLines: AnnotationLine[] = group.layoutData.annotationLines.map(annData => ({
+          id: generateNewId(),
+          path: annData.path.map(p => ({ gridX: p.relativeX, gridY: offsetY + p.relativeY })),
+          color: annData.color,
+          strokeWidth: annData.strokeWidth,
+          lineStyle: annData.lineStyle as AnnotationLine['lineStyle'],
+        }));
+        setAnnotationLines(prev => [...prev, ...newAnnotationLines]);
+      }
+
       setTiles(prev => [...prev, ...newTiles]);
       setConnections(prev => [...prev, ...newConnections]);
     }
@@ -2319,6 +2376,7 @@ export function SchematicEditor() {
     let currentX = startX;
     const allNewTiles: PlacedTile[] = [];
     const allNewConnections: CellConnection[] = [];
+    const allNewAnnotationLines: AnnotationLine[] = [];
     
     // For positioning: 2 groups = left/right, 3+ = grid pattern
     if (groupBounds.length === 2) {
@@ -2364,6 +2422,19 @@ export function SchematicEditor() {
             }
           }
           
+          // Create annotation lines
+          if (group.layoutData.annotationLines) {
+            for (const annData of group.layoutData.annotationLines) {
+              allNewAnnotationLines.push({
+                id: generateNewId(),
+                path: annData.path.map(p => ({ gridX: currentX + p.relativeX, gridY: maxExistingY + offsetY + p.relativeY })),
+                color: annData.color,
+                strokeWidth: annData.strokeWidth,
+                lineStyle: annData.lineStyle as AnnotationLine['lineStyle'],
+              });
+            }
+          }
+
           allNewTiles.push(...newTiles);
         }
         
@@ -2419,6 +2490,19 @@ export function SchematicEditor() {
             }
           }
           
+          // Create annotation lines
+          if (group.layoutData.annotationLines) {
+            for (const annData of group.layoutData.annotationLines) {
+              allNewAnnotationLines.push({
+                id: generateNewId(),
+                path: annData.path.map(p => ({ gridX: posX + p.relativeX, gridY: posY + p.relativeY + i * rowHeight })),
+                color: annData.color,
+                strokeWidth: annData.strokeWidth,
+                lineStyle: annData.lineStyle as AnnotationLine['lineStyle'],
+              });
+            }
+          }
+
           allNewTiles.push(...newTiles);
         }
         
@@ -2435,6 +2519,9 @@ export function SchematicEditor() {
     if (allNewTiles.length > 0) {
       setTiles(prev => [...prev, ...allNewTiles]);
       setConnections(prev => [...prev, ...allNewConnections]);
+      if (allNewAnnotationLines.length > 0) {
+        setAnnotationLines(prev => [...prev, ...allNewAnnotationLines]);
+      }
     }
   }, [tiles, components, generateNewId]);
 
