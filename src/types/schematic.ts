@@ -156,10 +156,19 @@ export interface GroupConnectionData {
   arrowDirection?: 'none' | 'forward' | 'backward';
 }
 
+// Annotation line data for groups - stores relative grid positions
+export interface GroupAnnotationLineData {
+  path: { relativeX: number; relativeY: number }[];
+  color: string;
+  strokeWidth: number;
+  lineStyle: string; // 'solid' | 'dashed' | 'dotted' | 'dash-dot'
+}
+
 // Layout data stored in groups
 export interface GroupLayoutData {
   tiles: GroupTileData[];
   connections: GroupConnectionData[];
+  annotationLines?: GroupAnnotationLineData[];
 }
 
 // Component Group - groups multiple components together with layout
