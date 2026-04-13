@@ -1293,7 +1293,7 @@ export function SchematicEditor() {
     setPendingGroupName(name);
     setIsGroupCategoryDialogOpen(true);
     setSelectedTileIds(new Set());
-  }, [selectedTileIds, tiles, connections]);
+  }, [selectedTileIds, tiles, connections, annotationLines]);
 
   // State for pending group name from toolbar
   const [pendingGroupName, setPendingGroupName] = useState("");
