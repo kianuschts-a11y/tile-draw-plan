@@ -2519,6 +2519,9 @@ export function SchematicEditor() {
     if (allNewTiles.length > 0) {
       setTiles(prev => [...prev, ...allNewTiles]);
       setConnections(prev => [...prev, ...allNewConnections]);
+      if (allNewAnnotationLines.length > 0) {
+        setAnnotationLines(prev => [...prev, ...allNewAnnotationLines]);
+      }
     }
   }, [tiles, components, generateNewId]);
 
