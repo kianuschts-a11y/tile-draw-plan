@@ -789,6 +789,7 @@ export function Canvas({
         selectionBeforeBoxRef.current = new Set();
         onSelectionChange(new Set());
         onAnnotationLineSelectionChange?.(new Set());
+        onAnnotationTextSelectionChange?.(new Set());
       }
     }
   }, [activeTool, canvasState.panX, canvasState.panY, getCanvasPosition, getGridFromCanvas, getTileAndCellAtPosition, tileSize, onSelectionChange, handleArrowToggle]);
@@ -982,6 +983,15 @@ export function Canvas({
         }
       }
       onAnnotationLineSelectionChange?.(selectedAnnLineIds);
+
+      // Also select annotation texts that intersect the selection box
+      const selectedAnnTextIds = new Set<string>();
+      for (const annText of annotationTexts) {
+        if (annText.x >= minX && annText.x <= maxX && annText.y >= minY && annText.y <= maxY) {
+          selectedAnnTextIds.add(annText.id);
+        }
+      }
+      onAnnotationTextSelectionChange?.(selectedAnnTextIds);
       return;
     }
 
@@ -1060,12 +1070,20 @@ export function Canvas({
           }));
           
           // Also move selected annotation lines by the delta change
-          if (selectedAnnotationLineIds.size > 0) {
-            const moveDx = dx - lastDragDelta.dx;
-            const moveDy = dy - lastDragDelta.dy;
-            if (moveDx !== 0 || moveDy !== 0) {
+          const moveDx = dx - lastDragDelta.dx;
+          const moveDy = dy - lastDragDelta.dy;
+          if (moveDx !== 0 || moveDy !== 0) {
+            if (selectedAnnotationLineIds.size > 0) {
               for (const annLineId of selectedAnnotationLineIds) {
                 onAnnotationLineMove?.(annLineId, moveDx, moveDy);
+              }
+            }
+            // Also move selected annotation texts (pixel-based: convert grid delta to pixels)
+            if (selectedAnnotationTextIds.size > 0) {
+              const pxDx = moveDx * tileSize;
+              const pxDy = moveDy * tileSize;
+              for (const annTextId of selectedAnnotationTextIds) {
+                onAnnotationTextMove?.(annTextId, pxDx, pxDy);
               }
             }
           }
@@ -1073,7 +1091,7 @@ export function Canvas({
         }
       }
     }
-  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions, isDrawingAnnotationLine, isDraggingAnnotation, selectedAnnotationId, annotationDragStart, annotationLines, onAnnotationLineMove, onAnnotationTextMove, selectedAnnotationLineIds, lastDragDelta, onAnnotationLineSelectionChange]);
+  }, [isPanning, isDragging, isSelectionBox, isConnecting, selectedTileIds, canvasState, panStart, getCanvasPosition, getGridFromCanvas, tiles, onCanvasStateChange, onTilesChange, onSelectionChange, activeTool, selectionBoxStart, tileSize, gridCols, gridRows, dragStartMousePos, dragStartPositions, isDrawingAnnotationLine, isDraggingAnnotation, selectedAnnotationId, annotationDragStart, annotationLines, onAnnotationLineMove, onAnnotationTextMove, selectedAnnotationLineIds, selectedAnnotationTextIds, lastDragDelta, onAnnotationLineSelectionChange, onAnnotationTextSelectionChange]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     // Finish annotation line drawing - create from path
@@ -1498,6 +1516,7 @@ export function Canvas({
     } else {
       onSelectionChange(new Set([tile.id]));
       onAnnotationLineSelectionChange?.(new Set());
+      onAnnotationTextSelectionChange?.(new Set());
       const pos = getCanvasPosition(e);
       setDragStartMousePos(pos);
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
