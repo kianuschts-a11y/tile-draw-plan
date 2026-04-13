@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import lavaLogo from "@/assets/lava-logo.svg";
 import { PDFDocument, PDFName, PDFArray, PDFString } from "pdf-lib";
-import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
+import { Shape, CanvasState, Component, PaperFormat, Orientation, TileSize, TILE_SIZES, CellConnection, ComponentGroup, ComponentQuantity, GroupMatch, GroupLayoutData, GroupTileData, GroupConnectionData, GroupAnnotationLineData, PAPER_SIZES, MM_TO_PX, TitleBlockData } from "@/types/schematic";
 import { AnnotationLine, AnnotationText, LineStyle } from "@/types/annotations";
 import { Toolbar, MainToolType } from "./Toolbar";
 import { Canvas, PlacedTile, AutoConnectionLine } from "./Canvas";
