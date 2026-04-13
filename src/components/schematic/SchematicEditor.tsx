@@ -2055,12 +2055,13 @@ export function SchematicEditor() {
     setSelectedAnnotationType(null);
     setExcessTileIds(new Set());
 
-    // Restore paper format and orientation
-    if (plan.paperFormat || plan.orientation) {
+    // Restore paper format, orientation, and grid size
+    if (plan.paperFormat || plan.orientation || plan.gridSize) {
       setCanvasState(prev => ({
         ...prev,
         ...(plan.paperFormat ? { paperFormat: plan.paperFormat } : {}),
         ...(plan.orientation ? { orientation: plan.orientation } : {}),
+        ...(plan.gridSize ? { gridSize: plan.gridSize } : {}),
       }));
     }
 
