@@ -1489,12 +1489,15 @@ export function Canvas({
         }
       }
       setDragStartPositions(startPositions);
+      setLastDragDelta({ dx: 0, dy: 0 });
       setIsDragging(true);
     } else {
       onSelectionChange(new Set([tile.id]));
+      onAnnotationLineSelectionChange?.(new Set());
       const pos = getCanvasPosition(e);
       setDragStartMousePos(pos);
       setDragStartPositions(new Map([[tile.id, { x: tile.gridX, y: tile.gridY }]]));
+      setLastDragDelta({ dx: 0, dy: 0 });
       setIsDragging(true);
     }
   }, [activeTool, getCanvasPosition, getGridFromCanvas, onSelectionChange, selectedTileIds, tiles, tileSize, isGroupMode, findConnectionAtPosition, handleArrowToggle]);
